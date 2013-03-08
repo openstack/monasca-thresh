@@ -1,0 +1,14 @@
+*.swp
+*.iml
+.cache
+.classpath
+.idea
+.project
+.target/
+.settings/
+target/
+test-output/
+logs/
+dev-config.yml
+prod-config.yml
+test-config.yml
