@@ -5,78 +5,53 @@ import java.util.Map;
 import javax.annotation.Nullable;
 
 import com.hpcloud.maas.common.model.AbstractEntity;
+import com.hpcloud.maas.common.model.AggregateFunction;
+import com.hpcloud.maas.common.model.AlarmOperator;
+import com.hpcloud.maas.common.model.AlarmState;
 
 public class Alarm extends AbstractEntity {
+  private String compositeId;
+  private String id;
   private String name;
   private String namespace;
   private String metricType;
   private String metricSubject;
   private Map<String, String> dimensions;
-  private String operator;
-  private long threshold;
+  private int periodSeconds;
+  private int periods;
+  private AggregateFunction function;
+  private AlarmOperator operator;
+  private double threshold;
+  private AlarmState state;
 
   public Alarm() {
   }
 
-  public Alarm(String id, String name, String namespace, String metricType,
-      @Nullable String metricSubject, Map<String, String> dimensions, String operator,
-      long threshold) {
+  public Alarm(String compositeId, String id, String name, String namespace, String metricType,
+      @Nullable String metricSubject, Map<String, String> dimensions, int periodSeconds,
+      int periods, AggregateFunction function, AlarmOperator operator, long threshold,
+      AlarmState state) {
+    this.compositeId = compositeId;
     this.id = id;
     this.name = name;
     this.namespace = namespace;
     this.metricType = metricType;
     this.metricSubject = metricSubject;
     this.dimensions = dimensions;
+    this.periodSeconds = periodSeconds;
+    this.periods = periods;
+    this.function = function;
     this.operator = operator;
     this.threshold = threshold;
-  }
-
-  @Override
-  public boolean equals(Object obj) {
-    if (this == obj)
-      return true;
-    if (!super.equals(obj))
-      return false;
-    if (getClass() != obj.getClass())
-      return false;
-    Alarm other = (Alarm) obj;
-    if (dimensions == null) {
-      if (other.dimensions != null)
-        return false;
-    } else if (!dimensions.equals(other.dimensions))
-      return false;
-    if (metricSubject == null) {
-      if (other.metricSubject != null)
-        return false;
-    } else if (!metricSubject.equals(other.metricSubject))
-      return false;
-    if (metricType == null) {
-      if (other.metricType != null)
-        return false;
-    } else if (!metricType.equals(other.metricType))
-      return false;
-    if (name == null) {
-      if (other.name != null)
-        return false;
-    } else if (!name.equals(other.name))
-      return false;
-    if (namespace == null) {
-      if (other.namespace != null)
-        return false;
-    } else if (!namespace.equals(other.namespace))
-      return false;
-    if (operator == null) {
-      if (other.operator != null)
-        return false;
-    } else if (!operator.equals(other.operator))
-      return false;
-    if (threshold != other.threshold)
-      return false;
-    return true;
+    this.state = state;
   }
 
   public Map<String, String> getDimensions() {
     return dimensions;
+  }
+
+  public AggregateFunction getFunction() {
+    return function;
   }
 
   public String getMetricSubject() {
@@ -95,34 +70,36 @@ public class Alarm extends AbstractEntity {
     return namespace;
   }
 
-  public String getOperator() {
+  public AlarmOperator getOperator() {
     return operator;
   }
 
-  public long getThreshold() {
+  public int getPeriods() {
+    return periods;
+  }
+
+  public int getPeriodSeconds() {
+    return periodSeconds;
+  }
+
+  public AlarmState getState() {
+    return state;
+  }
+
+  public double getThreshold() {
     return threshold;
   }
 
-  @Override
-  public int hashCode() {
-    final int prime = 31;
-    int result = super.hashCode();
-    result = prime * result + ((dimensions == null) ? 0 : dimensions.hashCode());
-    result = prime * result + ((metricSubject == null) ? 0 : metricSubject.hashCode());
-    result = prime * result + ((metricType == null) ? 0 : metricType.hashCode());
-    result = prime * result + ((name == null) ? 0 : name.hashCode());
-    result = prime * result + ((namespace == null) ? 0 : namespace.hashCode());
-    result = prime * result + ((operator == null) ? 0 : operator.hashCode());
-    result = prime * result + (int) (threshold ^ (threshold >>> 32));
-    return result;
+  public boolean isThresholdExceededBy(double value) {
+    return operator.evaluate(this.threshold, value);
   }
 
   public void setDimensions(Map<String, String> dimensions) {
     this.dimensions = dimensions;
   }
 
-  public void setId(String id) {
-    this.id = id;
+  public void setFunction(AggregateFunction function) {
+    this.function = function;
   }
 
   public void setMetricSubject(String metricSubject) {
@@ -141,11 +118,43 @@ public class Alarm extends AbstractEntity {
     this.namespace = namespace;
   }
 
-  public void setOperator(String operator) {
+  public void setOperator(AlarmOperator operator) {
     this.operator = operator;
+  }
+
+  public void setPeriods(int periods) {
+    this.periods = periods;
+  }
+
+  public void setPeriodSeconds(int periodSeconds) {
+    this.periodSeconds = periodSeconds;
+  }
+
+  public void setState(AlarmState state) {
+    this.state = state;
+  }
+
+  public void setThreshold(double threshold) {
+    this.threshold = threshold;
   }
 
   public void setThreshold(long threshold) {
     this.threshold = threshold;
+  }
+
+  public String getCompositeId() {
+    return compositeId;
+  }
+
+  public void setCompositeId(String compositeId) {
+    this.compositeId = compositeId;
+  }
+
+  public String getId() {
+    return id;
+  }
+
+  public void setId(String id) {
+    this.id = id;
   }
 }

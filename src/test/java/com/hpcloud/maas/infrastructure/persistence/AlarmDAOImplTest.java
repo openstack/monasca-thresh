@@ -16,6 +16,9 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.google.common.io.Resources;
+import com.hpcloud.maas.common.model.AggregateFunction;
+import com.hpcloud.maas.common.model.AlarmOperator;
+import com.hpcloud.maas.common.model.AlarmState;
 import com.hpcloud.maas.domain.model.Alarm;
 import com.hpcloud.maas.domain.service.AlarmDAO;
 
@@ -33,8 +36,7 @@ public class AlarmDAOImplTest {
   protected void setupClass() throws Exception {
     db = new DBI("jdbc:h2:mem:test;MODE=MySQL");
     handle = db.open();
-    handle.execute(Resources.toString(getClass().getResource("alarm.sql"),
-        Charset.defaultCharset()));
+    handle.execute(Resources.toString(getClass().getResource("alarm.sql"), Charset.defaultCharset()));
     repo = new AlarmDAOImpl(db);
 
     // Fixtures
@@ -63,7 +65,8 @@ public class AlarmDAOImplTest {
   public void shouldFind() {
     List<Alarm> alarms = repo.find();
 
-    Alarm alarm = new Alarm("123", "90% CPU", "compute", "CPU", "3", dimensions, "GTE", 90l);
+    Alarm alarm = new Alarm("111", "123", "90% CPU", "compute", "CPU", "3", dimensions, 60, 3,
+        AggregateFunction.AVERAGE, AlarmOperator.GT, 90l, AlarmState.UNDETERMINED);
     assertEquals(alarms, Arrays.asList(alarm));
   }
 }

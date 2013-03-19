@@ -16,7 +16,8 @@
     <!-- Versioning -->
     <versionNumber>1.0.0</versionNumber>
     <computedVersion>${versionNumber}-SNAPSHOT</computedVersion>
-    <ps.common.version>1.0.0.212</ps.common.version>
+    <ps.common.version>1.0.0.216</ps.common.version>
+    <maas.commons.version>1.0.0-SNAPSHOT</maas.commons.version>
     <dropwizard.version>0.6.1</dropwizard.version>
     <skipITs>true</skipITs>
 
@@ -26,8 +27,8 @@
   </properties>
 
   <scm>
-    <connection>scm:git:git@git.paas.hpcloud.net:maas-thresh</connection>
-    <developerConnection>scm:git:git@git.paas.hpcloud.net:maas-thresh</developerConnection>
+    <connection>scm:git:git@git.mon.hpcloud.net:maas-thresh</connection>
+    <developerConnection>scm:git:git@git.mon.hpcloud.net:maas-thresh</developerConnection>
   </scm>
 
   <repositories>
@@ -44,21 +45,11 @@
       <name>nexus snapshots</name>
       <url>http://nexus.paas.hpcloud.net:8081/nexus/content/repositories/snapshots</url>
     </repository>
-  </repositories>
-
-  <distributionManagement>
     <repository>
-      <id>nexus</id>
-      <name>Internal Releases</name>
-      <url>http://nexus.paas.hpcloud.net:8081/nexus/content/repositories/releases</url>
+      <id>clojars.org</id>
+      <url>http://clojars.org/repo</url>
     </repository>
-    <snapshotRepository>
-      <id>nexus</id>
-      <name>Snapshots</name>
-      <uniqueVersion>false</uniqueVersion>
-      <url>http://nexus.paas.hpcloud.net:8081/nexus/content/repositories/snapshots</url>
-    </snapshotRepository>
-  </distributionManagement>
+  </repositories>
 
   <profiles>
     <profile>
@@ -76,19 +67,9 @@
 
   <dependencies>
     <dependency>
-      <groupId>com.yammer.dropwizard</groupId>
-      <artifactId>dropwizard-core</artifactId>
-      <version>${dropwizard.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>com.yammer.dropwizard</groupId>
-      <artifactId>dropwizard-db</artifactId>
-      <version>${dropwizard.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>com.yammer.dropwizard</groupId>
-      <artifactId>dropwizard-jdbi</artifactId>
-      <version>${dropwizard.version}</version>
+      <groupId>com.hpcloud</groupId>
+      <artifactId>maas-commons</artifactId>
+      <version>${maas.commons.version}</version>
     </dependency>
     <dependency>
       <groupId>com.hpcloud</groupId>
@@ -104,6 +85,13 @@
       <groupId>com.hpcloud</groupId>
       <artifactId>ps-messaging</artifactId>
       <version>${ps.common.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>storm</groupId>
+      <artifactId>storm</artifactId>
+      <version>0.8.2</version>
+      <!-- Exclude from assembled jar -->
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>com.yammer.metrics</groupId>
@@ -125,18 +113,17 @@
       <artifactId>mysql-connector-java</artifactId>
       <version>5.1.18</version>
     </dependency>
+    <dependency>
+      <groupId>joda-time</groupId>
+      <artifactId>joda-time</artifactId>
+      <version>2.1</version>
+    </dependency>
 
     <!-- Test dependencies -->
     <dependency>
       <groupId>com.hpcloud</groupId>
       <artifactId>ps-testing</artifactId>
       <version>${ps.common.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.yammer.dropwizard</groupId>
-      <artifactId>dropwizard-testing</artifactId>
-      <version>${dropwizard.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -186,41 +173,18 @@
         </executions>
       </plugin>
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-shade-plugin</artifactId>
+        <artifactId>maven-assembly-plugin</artifactId>
         <configuration>
-          <finalName>maas-thresh</finalName>
-          <createDependencyReducedPom>true</createDependencyReducedPom>
-          <filters>
-            <filter>
-              <artifact>*:*</artifact>
-              <excludes>
-                <exclude>META-INF/*.SF</exclude>
-                <exclude>META-INF/*.DSA</exclude>
-                <exclude>META-INF/*.RSA</exclude>
-              </excludes>
-            </filter>
-          </filters>
+          <descriptorRefs>
+            <descriptorRef>jar-with-dependencies</descriptorRef>
+            <finalName>thresholding</finalName>
+          </descriptorRefs>
+          <archive>
+            <manifest>
+              <mainClass>com.hpcloud.maas.ThresholdingEngine</mainClass>
+            </manifest>
+          </archive>
         </configuration>
-        <executions>
-          <execution>
-            <phase>package</phase>
-            <goals>
-              <goal>shade</goal>
-            </goals>
-            <configuration>
-              <transformers>
-                <transformer
-                  implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
-                <transformer
-                  implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                  <mainClass>com.hpcloud.maas.ThresholdingService</mainClass>
-                </transformer>
-              </transformers>
-              <shadedArtifactAttached>true</shadedArtifactAttached>
-            </configuration>
-          </execution>
-        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
