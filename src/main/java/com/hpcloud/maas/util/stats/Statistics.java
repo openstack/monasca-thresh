@@ -1,6 +1,6 @@
-package com.hpcloud.maas.domain.model;
+package com.hpcloud.maas.util.stats;
 
-import com.hpcloud.maas.common.model.AggregateFunction;
+import com.hpcloud.maas.common.model.alarm.AggregateFunction;
 
 /**
  * Statistic implementations.
@@ -9,9 +9,28 @@ import com.hpcloud.maas.common.model.AggregateFunction;
  */
 public final class Statistics {
   public static abstract class AbstractStatistic implements Statistic {
+    protected boolean initialized;
+    protected double value;
+
+    @Override
+    public void reset() {
+      initialized = false;
+      value = 0;
+    }
+
     @Override
     public String toString() {
       return Double.valueOf(value()).toString();
+    }
+
+    @Override
+    public double value() {
+      return value;
+    }
+
+    @Override
+    public boolean isInitialized() {
+      return initialized;
     }
   }
 
@@ -26,77 +45,45 @@ public final class Statistics {
 
     @Override
     public double value() {
-      return sum / count;
+      return count == 0 ? 0 : value / count;
     }
   }
 
   public static class Count extends AbstractStatistic {
-    protected double count;
-
     @Override
     public void addValue(double value) {
-      this.count++;
-    }
-
-    @Override
-    public double value() {
-      return count;
+      initialized = true;
+      this.value++;
     }
   }
 
   public static class Max extends AbstractStatistic {
-    protected double max;
-    boolean initialized;
-
     @Override
     public void addValue(double value) {
       if (!initialized) {
-        max = value;
         initialized = true;
-      }
-
-      if (value > max)
-        max = value;
-    }
-
-    @Override
-    public double value() {
-      return max;
+        this.value = value;
+      } else if (value > this.value)
+        this.value = value;
     }
   }
 
   public static class Min extends AbstractStatistic {
-    protected double min;
-    boolean initialized;
-
     @Override
     public void addValue(double value) {
       if (!initialized) {
-        min = value;
         initialized = true;
-      }
-
-      if (value < min)
-        min = value;
-    }
-
-    @Override
-    public double value() {
-      return min;
+        this.value = value;
+      } else if (value < this.value)
+        this.value = value;
     }
   }
 
   public static class Sum extends AbstractStatistic {
-    protected double sum;
-
     @Override
     public void addValue(double value) {
-      this.sum += value;
-    }
-
-    @Override
-    public double value() {
-      return sum;
+      initialized = true;
+      this.value += value;
     }
   }
 

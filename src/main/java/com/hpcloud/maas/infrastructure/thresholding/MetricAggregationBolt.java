@@ -16,21 +16,32 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
-import com.hpcloud.maas.common.model.AlarmState;
-import com.hpcloud.maas.common.model.Metric;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import com.hpcloud.maas.common.event.AlarmCreatedEvent;
+import com.hpcloud.maas.common.event.AlarmCreatedEvent.NewAlarm;
+import com.hpcloud.maas.common.event.AlarmDeletedEvent;
+import com.hpcloud.maas.common.model.metric.Metric;
+import com.hpcloud.maas.common.model.metric.MetricDefinition;
 import com.hpcloud.maas.domain.model.Alarm;
-import com.hpcloud.maas.domain.model.SlidingWindowStats;
-import com.hpcloud.maas.domain.model.Statistic;
-import com.hpcloud.maas.domain.model.Statistics;
+import com.hpcloud.maas.domain.model.AlarmData;
+import com.hpcloud.maas.domain.model.MetricData;
+import com.hpcloud.maas.domain.service.AlarmDAO;
+import com.hpcloud.maas.infrastructure.storm.Streams;
 import com.hpcloud.maas.infrastructure.storm.Tuples;
+import com.hpcloud.maas.util.time.Times;
+import com.hpcloud.util.Injector;
 
 /**
  * Aggregates metrics for individual alarms. Receives metric/alarm tuples and tick tuples, and
- * outputs alarm information whenever an alarm's state changes.
+ * outputs alarm information whenever an alarm's state changes. Concerned with alarms that relate to
+ * a specific metric.
  * 
  * <ul>
- * <li>Input - "metric" : Metric, "alarm" : Alarm
- * <li>Output - "compositeAlarmId" : String, "alarmId" : String, "alarmState" : String
+ * <li>Input: MetricDefinition metricDefinition, Metric metric
+ * <li>Input alarm-events: MetricDefinition metricDefinition, String compositeAlarmId, String
+ * eventType, [NewAlarm alarm]
+ * <li>Output: String compositeAlarmId, Alarm alarm
  * </ul>
  * 
  * @author Jonathan Halterman
@@ -39,9 +50,15 @@ public class MetricAggregationBolt extends BaseRichBolt {
   private static final Logger LOG = LoggerFactory.getLogger(MetricAggregationBolt.class);
   private static final long serialVersionUID = 5624314196838090726L;
 
+  private final Map<MetricDefinition, MetricData> metricsData = new HashMap<MetricDefinition, MetricData>();
+  private final Multimap<String, String> compositeAlarms = ArrayListMultimap.create();
+  private final AlarmDAO alarmDAO;
+  private TopologyContext context;
   private OutputCollector collector;
-  private List<Alarm> alarms;
-  private Map<Alarm, SlidingWindowStats> alarmStats = new HashMap<Alarm, SlidingWindowStats>();
+
+  public MetricAggregationBolt() {
+    alarmDAO = Injector.getInstance(AlarmDAO.class);
+  }
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
@@ -50,10 +67,32 @@ public class MetricAggregationBolt extends BaseRichBolt {
 
   @Override
   public void execute(Tuple tuple) {
-    if (!Tuples.isTickTuple(tuple))
-      aggregateMetric(tuple);
-    else
+    if (Tuples.isTickTuple(tuple))
       evaluateAlarms();
+    else {
+      if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
+        Metric metric = (Metric) tuple.getValueByField("metric");
+        LOG.trace("{} Received metric for aggregation {}", context.getThisTaskId(), metric);
+        aggregateValues(metric);
+      } else if (EventProcessingBolt.ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
+        MetricDefinition metricDefinition = (MetricDefinition) tuple.getValue(0);
+        MetricData metricData = getOrCreateMetricData(metricDefinition);
+        if (metricData == null)
+          return;
+
+        String compositeAlarmId = tuple.getString(1);
+        String eventType = tuple.getString(2);
+
+        LOG.debug("{} Received {} event for composite alarm {}", context.getThisTaskId(),
+            eventType, compositeAlarmId);
+        if (AlarmCreatedEvent.class.getSimpleName().equals(eventType)) {
+          NewAlarm newAlarm = (NewAlarm) tuple.getValueByField("alarm");
+          handleAlarmCreated(metricData, compositeAlarmId, newAlarm);
+        } else if (AlarmDeletedEvent.class.getSimpleName().equals(eventType)) {
+          handleAlarmDeleted(metricData, compositeAlarmId);
+        }
+      }
+    }
   }
 
   @Override
@@ -66,62 +105,53 @@ public class MetricAggregationBolt extends BaseRichBolt {
   @Override
   @SuppressWarnings("rawtypes")
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
+    this.context = context;
     this.collector = collector;
   }
 
   /**
-   * Aggregates metrics for values that are within the periods defined for the alarm.
+   * Aggregates values for the {@code metric} that are within the periods defined for the alarm.
    */
-  private void aggregateMetric(Tuple tuple) {
-    Metric metric = (Metric) tuple.getValue(0);
-    Alarm alarm = (Alarm) tuple.getValue(1);
+  void aggregateValues(Metric metric) {
+    MetricData metricData = getOrCreateMetricData(metric.definition);
+    if (metricData == null)
+      return;
 
-    SlidingWindowStats stats = alarmStats.get(alarm);
-    if (stats == null) {
-      Class<? extends Statistic> statType = Statistics.statTypeFor(alarm.getFunction());
-      if (statType == null)
-        LOG.warn("Unknown statistic type {}", alarm.getFunction());
+    metricData.addValue(metric.value, Times.roundDownToNearestSecond(metric.timestamp));
+  }
+
+  void evaluateAlarms() {
+    long initialTimestamp = Times.roundDownToNearestSecond(System.currentTimeMillis());
+    for (MetricData metricData : metricsData.values())
+      for (AlarmData alarmData : metricData.getAlarmData())
+        if (alarmData.evaluate(initialTimestamp))
+          collector.emit(new Values(alarmData.getAlarm().getCompositeId(), alarmData.getAlarm()));
+  }
+
+  MetricData getOrCreateMetricData(MetricDefinition metricDefinition) {
+    MetricData metricData = metricsData.get(metricDefinition);
+    if (metricData == null) {
+      List<Alarm> alarms = alarmDAO.find(metricDefinition);
+      if (alarms.isEmpty())
+        LOG.warn("Failed to find alarm data for {}", metricDefinition);
       else {
-        stats = new SlidingWindowStats(alarm.getPeriodSeconds(), alarm.getPeriods(), statType,
-            metric.timestamp);
-        alarmStats.put(alarm, stats);
+        metricData = new MetricData(alarms);
+        metricsData.put(metricDefinition, metricData);
+        for (Alarm alarm : alarms)
+          compositeAlarms.put(alarm.getCompositeId(), alarm.getId());
       }
     }
 
-    stats.addValue((int) metric.value, metric.timestamp);
+    return metricData;
   }
 
-  private void evaluateAlarm(Alarm alarm) {
-    SlidingWindowStats stats = alarmStats.get(alarm);
-    AlarmState initialState = alarm.getState();
-    AlarmState newState = null;
-
-    if (stats == null)
-      newState = AlarmState.UNDETERMINED;
-    else {
-      // Evaluate and update state of alarm
-      String finalState = null;
-
-      // We may want to track each alarm's state and only emit when the state changes. that means
-      // we'd
-      // evaluate the alarm each time a metric hits the alarm.
-
-      // we must wait till evaluationPeriod periods have passed before even bothering to evaluate
-      // the
-      // alarm.
-      // after that we can evaluate every 1 second or whatever
-
-      // actually, this isn't good enough since we have to detect insufficient data things on a 60
-      // sec
-      // timer
-    }
-
-    if (stats == null || !newState.equals(initialState))
-      collector.emit(new Values(alarm.getCompositeId(), alarm.getId(), alarm.getState().toString()));
+  void handleAlarmCreated(MetricData metricData, String compositeAlarmId, NewAlarm newAlarm) {
+    metricData.addAlarm(new Alarm(compositeAlarmId, newAlarm));
+    compositeAlarms.put(compositeAlarmId, newAlarm.id);
   }
 
-  private void evaluateAlarms() {
-    for (Alarm alarm : alarms)
-      evaluateAlarm(alarm);
+  void handleAlarmDeleted(MetricData metricData, String compositeAlarmId) {
+    for (String alarmId : compositeAlarms.removeAll(compositeAlarmId))
+      metricData.removeAlarm(alarmId);
   }
 }

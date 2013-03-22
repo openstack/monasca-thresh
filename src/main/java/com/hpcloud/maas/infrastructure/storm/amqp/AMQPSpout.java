@@ -153,7 +153,7 @@ public class AMQPSpout implements IRichSpout {
    */
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
-    declarer.declare(new Fields("output"));
+    declarer.declare(deserializer.getOutputFields());
     declarer.declareStream(config.errorStream, new Fields("deliveryTag", "bytes"));
   }
 

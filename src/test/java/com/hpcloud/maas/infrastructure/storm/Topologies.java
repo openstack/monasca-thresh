@@ -1,4 +1,4 @@
-package com.hpcloud.infrastructure.storm;
+package com.hpcloud.maas.infrastructure.storm;
 
 import backtype.storm.Config;
 import backtype.storm.LocalCluster;

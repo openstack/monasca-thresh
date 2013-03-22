@@ -13,15 +13,13 @@
   </prerequisites>
 
   <properties>
-    <!-- Versioning -->
     <versionNumber>1.0.0</versionNumber>
     <computedVersion>${versionNumber}-SNAPSHOT</computedVersion>
     <ps.common.version>1.0.0.216</ps.common.version>
-    <maas.commons.version>1.0.0-SNAPSHOT</maas.commons.version>
+    <maas.commons.version>1.0.0.5</maas.commons.version>
     <dropwizard.version>0.6.1</dropwizard.version>
-    <skipITs>true</skipITs>
 
-    <!-- Use UTF-8 for everything -->
+    <skipITs>true</skipITs>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
   </properties>
@@ -90,7 +88,6 @@
       <groupId>storm</groupId>
       <artifactId>storm</artifactId>
       <version>0.8.2</version>
-      <!-- Exclude from assembled jar -->
       <scope>provided</scope>
     </dependency>
     <dependency>
