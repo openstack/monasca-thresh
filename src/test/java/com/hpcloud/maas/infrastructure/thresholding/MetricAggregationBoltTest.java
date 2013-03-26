@@ -29,6 +29,7 @@ import com.hpcloud.maas.common.model.alarm.AlarmState;
 import com.hpcloud.maas.common.model.metric.Metric;
 import com.hpcloud.maas.common.model.metric.MetricDefinition;
 import com.hpcloud.maas.domain.model.Alarm;
+import com.hpcloud.maas.domain.model.AlarmData;
 import com.hpcloud.maas.domain.model.MetricData;
 import com.hpcloud.maas.domain.service.AlarmDAO;
 import com.hpcloud.util.Injector;
@@ -45,8 +46,8 @@ public class MetricAggregationBoltTest {
 
   @BeforeClass
   protected void beforeClass() {
-    MetricDefinition metricDef1 = new MetricDefinition("joe", "compute", "cpu", null, null);
-    MetricDefinition metricDef2 = new MetricDefinition("joe", "compute", "mem", null, null);
+    MetricDefinition metricDef1 = new MetricDefinition("compute", "cpu", null, null);
+    MetricDefinition metricDef2 = new MetricDefinition("compute", "mem", null, null);
     metricDefs = Arrays.asList(metricDef1, metricDef2);
   }
 
@@ -69,6 +70,7 @@ public class MetricAggregationBoltTest {
       }
     });
 
+    Injector.reset();
     Injector.registerModules(new AbstractModule() {
       protected void configure() {
         bind(AlarmDAO.class).toInstance(dao);
@@ -76,7 +78,6 @@ public class MetricAggregationBoltTest {
     });
 
     bolt = new MetricAggregationBolt();
-
     collector = mock(OutputCollector.class);
     bolt.prepare(null, null, collector);
   }
@@ -89,11 +90,11 @@ public class MetricAggregationBoltTest {
     bolt.aggregateValues(new Metric(metricDefs.get(1), 50, t1));
     bolt.aggregateValues(new Metric(metricDefs.get(1), 40, t1));
 
-    MetricData metricData = bolt.getOrCreateMetricData(metricDefs.get(0));
-    assertEquals(metricData.getAlarmData().iterator().next().getStats().getValue(t1), 90.0);
+    AlarmData alarmData = bolt.getOrCreateMetricData(metricDefs.get(0)).alarmDataFor("123");
+    assertEquals(alarmData.getStats().getValue(t1), 90.0);
 
-    metricData = bolt.getOrCreateMetricData(metricDefs.get(1));
-    assertEquals(metricData.getAlarmData().iterator().next().getStats().getValue(t1), 45.0);
+    alarmData = bolt.getOrCreateMetricData(metricDefs.get(1)).alarmDataFor("456");
+    assertEquals(alarmData.getStats().getValue(t1), 45.0);
   }
 
   @SuppressWarnings("unchecked")
@@ -106,9 +107,9 @@ public class MetricAggregationBoltTest {
 
     bolt.evaluateAlarms();
     verify(collector, never()).emit(any(List.class));
-    
+
     bolt.aggregateValues(new Metric(metricDefs.get(0), 99, t1 - 4000));
-    
+
     bolt.evaluateAlarms();
     verify(collector, times(1)).emit(any(List.class));
   }

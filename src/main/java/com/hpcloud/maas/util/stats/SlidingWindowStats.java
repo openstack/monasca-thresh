@@ -5,6 +5,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.hpcloud.maas.util.time.Times;
+
 /**
  * A time based sliding window containing statistics for a fixed number of slots of a fixed length.
  * The sliding window is advanced by calling {@link #advanceWindowTo(long)}. Attempts to call
@@ -18,6 +20,7 @@ public class SlidingWindowStats {
   private static final Logger LOG = LoggerFactory.getLogger(SlidingWindowStats.class);
 
   private final int slotWidthInMilliseconds;
+  private final int slotWidthInMinutes;
   private final int windowLengthInMilliseconds;
   private final Slot[] slots;
   /** Timestamp for the head of the window in seconds. */
@@ -49,11 +52,13 @@ public class SlidingWindowStats {
    * @param slotWidthSeconds the width of a slot in seconds
    * @param numSlots the number of slots in the window
    * @param statType to calculate values for
-   * @param initialTimestamp to start window at in seconds
+   * @param initialTimestamp to start window at as milliseconds since epoch
    */
   public SlidingWindowStats(int slotWidthSeconds, int numSlots,
       Class<? extends Statistic> statType, long initialTimestamp) {
+    initialTimestamp = Times.roundDownToNearestSecond(initialTimestamp);
     this.slotWidthInMilliseconds = slotWidthSeconds * 1000;
+    this.slotWidthInMinutes = slotWidthSeconds / 60;
     this.windowLengthInMilliseconds = slotWidthSeconds * 1000 * numSlots;
     windowHeadTimestamp = initialTimestamp;
     slotHeadTimestamp = initialTimestamp;
@@ -78,9 +83,12 @@ public class SlidingWindowStats {
   /**
    * Adds the {@code value} to the statistics for the slot associated with the {@code timestamp},
    * else <b>does nothing</b> if the {@code timestamp} is outside of the window.
+   * 
+   * @param value to add
+   * @param timestamp milliseconds since epoch
    */
   public void addValue(double value, long timestamp) {
-    int index = slotIndexFor(timestamp);
+    int index = slotIndexFor(Times.roundDownToNearestSecond(timestamp));
     if (index != -1) {
       if (!slots[index].stat.isInitialized())
         occupiedSlots++;
@@ -91,8 +99,11 @@ public class SlidingWindowStats {
   /**
    * Advances the sliding window to the slot for the {@code timestamp}, erasing values for any slots
    * along the way.
+   * 
+   * @param timestamp milliseconds since epoch
    */
   public void advanceWindowTo(long timestamp) {
+    timestamp = Times.roundDownToNearestSecond(timestamp);
     if (timestamp <= windowHeadTimestamp)
       return;
     long timeDiff = timestamp - slotHeadTimestamp;
@@ -113,9 +124,9 @@ public class SlidingWindowStats {
     return slots.length;
   }
 
-  /** Returns the width of the window's slots in seconds. */
-  public int getSlotWidthInSeconds() {
-    return slotWidthInMilliseconds / 1000;
+  /** Returns the width of the window's slots in minutes. */
+  public int getSlotWidthInMinutes() {
+    return slotWidthInMinutes;
   }
 
   /**
@@ -130,23 +141,24 @@ public class SlidingWindowStats {
     return timestamps;
   }
 
-  /**
-   * Returns the value for the window slot associated with {@code timestamp}.
-   * 
-   * @throws IllegalStateException if no value is within the window for the {@code timestamp}
-   */
-  public double getValue(long timestamp) {
-    int index = slotIndexFor(timestamp);
-    if (index == -1)
-      throw new IllegalStateException();
-    return slots[index].stat.value();
-  }
-
   public double getValue(int index) {
     int offset = headIndex - index;
     if (offset < 0)
       offset += slots.length;
     return slots[offset].stat.value();
+  }
+
+  /**
+   * Returns the value for the window slot associated with {@code timestamp}.
+   * 
+   * @param timestamp milliseconds since epoch
+   * @throws IllegalStateException if no value is within the window for the {@code timestamp}
+   */
+  public double getValue(long timestamp) {
+    int index = slotIndexFor(Times.roundDownToNearestSecond(timestamp));
+    if (index == -1)
+      throw new IllegalStateException();
+    return slots[index].stat.value();
   }
 
   /**

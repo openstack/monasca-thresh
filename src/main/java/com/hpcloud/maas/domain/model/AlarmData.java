@@ -11,8 +11,8 @@ import com.hpcloud.maas.util.stats.Statistics;
  */
 public class AlarmData {
   /**
-   * Coefficient that, along with the window size, determines how many observations to wait for
-   * before changing an alarm's state to insufficient data.
+   * Helps determine how many observations to wait for before changing an alarm's state to
+   * insufficient data.
    */
   private static final int INSUFFICIENT_DATA_COEFFICIENT = 3;
 
@@ -25,9 +25,8 @@ public class AlarmData {
     this.alarm = alarm;
     this.stats = new SlidingWindowStats(alarm.getPeriodSeconds(), alarm.getPeriods(),
         Statistics.statTypeFor(alarm.getFunction()), initialTimestamp);
-    int slotWidthInMinutes = stats.getSlotWidthInSeconds() / 60;
-    emptySlotObservationThreshold = (slotWidthInMinutes == 0 ? 1 : slotWidthInMinutes)
-        * INSUFFICIENT_DATA_COEFFICIENT;
+    emptySlotObservationThreshold = (stats.getSlotWidthInMinutes() == 0 ? 1
+        : stats.getSlotWidthInMinutes()) * INSUFFICIENT_DATA_COEFFICIENT;
   }
 
   public SlidingWindowStats getStats() {

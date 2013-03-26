@@ -37,13 +37,9 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   private static final long serialVersionUID = -4126465124017857754L;
 
   private final Map<String, CompositeAlarm> compositeAlarms = new HashMap<String, CompositeAlarm>();
-  private final AlarmDAO alarmDAO;
+  private transient AlarmDAO alarmDAO;
   private TopologyContext context;
   private OutputCollector collector;
-
-  public AlarmThresholdingBolt() {
-    alarmDAO = Injector.getInstance(AlarmDAO.class);
-  }
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
@@ -57,8 +53,8 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
       if (compositeAlarm == null)
         return;
 
-      Alarm alarm = (Alarm) tuple.getValue(0);
-      LOG.debug("{} Received {} state change for composite alarm {}, alarm {}",
+      Alarm alarm = (Alarm) tuple.getValue(1);
+      LOG.debug("{} Received state change for composite alarm {}, alarm {}",
           context.getThisTaskId(), compositeAlarmId, alarm);
       evaluateThreshold(compositeAlarm, alarm);
     } else if (EventProcessingBolt.COMPOSITE_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
@@ -77,6 +73,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
     this.context = context;
     this.collector = collector;
+    alarmDAO = Injector.getInstance(AlarmDAO.class);
   }
 
   void evaluateThreshold(CompositeAlarm compositeAlarm, Alarm alarm) {

@@ -16,6 +16,7 @@ import backtype.storm.tuple.Values;
 import com.hpcloud.maas.common.event.AlarmCreatedEvent;
 import com.hpcloud.maas.common.event.AlarmCreatedEvent.NewAlarm;
 import com.hpcloud.maas.common.event.AlarmDeletedEvent;
+import com.hpcloud.maas.common.model.metric.MetricDefinition;
 
 /**
  * Processes events by emitting tuples related to the event.
@@ -71,8 +72,9 @@ public class EventProcessingBolt extends BaseRichBolt {
   }
 
   void handle(AlarmDeletedEvent event) {
-    collector.emit(ALARM_EVENT_STREAM_ID, new Values(event.metricDefinition, event.id,
-        event.getClass().getSimpleName()));
+    for (MetricDefinition metricDef : event.metricDefinitions)
+      collector.emit(ALARM_EVENT_STREAM_ID, new Values(metricDef, event.id, event.getClass()
+          .getSimpleName()));
     collector.emit(COMPOSITE_ALARM_EVENT_STREAM_ID, new Values(event.id, event));
   }
 }

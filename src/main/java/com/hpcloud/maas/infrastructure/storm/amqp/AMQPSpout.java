@@ -15,6 +15,7 @@ import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Values;
 
+import com.google.inject.assistedinject.Assisted;
 import com.hpcloud.maas.infrastructure.storm.TupleDeserializer;
 import com.hpcloud.messaging.rabbitmq.RabbitMQConnection;
 import com.hpcloud.util.Exceptions;
@@ -80,7 +81,11 @@ public class AMQPSpout implements IRichSpout {
 
   private SpoutOutputCollector collector;
 
-  public AMQPSpout(AMQPSpoutConfiguration config, TupleDeserializer deserializer) {
+  public interface AMQPSpoutFactory {
+    AMQPSpout create(AMQPSpoutConfiguration config, TupleDeserializer deserializer);
+  };
+
+  public AMQPSpout(@Assisted AMQPSpoutConfiguration config, @Assisted TupleDeserializer deserializer) {
     this.config = config;
     this.deserializer = deserializer;
     this.waitForNextMessageMillis = config.waitForNextMessage.toMillis();

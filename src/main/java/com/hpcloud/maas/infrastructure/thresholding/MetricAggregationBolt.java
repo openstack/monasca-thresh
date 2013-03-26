@@ -29,7 +29,6 @@ import com.hpcloud.maas.domain.model.MetricData;
 import com.hpcloud.maas.domain.service.AlarmDAO;
 import com.hpcloud.maas.infrastructure.storm.Streams;
 import com.hpcloud.maas.infrastructure.storm.Tuples;
-import com.hpcloud.maas.util.time.Times;
 import com.hpcloud.util.Injector;
 
 /**
@@ -52,27 +51,24 @@ public class MetricAggregationBolt extends BaseRichBolt {
 
   private final Map<MetricDefinition, MetricData> metricsData = new HashMap<MetricDefinition, MetricData>();
   private final Multimap<String, String> compositeAlarms = ArrayListMultimap.create();
-  private final AlarmDAO alarmDAO;
+  private transient AlarmDAO alarmDAO;
   private TopologyContext context;
   private OutputCollector collector;
 
-  public MetricAggregationBolt() {
-    alarmDAO = Injector.getInstance(AlarmDAO.class);
-  }
-
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
-    declarer.declare(new Fields("compositeAlarmId", "alarmId", "alarmState"));
+    declarer.declare(new Fields("compositeAlarmId", "alarm"));
   }
 
   @Override
   public void execute(Tuple tuple) {
-    if (Tuples.isTickTuple(tuple))
+    if (Tuples.isTickTuple(tuple)) {
+      LOG.debug("{} Evaluating alarms.", context.getThisTaskId());
       evaluateAlarms();
-    else {
+    } else {
       if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
         Metric metric = (Metric) tuple.getValueByField("metric");
-        LOG.trace("{} Received metric for aggregation {}", context.getThisTaskId(), metric);
+        LOG.debug("{} Received metric for aggregation {}", context.getThisTaskId(), metric);
         aggregateValues(metric);
       } else if (EventProcessingBolt.ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
         MetricDefinition metricDefinition = (MetricDefinition) tuple.getValue(0);
@@ -98,7 +94,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
   @Override
   public Map<String, Object> getComponentConfiguration() {
     Map<String, Object> conf = new HashMap<String, Object>();
-    conf.put(Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS, 60);
+    conf.put(Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS, 5);// TODO undo to 60
     return conf;
   }
 
@@ -107,6 +103,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
     this.context = context;
     this.collector = collector;
+    alarmDAO = Injector.getInstance(AlarmDAO.class);
   }
 
   /**
@@ -117,15 +114,17 @@ public class MetricAggregationBolt extends BaseRichBolt {
     if (metricData == null)
       return;
 
-    metricData.addValue(metric.value, Times.roundDownToNearestSecond(metric.timestamp));
+    metricData.addValue(metric.value, metric.timestamp);
   }
 
   void evaluateAlarms() {
-    long initialTimestamp = Times.roundDownToNearestSecond(System.currentTimeMillis());
+    long initialTimestamp = System.currentTimeMillis();
     for (MetricData metricData : metricsData.values())
       for (AlarmData alarmData : metricData.getAlarmData())
-        if (alarmData.evaluate(initialTimestamp))
+        if (alarmData.evaluate(initialTimestamp)) {
+          LOG.debug("Alarm state changed for {}", alarmData.getAlarm());
           collector.emit(new Values(alarmData.getAlarm().getCompositeId(), alarmData.getAlarm()));
+        }
   }
 
   MetricData getOrCreateMetricData(MetricDefinition metricDefinition) {

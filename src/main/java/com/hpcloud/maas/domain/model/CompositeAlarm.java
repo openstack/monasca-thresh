@@ -19,8 +19,10 @@ public class CompositeAlarm extends AbstractEntity {
   private Map<String, Alarm> alarms;
   private AlarmState state;
 
-  public CompositeAlarm(String id, String name, List<Alarm> newAlarms, AlarmState state) {
+  public CompositeAlarm(String id, String tenantId, String name, List<Alarm> newAlarms,
+      AlarmState state) {
     this.id = id;
+    this.tenantId = tenantId;
     this.name = name;
     alarms = new HashMap<String, Alarm>();
     for (Alarm alarm : newAlarms)
@@ -50,6 +52,10 @@ public class CompositeAlarm extends AbstractEntity {
 
   public Collection<Alarm> getAlarms() {
     return alarms.values();
+  }
+
+  public Alarm getAlarm(String alarmId) {
+    return alarms.get(alarmId);
   }
 
   public String getName() {

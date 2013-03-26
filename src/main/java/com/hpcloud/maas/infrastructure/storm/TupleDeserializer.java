@@ -12,9 +12,10 @@ import backtype.storm.tuple.Fields;
  */
 public interface TupleDeserializer {
   /**
-   * Returns a list of deserialized tuples for the {@code tuple}.
+   * Returns a list of deserialized tuples, consisting of a list of tuples each with a list of
+   * fields, for the {@code tuple}.
    */
-  List<?> deserialize(byte[] tuple);
+  List<List<?>> deserialize(byte[] tuple);
 
   /**
    * Returns the output fields.

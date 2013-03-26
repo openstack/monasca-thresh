@@ -12,6 +12,9 @@ import com.hpcloud.messaging.rabbitmq.RabbitMQConfiguration;
 import com.yammer.dropwizard.db.DatabaseConfiguration;
 
 public class ThresholdingConfiguration {
+ // public static final String SECONDS_SINCE
+  
+  
   @NotNull public Integer metricSpoutParallelism = 3;
   @NotNull public Integer eventSpoutParallelism = 1;
   @NotNull public Integer eventBoltParallelism = 2;
@@ -21,7 +24,7 @@ public class ThresholdingConfiguration {
   /** Configuration for the spout that receives metrics from the internal exchange. */
   @Valid @NotNull public AMQPSpoutConfiguration metricSpout;
   /** Configuration for the spout that receives messages from the API servers. */
-  @Valid @NotNull public AMQPSpoutConfiguration apiSpout;
+  @Valid @NotNull public AMQPSpoutConfiguration eventSpout;
 
   @Valid @NotNull public RabbitMQConfiguration internalRabbit = new RabbitMQConfiguration();
   /** Threshold for scaling internal connections up */
