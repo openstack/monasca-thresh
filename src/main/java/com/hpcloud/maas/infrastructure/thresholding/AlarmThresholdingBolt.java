@@ -13,8 +13,8 @@ import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 
 import com.hpcloud.maas.common.event.AlarmDeletedEvent;
+import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.model.Alarm;
-import com.hpcloud.maas.domain.model.CompositeAlarm;
 import com.hpcloud.maas.domain.service.AlarmDAO;
 import com.hpcloud.maas.infrastructure.storm.Streams;
 import com.hpcloud.util.Injector;
@@ -36,7 +36,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   private static final Logger LOG = LoggerFactory.getLogger(AlarmThresholdingBolt.class);
   private static final long serialVersionUID = -4126465124017857754L;
 
-  private final Map<String, CompositeAlarm> compositeAlarms = new HashMap<String, CompositeAlarm>();
+  private final Map<String, Alarm> compositeAlarms = new HashMap<String, Alarm>();
   private transient AlarmDAO alarmDAO;
   private TopologyContext context;
   private OutputCollector collector;
@@ -49,20 +49,16 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   public void execute(Tuple tuple) {
     if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
       String compositeAlarmId = tuple.getString(0);
-      CompositeAlarm compositeAlarm = getOrCreateCompositeAlarm(compositeAlarmId);
+      Alarm compositeAlarm = getOrCreateCompositeAlarm(compositeAlarmId);
       if (compositeAlarm == null)
         return;
 
-      Alarm alarm = (Alarm) tuple.getValue(1);
-      LOG.debug("{} Received state change for composite alarm {}, alarm {}",
-          context.getThisTaskId(), compositeAlarmId, alarm);
+      SubAlarm alarm = (SubAlarm) tuple.getValue(1);
       evaluateThreshold(compositeAlarm, alarm);
     } else if (EventProcessingBolt.COMPOSITE_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
       String compositeAlarmId = tuple.getString(0);
       String eventType = tuple.getString(1);
 
-      LOG.debug("{} Received {} event for composite alarm {}", context.getThisTaskId(), eventType,
-          compositeAlarmId);
       if (AlarmDeletedEvent.class.getSimpleName().equals(eventType))
         handleAlarmDeleted(compositeAlarmId);
     }
@@ -76,7 +72,9 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     alarmDAO = Injector.getInstance(AlarmDAO.class);
   }
 
-  void evaluateThreshold(CompositeAlarm compositeAlarm, Alarm alarm) {
+  void evaluateThreshold(Alarm compositeAlarm, SubAlarm alarm) {
+    LOG.debug("{} Received state change for composite alarm id {}, {}", context.getThisTaskId(),
+        compositeAlarm.getId(), alarm);
     compositeAlarm.updateAlarm(alarm);
     if (compositeAlarm.evaluate()) {
       // Emit notification
@@ -85,11 +83,13 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   }
 
   void handleAlarmDeleted(String compositeAlarmId) {
+    LOG.debug("{} Received AlarmDeletedEvent for composite alarm id {}", context.getThisTaskId(),
+        compositeAlarmId);
     compositeAlarms.remove(compositeAlarmId);
   }
 
-  private CompositeAlarm getOrCreateCompositeAlarm(String compositeAlarmId) {
-    CompositeAlarm compositeAlarm = compositeAlarms.get(compositeAlarmId);
+  private Alarm getOrCreateCompositeAlarm(String compositeAlarmId) {
+    Alarm compositeAlarm = compositeAlarms.get(compositeAlarmId);
     if (compositeAlarm == null) {
       compositeAlarm = alarmDAO.findByCompositeId(compositeAlarmId);
       if (compositeAlarm == null)

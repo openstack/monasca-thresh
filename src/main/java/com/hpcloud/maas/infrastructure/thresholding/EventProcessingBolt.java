@@ -14,8 +14,8 @@ import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
 import com.hpcloud.maas.common.event.AlarmCreatedEvent;
-import com.hpcloud.maas.common.event.AlarmCreatedEvent.NewAlarm;
 import com.hpcloud.maas.common.event.AlarmDeletedEvent;
+import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.maas.common.model.metric.MetricDefinition;
 
 /**
@@ -24,7 +24,7 @@ import com.hpcloud.maas.common.model.metric.MetricDefinition;
  * <ul>
  * <li>Input: Object event
  * <li>Output alarm-events: MetricDefinition metricDefinition, String compositeAlarmId, String
- * eventType, [NewAlarm alarm]
+ * eventType, [AlarmSubExpression alarm]
  * <li>Output composite-alarm-events: String compositeAlarmId, String eventType
  * </ul>
  * 
@@ -66,8 +66,8 @@ public class EventProcessingBolt extends BaseRichBolt {
   }
 
   void handle(AlarmCreatedEvent event) {
-    for (NewAlarm alarm : event.alarms)
-      collector.emit(ALARM_EVENT_STREAM_ID, new Values(alarm.metricDefinition, event.id,
+    for (AlarmSubExpression alarm : event.expression.getSubExpressions())
+      collector.emit(ALARM_EVENT_STREAM_ID, new Values(alarm.getMetricDefinition(), event.id,
           event.getClass().getSimpleName(), alarm));
   }
 

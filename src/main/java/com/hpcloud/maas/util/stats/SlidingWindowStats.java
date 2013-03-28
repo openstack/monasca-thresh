@@ -5,7 +5,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.hpcloud.maas.util.time.Times;
+import com.hpcloud.maas.util.time.Timescale;
 
 /**
  * A time based sliding window containing statistics for a fixed number of slots of a fixed length.
@@ -19,6 +19,7 @@ import com.hpcloud.maas.util.time.Times;
 public class SlidingWindowStats {
   private static final Logger LOG = LoggerFactory.getLogger(SlidingWindowStats.class);
 
+  private final Timescale timescale;
   private final int slotWidthInMilliseconds;
   private final int slotWidthInMinutes;
   private final int windowLengthInMilliseconds;
@@ -28,7 +29,7 @@ public class SlidingWindowStats {
   /** Timestamp for the head slot in seconds. */
   private long slotHeadTimestamp;
   private int headIndex;
-  private int occupiedSlots;
+  private int emptySlots;
 
   private static class Slot {
     private long timestamp;
@@ -49,14 +50,16 @@ public class SlidingWindowStats {
    * Creates a RollingWindow containing {@code numSlots} slots of size {@code slotWidthSeconds}
    * starting at the {@code initialPeriod}.
    * 
+   * @param timescale to scale timestamps with
    * @param slotWidthSeconds the width of a slot in seconds
    * @param numSlots the number of slots in the window
    * @param statType to calculate values for
    * @param initialTimestamp to start window at as milliseconds since epoch
    */
-  public SlidingWindowStats(int slotWidthSeconds, int numSlots,
+  public SlidingWindowStats(Timescale timescale, int slotWidthSeconds, int numSlots,
       Class<? extends Statistic> statType, long initialTimestamp) {
-    initialTimestamp = Times.roundDownToNearestSecond(initialTimestamp);
+    this.timescale = timescale;
+    initialTimestamp = timescale.scale(initialTimestamp);
     this.slotWidthInMilliseconds = slotWidthSeconds * 1000;
     this.slotWidthInMinutes = slotWidthSeconds / 60;
     this.windowLengthInMilliseconds = slotWidthSeconds * 1000 * numSlots;
@@ -88,10 +91,14 @@ public class SlidingWindowStats {
    * @param timestamp milliseconds since epoch
    */
   public void addValue(double value, long timestamp) {
-    int index = slotIndexFor(Times.roundDownToNearestSecond(timestamp));
-    if (index != -1) {
+    timestamp = timescale.scale(timestamp);
+    int index = slotIndexFor(timestamp);
+    if (index == -1)
+      LOG.trace("Add value attempt for {} outside of window {}", timestamp, toString());
+    else {
       if (!slots[index].stat.isInitialized())
-        occupiedSlots++;
+        emptySlots--;
+      LOG.trace("Adding value for {}. Current window{}", timestamp, toString());
       slots[index].stat.addValue(value);
     }
   }
@@ -103,7 +110,7 @@ public class SlidingWindowStats {
    * @param timestamp milliseconds since epoch
    */
   public void advanceWindowTo(long timestamp) {
-    timestamp = Times.roundDownToNearestSecond(timestamp);
+    timestamp = timescale.scale(timestamp);
     if (timestamp <= windowHeadTimestamp)
       return;
     long timeDiff = timestamp - slotHeadTimestamp;
@@ -113,7 +120,7 @@ public class SlidingWindowStats {
       Slot slot = slots[headIndex = indexAfter(headIndex)];
       slot.timestamp = slotHeadTimestamp += slotWidthInMilliseconds;
       slot.stat.reset();
-      occupiedSlots--;
+      emptySlots++;
     }
 
     windowHeadTimestamp = timestamp;
@@ -155,7 +162,7 @@ public class SlidingWindowStats {
    * @throws IllegalStateException if no value is within the window for the {@code timestamp}
    */
   public double getValue(long timestamp) {
-    int index = slotIndexFor(Times.roundDownToNearestSecond(timestamp));
+    int index = slotIndexFor(timescale.scale(timestamp));
     if (index == -1)
       throw new IllegalStateException();
     return slots[index].stat.value();
@@ -174,7 +181,7 @@ public class SlidingWindowStats {
 
   /** Returns true if the window has slots that have no values, else false. */
   public boolean hasEmptySlots() {
-    return occupiedSlots < slots.length;
+    return emptySlots > 0;
   }
 
   /**

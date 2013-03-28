@@ -11,12 +11,17 @@ import java.util.Map;
  * @author Jonathan Halterman
  */
 public class MetricData {
-  private final Map<String, AlarmData> alarmsData = new HashMap<String, AlarmData>();
+  private final Map<String, SubAlarmData> subAlarmsData = new HashMap<String, SubAlarmData>();
 
-  public MetricData(List<Alarm> alarms) {
+  public MetricData(List<SubAlarm> subAlarms) {
     long initialTimestamp = System.currentTimeMillis();
-    for (Alarm alarm : alarms)
-      alarmsData.put(alarm.getId(), new AlarmData(alarm, initialTimestamp));
+    for (SubAlarm subAlarm : subAlarms)
+      addAlarm(subAlarm, initialTimestamp);
+  }
+
+  public void addAlarm(SubAlarm subAlarm, long initialTimestamp) {
+    subAlarmsData.put(subAlarm.getExpression().getId(),
+        new SubAlarmData(subAlarm, initialTimestamp));
   }
 
   /**
@@ -24,28 +29,24 @@ public class MetricData {
    * else <b>does nothing</b> if the {@code timestamp} is outside of the window.
    */
   public void addValue(double value, long timestamp) {
-    for (AlarmData alarmData : alarmsData.values())
+    for (SubAlarmData alarmData : subAlarmsData.values())
       alarmData.getStats().addValue(value, timestamp);
   }
 
-  public void addAlarm(Alarm alarm) {
-    // TODO
+  public SubAlarmData alarmDataFor(String alarmId) {
+    return subAlarmsData.get(alarmId);
+  }
+
+  public Collection<SubAlarmData> getAlarmData() {
+    return subAlarmsData.values();
   }
 
   public void removeAlarm(String alarmId) {
-    alarmsData.remove(alarmId);
-  }
-
-  public Collection<AlarmData> getAlarmData() {
-    return alarmsData.values();
-  }
-
-  public AlarmData alarmDataFor(String alarmId) {
-    return alarmsData.get(alarmId);
+    subAlarmsData.remove(alarmId);
   }
 
   @Override
   public String toString() {
-    return String.format("MetricData [alarmsData=%s]", alarmsData);
+    return String.format("MetricData [alarmsData=%s]", subAlarmsData);
   }
 }

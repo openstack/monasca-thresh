@@ -3,28 +3,30 @@ package com.hpcloud.maas.domain.model;
 import com.hpcloud.maas.common.model.alarm.AlarmState;
 import com.hpcloud.maas.util.stats.SlidingWindowStats;
 import com.hpcloud.maas.util.stats.Statistics;
+import com.hpcloud.maas.util.time.Timescale;
 
 /**
  * Data for a specific alarm. Value object.
  * 
  * @author Jonathan Halterman
  */
-public class AlarmData {
+public class SubAlarmData {
   /**
    * Helps determine how many observations to wait for before changing an alarm's state to
    * insufficient data.
    */
   private static final int INSUFFICIENT_DATA_COEFFICIENT = 3;
 
-  private final Alarm alarm;
+  private final SubAlarm alarm;
   private final SlidingWindowStats stats;
   private final int emptySlotObservationThreshold;
   private int emptySlotObservations;
 
-  public AlarmData(Alarm alarm, long initialTimestamp) {
+  public SubAlarmData(SubAlarm alarm, long initialTimestamp) {
     this.alarm = alarm;
-    this.stats = new SlidingWindowStats(alarm.getPeriodSeconds(), alarm.getPeriods(),
-        Statistics.statTypeFor(alarm.getFunction()), initialTimestamp);
+    this.stats = new SlidingWindowStats(Timescale.SECONDS_SINCE_EPOCH, alarm.getExpression()
+        .getPeriod(), alarm.getExpression().getPeriods(),
+        Statistics.statTypeFor(alarm.getExpression().getFunction()), initialTimestamp);
     emptySlotObservationThreshold = (stats.getSlotWidthInMinutes() == 0 ? 1
         : stats.getSlotWidthInMinutes()) * INSUFFICIENT_DATA_COEFFICIENT;
   }
@@ -43,7 +45,7 @@ public class AlarmData {
     else
       emptySlotObservations = 0;
 
-    // TODO initialTimestamp should come into play here for selecting the appropraite portion of the
+    // TODO initialTimestamp should come into play here for selecting the appropriate portion of the
     // window. maybe? does that mean the window needs to be larger than it is by default?
 
     AlarmState initialState = alarm.getState();
@@ -56,7 +58,9 @@ public class AlarmData {
 
     boolean alarmed = true;
     for (double value : stats.getValues())
-      if (!alarm.getOperator().evaluate(value, alarm.getThreshold())) {
+      if (!alarm.getExpression()
+          .getOperator()
+          .evaluate(value, alarm.getExpression().getThreshold())) {
         alarmed = false;
         break;
       }
@@ -77,7 +81,7 @@ public class AlarmData {
   /**
    * Returns the alarm that data is being observed for.
    */
-  public Alarm getAlarm() {
+  public SubAlarm getAlarm() {
     return alarm;
   }
 

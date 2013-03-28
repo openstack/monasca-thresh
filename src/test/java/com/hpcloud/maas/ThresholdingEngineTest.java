@@ -20,13 +20,12 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Values;
 
 import com.google.inject.AbstractModule;
-import com.hpcloud.maas.common.model.alarm.AggregateFunction;
-import com.hpcloud.maas.common.model.alarm.AlarmOperator;
+import com.hpcloud.maas.common.model.alarm.AlarmExpression;
 import com.hpcloud.maas.common.model.alarm.AlarmState;
 import com.hpcloud.maas.common.model.metric.Metric;
 import com.hpcloud.maas.common.model.metric.MetricDefinition;
 import com.hpcloud.maas.domain.model.Alarm;
-import com.hpcloud.maas.domain.model.CompositeAlarm;
+import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.service.AlarmDAO;
 import com.hpcloud.maas.infrastructure.storm.TopologyTestCase;
 import com.hpcloud.util.Injector;
@@ -40,37 +39,38 @@ public class ThresholdingEngineTest extends TopologyTestCase {
   private FeederSpout eventSpout;
   private AlarmDAO alarmDAO;
   private List<MetricDefinition> metricDefs;
-  private Map<String, CompositeAlarm> compositeAlarms;
-  private Map<MetricDefinition, Alarm> alarms;
+  private Map<String, Alarm> compositeAlarms;
+  private Map<MetricDefinition, SubAlarm> alarms;
 
   public ThresholdingEngineTest() {
     // Fixtures
     MetricDefinition metricDef1 = new MetricDefinition("compute", "cpu", null, null);
     MetricDefinition metricDef2 = new MetricDefinition("compute", "mem", null, null);
     metricDefs = Arrays.asList(metricDef1, metricDef2);
-    Alarm alarm1 = new Alarm("1", "123", AggregateFunction.AVERAGE, metricDefs.get(0),
-        AlarmOperator.GTE, 90, 2, 3, AlarmState.OK);
-    Alarm alarm2 = new Alarm("1", "456", AggregateFunction.AVERAGE, metricDefs.get(1),
-        AlarmOperator.GTE, 90, 2, 3, AlarmState.OK);
-    alarms = new HashMap<MetricDefinition, Alarm>();
-    alarms.put(metricDefs.get(0), alarm1);
-    alarms.put(metricDefs.get(1), alarm2);
-    compositeAlarms = new HashMap<String, CompositeAlarm>();
+    AlarmExpression expression = new AlarmExpression(
+        "avg(compute:cpu, 2, 3) >= 90 and avg(compute:mem, 2, 3) >= 90");
+    SubAlarm subAlarm1 = new SubAlarm("1", expression.getSubExpressions().get(0));
+    SubAlarm subAlarm2 = new SubAlarm("1", expression.getSubExpressions().get(1));
+    alarms = new HashMap<MetricDefinition, SubAlarm>();
+    alarms.put(metricDefs.get(0), subAlarm1);
+    alarms.put(metricDefs.get(1), subAlarm2);
+    compositeAlarms = new HashMap<String, Alarm>();
     compositeAlarms.put("1",
-        new CompositeAlarm("1", "bob", "test-alarm", Arrays.asList(alarm1, alarm2), AlarmState.OK));
+        new Alarm("1", "bob", "test-alarm", expression, Arrays.asList(subAlarm1, subAlarm2),
+            AlarmState.OK));
 
     // Mocks
     alarmDAO = mock(AlarmDAO.class);
-    when(alarmDAO.find(any(MetricDefinition.class))).thenAnswer(new Answer<List<Alarm>>() {
+    when(alarmDAO.find(any(MetricDefinition.class))).thenAnswer(new Answer<List<SubAlarm>>() {
       @Override
-      public List<Alarm> answer(InvocationOnMock invocation) throws Throwable {
+      public List<SubAlarm> answer(InvocationOnMock invocation) throws Throwable {
         return Arrays.asList(alarms.get((MetricDefinition) invocation.getArguments()[0]));
       }
     });
 
-    when(alarmDAO.findByCompositeId(anyString())).thenAnswer(new Answer<CompositeAlarm>() {
+    when(alarmDAO.findByCompositeId(anyString())).thenAnswer(new Answer<Alarm>() {
       @Override
-      public CompositeAlarm answer(InvocationOnMock invocation) throws Throwable {
+      public Alarm answer(InvocationOnMock invocation) throws Throwable {
         return compositeAlarms.get((String) invocation.getArguments()[0]);
       }
     });
@@ -85,6 +85,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     // Config
     ThresholdingConfiguration threshConfig = new ThresholdingConfiguration();
     Config stormConfig = new Config();
+    stormConfig.setMaxTaskParallelism(1);
     // stormConfig.setDebug(true);
     metricSpout = new FeederSpout(new Fields("metricDefinition", "metric"));
     eventSpout = new FeederSpout(new Fields("event"));
@@ -92,17 +93,9 @@ public class ThresholdingEngineTest extends TopologyTestCase {
   }
 
   public void shouldThreshold() throws Exception {
-    // new Thread(new Runnable() {
-    // public void run() {
-    // eventSpout.feed(new Values());
-    // }
-    // }).start();
-
-    // new Thread(new Runnable() {
-    // public void run() {
     for (int i = 0; i < 20; i++) {
       MetricDefinition metricDef = new MetricDefinition("compute", "cpu", null, null);
-      metricSpout.feed(new Values(metricDef, new Metric(metricDef, 90, System.currentTimeMillis())));
+      metricSpout.feed(new Values(metricDef, new Metric(metricDef, 95, System.currentTimeMillis())));
 
       try {
         Thread.sleep(1000);
@@ -110,7 +103,5 @@ public class ThresholdingEngineTest extends TopologyTestCase {
         e.printStackTrace();
       }
     }
-    // }
-    // }).start();
   }
 }

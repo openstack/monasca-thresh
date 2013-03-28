@@ -21,16 +21,16 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import backtype.storm.task.OutputCollector;
+import backtype.storm.task.TopologyContext;
 
 import com.google.inject.AbstractModule;
-import com.hpcloud.maas.common.model.alarm.AggregateFunction;
-import com.hpcloud.maas.common.model.alarm.AlarmOperator;
 import com.hpcloud.maas.common.model.alarm.AlarmState;
+import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.maas.common.model.metric.Metric;
 import com.hpcloud.maas.common.model.metric.MetricDefinition;
-import com.hpcloud.maas.domain.model.Alarm;
-import com.hpcloud.maas.domain.model.AlarmData;
 import com.hpcloud.maas.domain.model.MetricData;
+import com.hpcloud.maas.domain.model.SubAlarm;
+import com.hpcloud.maas.domain.model.SubAlarmData;
 import com.hpcloud.maas.domain.service.AlarmDAO;
 import com.hpcloud.util.Injector;
 
@@ -40,9 +40,10 @@ import com.hpcloud.util.Injector;
 @Test
 public class MetricAggregationBoltTest {
   private MetricAggregationBolt bolt;
+  private TopologyContext context;
   private OutputCollector collector;
   private List<MetricDefinition> metricDefs;
-  private Map<MetricDefinition, Alarm> alarms;
+  private Map<MetricDefinition, SubAlarm> subAlarms;
 
   @BeforeClass
   protected void beforeClass() {
@@ -54,19 +55,19 @@ public class MetricAggregationBoltTest {
   @BeforeMethod
   protected void beforeMethod() {
     // Fixtures
-    Alarm alarm1 = new Alarm("1", "123", AggregateFunction.AVERAGE, metricDefs.get(0),
-        AlarmOperator.GTE, 90, 2, 3, AlarmState.OK);
-    Alarm alarm2 = new Alarm("1", "456", AggregateFunction.AVERAGE, metricDefs.get(1),
-        AlarmOperator.GTE, 90, 2, 3, AlarmState.OK);
-    alarms = new HashMap<MetricDefinition, Alarm>();
-    alarms.put(metricDefs.get(0), alarm1);
-    alarms.put(metricDefs.get(1), alarm2);
+    SubAlarm subAlarm1 = new SubAlarm("1", AlarmSubExpression.of("avg(compute:cpu, 2, 3) >= 90"),
+        AlarmState.OK);
+    SubAlarm subAlarm2 = new SubAlarm("1", AlarmSubExpression.of("avg(compute:mem, 2, 3) >= 90"),
+        AlarmState.OK);
+    subAlarms = new HashMap<MetricDefinition, SubAlarm>();
+    subAlarms.put(metricDefs.get(0), subAlarm1);
+    subAlarms.put(metricDefs.get(1), subAlarm2);
 
     final AlarmDAO dao = mock(AlarmDAO.class);
-    when(dao.find(any(MetricDefinition.class))).thenAnswer(new Answer<List<Alarm>>() {
+    when(dao.find(any(MetricDefinition.class))).thenAnswer(new Answer<List<SubAlarm>>() {
       @Override
-      public List<Alarm> answer(InvocationOnMock invocation) throws Throwable {
-        return Arrays.asList(alarms.get((MetricDefinition) invocation.getArguments()[0]));
+      public List<SubAlarm> answer(InvocationOnMock invocation) throws Throwable {
+        return Arrays.asList(subAlarms.get((MetricDefinition) invocation.getArguments()[0]));
       }
     });
 
@@ -78,8 +79,9 @@ public class MetricAggregationBoltTest {
     });
 
     bolt = new MetricAggregationBolt();
+    context = mock(TopologyContext.class);
     collector = mock(OutputCollector.class);
-    bolt.prepare(null, null, collector);
+    bolt.prepare(null, context, collector);
   }
 
   public void shouldAggregateValues() {
@@ -90,7 +92,7 @@ public class MetricAggregationBoltTest {
     bolt.aggregateValues(new Metric(metricDefs.get(1), 50, t1));
     bolt.aggregateValues(new Metric(metricDefs.get(1), 40, t1));
 
-    AlarmData alarmData = bolt.getOrCreateMetricData(metricDefs.get(0)).alarmDataFor("123");
+    SubAlarmData alarmData = bolt.getOrCreateMetricData(metricDefs.get(0)).alarmDataFor("123");
     assertEquals(alarmData.getStats().getValue(t1), 90.0);
 
     alarmData = bolt.getOrCreateMetricData(metricDefs.get(1)).alarmDataFor("456");
@@ -105,12 +107,12 @@ public class MetricAggregationBoltTest {
     bolt.aggregateValues(new Metric(metricDefs.get(0), 95, t1 - 2000));
     bolt.aggregateValues(new Metric(metricDefs.get(0), 88, t1 - 4000));
 
-    bolt.evaluateAlarms();
+    bolt.evaluateAlarmsAndAdvanceWindows();
     verify(collector, never()).emit(any(List.class));
 
     bolt.aggregateValues(new Metric(metricDefs.get(0), 99, t1 - 4000));
 
-    bolt.evaluateAlarms();
+    bolt.evaluateAlarmsAndAdvanceWindows();
     verify(collector, times(1)).emit(any(List.class));
   }
 

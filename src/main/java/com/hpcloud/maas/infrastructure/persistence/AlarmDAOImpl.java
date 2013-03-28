@@ -7,8 +7,8 @@ import javax.inject.Inject;
 import org.skife.jdbi.v2.DBI;
 
 import com.hpcloud.maas.common.model.metric.MetricDefinition;
+import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.model.Alarm;
-import com.hpcloud.maas.domain.model.CompositeAlarm;
 import com.hpcloud.maas.domain.service.AlarmDAO;
 
 /**
@@ -25,7 +25,7 @@ public class AlarmDAOImpl implements AlarmDAO {
   }
 
   @Override
-  public List<Alarm> find(MetricDefinition metricDefinition) {
+  public List<SubAlarm> find(MetricDefinition metricDefinition) {
     // Handle h = db.open();
     //
     // try {
@@ -45,7 +45,7 @@ public class AlarmDAOImpl implements AlarmDAO {
   }
 
   @Override
-  public CompositeAlarm findByCompositeId(String compositeAlarmId) {
+  public Alarm findByCompositeId(String compositeAlarmId) {
     return null;
   }
 }

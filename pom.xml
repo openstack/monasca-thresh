@@ -15,8 +15,8 @@
   <properties>
     <versionNumber>1.0.0</versionNumber>
     <computedVersion>${versionNumber}-SNAPSHOT</computedVersion>
-    <ps.common.version>1.0.0.218</ps.common.version>
-    <maas.commons.version>1.0.0.13</maas.commons.version>
+    <ps.common.version>1.0.0.220</ps.common.version>
+    <maas.commons.version>1.0.0.20</maas.commons.version>
     <dropwizard.version>0.6.1</dropwizard.version>
 
     <skipITs>true</skipITs>
@@ -63,12 +63,23 @@
     </profile>
   </profiles>
 
+  <dependencyManagement>
+    <!-- Resolve dependency mismatch between Dropwizard and Storm -->
+    <dependencies>
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-api</artifactId>
+        <version>1.7.2</version>
+      </dependency>
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-log4j12</artifactId>
+        <version>1.7.2</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <dependencies>
-    <dependency>
-      <groupId>com.hpcloud</groupId>
-      <artifactId>maas-commons</artifactId>
-      <version>${maas.commons.version}</version>
-    </dependency>
     <dependency>
       <groupId>com.hpcloud</groupId>
       <artifactId>ps-util</artifactId>
@@ -83,6 +94,11 @@
       <groupId>com.hpcloud</groupId>
       <artifactId>ps-messaging</artifactId>
       <version>${ps.common.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.hpcloud</groupId>
+      <artifactId>maas-commons</artifactId>
+      <version>${maas.commons.version}</version>
     </dependency>
     <dependency>
       <groupId>storm</groupId>

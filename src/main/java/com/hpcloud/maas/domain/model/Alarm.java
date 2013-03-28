@@ -1,123 +1,122 @@
 package com.hpcloud.maas.domain.model;
 
-import com.hpcloud.maas.common.event.AlarmCreatedEvent.NewAlarm;
-import com.hpcloud.maas.common.model.alarm.AggregateFunction;
-import com.hpcloud.maas.common.model.alarm.AlarmOperator;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.hpcloud.maas.common.model.alarm.AlarmExpression;
 import com.hpcloud.maas.common.model.alarm.AlarmState;
-import com.hpcloud.maas.common.model.metric.MetricDefinition;
+import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.maas.domain.common.AbstractEntity;
 
+/**
+ * An alarm comprised of sub-alarms.
+ * 
+ * @author Jonathan Halterman
+ */
 public class Alarm extends AbstractEntity {
-  private String compositeId;
-  private AggregateFunction function;
-  private MetricDefinition metricDefinition;
-  private AlarmOperator operator;
-  private double threshold;
-  private int periodSeconds;
-  private int periods;
+  private String tenantId;
+  private String name;
+  private AlarmExpression expression;
+  private Map<String, SubAlarm> subAlarms;
   private AlarmState state;
 
-  public Alarm(String compositeId, NewAlarm alarm) {
-    this.compositeId = compositeId;
-    this.function = alarm.function;
-    this.metricDefinition = alarm.metricDefinition;
-    this.operator = alarm.operator;
-    this.threshold = alarm.threshold;
-    this.periodSeconds = alarm.periodSeconds;
-    this.periods = alarm.periods;
-    this.state = AlarmState.UNDETERMINED;
-  }
-
-  public Alarm(String compositeId, String id, AggregateFunction function,
-      MetricDefinition metricDefinition, AlarmOperator operator, double threshold,
-      int periodSeconds, int periods, AlarmState state) {
-    this.compositeId = compositeId;
+  public Alarm(String id, String tenantId, String name, AlarmExpression expression,
+      List<SubAlarm> subAlarms, AlarmState state) {
     this.id = id;
-    this.function = function;
-    this.metricDefinition = metricDefinition;
-    this.operator = operator;
-    this.threshold = threshold;
-    this.periodSeconds = periodSeconds;
-    this.periods = periods;
+    this.tenantId = tenantId;
+    this.name = name;
+    this.expression = expression;
+    this.subAlarms = new HashMap<String, SubAlarm>();
+    for (SubAlarm subAlarm : subAlarms)
+      this.subAlarms.put(subAlarm.getExpression().getId(), subAlarm);
     this.state = state;
   }
 
-  public String getCompositeId() {
-    return compositeId;
+  /**
+   * Evaluates the {@code alarm}, updating the alarm's state if necessary and returning true if the
+   * alarm's state changed, else false.
+   */
+  public boolean evaluate() {
+    if (!AlarmState.UNDETERMINED.equals(state)) {
+      for (SubAlarm alarm : subAlarms.values())
+        if (AlarmState.UNDETERMINED.equals(alarm.getState())) {
+          state = AlarmState.UNDETERMINED;
+          return true;
+        }
+    }
+
+    AlarmState initialState = state;
+
+    Map<AlarmSubExpression, Boolean> subExpressionValues = new HashMap<AlarmSubExpression, Boolean>();
+    for (SubAlarm subAlarm : subAlarms.values())
+      subExpressionValues.put(subAlarm.getExpression(),
+          AlarmState.ALARM.equals(subAlarm.getState()));
+
+    if (expression.evaluate(subExpressionValues)) {
+      if (AlarmState.ALARM.equals(initialState))
+        return false;
+      state = AlarmState.ALARM;
+      return true;
+    }
+
+    if (AlarmState.OK.equals(initialState))
+      return false;
+    state = AlarmState.OK;
+    return true;
   }
 
-  public AggregateFunction getFunction() {
-    return function;
+  public SubAlarm getAlarm(String alarmId) {
+    return subAlarms.get(alarmId);
   }
 
-  public String getId() {
-    return id;
+  public Collection<SubAlarm> getAlarms() {
+    return subAlarms.values();
   }
 
-  public MetricDefinition getMetricDefinition() {
-    return metricDefinition;
+  public AlarmExpression getExpression() {
+    return expression;
   }
 
-  public AlarmOperator getOperator() {
-    return operator;
-  }
-
-  public int getPeriods() {
-    return periods;
-  }
-
-  public int getPeriodSeconds() {
-    return periodSeconds;
+  public String getName() {
+    return name;
   }
 
   public AlarmState getState() {
     return state;
   }
 
-  public double getThreshold() {
-    return threshold;
+  public String getTenantId() {
+    return tenantId;
   }
 
-  public void setCompositeId(String compositeId) {
-    this.compositeId = compositeId;
+  public void setExpression(AlarmExpression expression) {
+    this.expression = expression;
   }
 
-  public void setFunction(AggregateFunction function) {
-    this.function = function;
-  }
-
-  public void setId(String id) {
-    this.id = id;
-  }
-
-  public void setMetricDefinition(MetricDefinition metricDefinition) {
-    this.metricDefinition = metricDefinition;
-  }
-
-  public void setOperator(AlarmOperator operator) {
-    this.operator = operator;
-  }
-
-  public void setPeriods(int periods) {
-    this.periods = periods;
-  }
-
-  public void setPeriodSeconds(int periodSeconds) {
-    this.periodSeconds = periodSeconds;
+  public void setName(String name) {
+    this.name = name;
   }
 
   public void setState(AlarmState state) {
     this.state = state;
   }
 
-  public void setThreshold(double threshold) {
-    this.threshold = threshold;
+  public void setSubAlarms(Map<String, SubAlarm> subAlarms) {
+    this.subAlarms = subAlarms;
+  }
+
+  public void setTenantId(String tenantId) {
+    this.tenantId = tenantId;
   }
 
   @Override
   public String toString() {
-    return String.format(
-        "Alarm [compositeId=%s, function=%s, metricDefinition=%s, operator=%s, threshold=%s, periodSeconds=%s, periods=%s, state=%s]",
-        compositeId, function, metricDefinition, operator, threshold, periodSeconds, periods, state);
+    return name;
+  }
+
+  public void updateAlarm(SubAlarm alarm) {
+    subAlarms.put(alarm.getExpression().getId(), alarm);
   }
 }

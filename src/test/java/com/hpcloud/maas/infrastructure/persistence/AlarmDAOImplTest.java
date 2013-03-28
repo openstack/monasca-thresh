@@ -19,7 +19,7 @@ import com.google.common.io.Resources;
 import com.hpcloud.maas.common.model.alarm.AggregateFunction;
 import com.hpcloud.maas.common.model.alarm.AlarmOperator;
 import com.hpcloud.maas.common.model.alarm.AlarmState;
-import com.hpcloud.maas.domain.model.Alarm;
+import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.service.AlarmDAO;
 
 /**

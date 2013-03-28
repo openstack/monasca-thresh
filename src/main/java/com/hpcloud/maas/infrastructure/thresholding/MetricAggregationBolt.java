@@ -19,13 +19,13 @@ import backtype.storm.tuple.Values;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.hpcloud.maas.common.event.AlarmCreatedEvent;
-import com.hpcloud.maas.common.event.AlarmCreatedEvent.NewAlarm;
 import com.hpcloud.maas.common.event.AlarmDeletedEvent;
+import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.maas.common.model.metric.Metric;
 import com.hpcloud.maas.common.model.metric.MetricDefinition;
-import com.hpcloud.maas.domain.model.Alarm;
-import com.hpcloud.maas.domain.model.AlarmData;
 import com.hpcloud.maas.domain.model.MetricData;
+import com.hpcloud.maas.domain.model.SubAlarm;
+import com.hpcloud.maas.domain.model.SubAlarmData;
 import com.hpcloud.maas.domain.service.AlarmDAO;
 import com.hpcloud.maas.infrastructure.storm.Streams;
 import com.hpcloud.maas.infrastructure.storm.Tuples;
@@ -39,7 +39,7 @@ import com.hpcloud.util.Injector;
  * <ul>
  * <li>Input: MetricDefinition metricDefinition, Metric metric
  * <li>Input alarm-events: MetricDefinition metricDefinition, String compositeAlarmId, String
- * eventType, [NewAlarm alarm]
+ * eventType, [AlarmSubExpression alarm]
  * <li>Output: String compositeAlarmId, Alarm alarm
  * </ul>
  * 
@@ -63,12 +63,10 @@ public class MetricAggregationBolt extends BaseRichBolt {
   @Override
   public void execute(Tuple tuple) {
     if (Tuples.isTickTuple(tuple)) {
-      LOG.debug("{} Evaluating alarms.", context.getThisTaskId());
-      evaluateAlarms();
+      evaluateAlarmsAndAdvanceWindows();
     } else {
       if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
         Metric metric = (Metric) tuple.getValueByField("metric");
-        LOG.debug("{} Received metric for aggregation {}", context.getThisTaskId(), metric);
         aggregateValues(metric);
       } else if (EventProcessingBolt.ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
         MetricDefinition metricDefinition = (MetricDefinition) tuple.getValue(0);
@@ -79,11 +77,9 @@ public class MetricAggregationBolt extends BaseRichBolt {
         String compositeAlarmId = tuple.getString(1);
         String eventType = tuple.getString(2);
 
-        LOG.debug("{} Received {} event for composite alarm {}", context.getThisTaskId(),
-            eventType, compositeAlarmId);
         if (AlarmCreatedEvent.class.getSimpleName().equals(eventType)) {
-          NewAlarm newAlarm = (NewAlarm) tuple.getValueByField("alarm");
-          handleAlarmCreated(metricData, compositeAlarmId, newAlarm);
+          AlarmSubExpression alarmSubExpression = (AlarmSubExpression) tuple.getValueByField("alarm");
+          handleAlarmCreated(metricData, compositeAlarmId, alarmSubExpression);
         } else if (AlarmDeletedEvent.class.getSimpleName().equals(eventType)) {
           handleAlarmDeleted(metricData, compositeAlarmId);
         }
@@ -110,6 +106,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
    * Aggregates values for the {@code metric} that are within the periods defined for the alarm.
    */
   void aggregateValues(Metric metric) {
+    LOG.debug("{} Aggregating values for {}", context.getThisTaskId(), metric);
     MetricData metricData = getOrCreateMetricData(metric.definition);
     if (metricData == null)
       return;
@@ -117,39 +114,50 @@ public class MetricAggregationBolt extends BaseRichBolt {
     metricData.addValue(metric.value, metric.timestamp);
   }
 
-  void evaluateAlarms() {
+  void evaluateAlarmsAndAdvanceWindows() {
+    LOG.debug("{} Evaluating alarms and advancing windows", context.getThisTaskId());
     long initialTimestamp = System.currentTimeMillis();
     for (MetricData metricData : metricsData.values())
-      for (AlarmData alarmData : metricData.getAlarmData())
+      for (SubAlarmData alarmData : metricData.getAlarmData()) {
+        LOG.debug("{} Evaluating {}", context.getThisTaskId(), alarmData.getStats());
         if (alarmData.evaluate(initialTimestamp)) {
           LOG.debug("Alarm state changed for {}", alarmData.getAlarm());
           collector.emit(new Values(alarmData.getAlarm().getCompositeId(), alarmData.getAlarm()));
         }
+
+        alarmData.getStats().advanceWindowTo(initialTimestamp);
+      }
   }
 
   MetricData getOrCreateMetricData(MetricDefinition metricDefinition) {
     MetricData metricData = metricsData.get(metricDefinition);
     if (metricData == null) {
-      List<Alarm> alarms = alarmDAO.find(metricDefinition);
+      List<SubAlarm> alarms = alarmDAO.find(metricDefinition);
       if (alarms.isEmpty())
         LOG.warn("Failed to find alarm data for {}", metricDefinition);
       else {
         metricData = new MetricData(alarms);
         metricsData.put(metricDefinition, metricData);
-        for (Alarm alarm : alarms)
-          compositeAlarms.put(alarm.getCompositeId(), alarm.getId());
+        for (SubAlarm alarm : alarms)
+          compositeAlarms.put(alarm.getCompositeId(), alarm.getExpression().getId());
       }
     }
 
     return metricData;
   }
 
-  void handleAlarmCreated(MetricData metricData, String compositeAlarmId, NewAlarm newAlarm) {
-    metricData.addAlarm(new Alarm(compositeAlarmId, newAlarm));
-    compositeAlarms.put(compositeAlarmId, newAlarm.id);
+  void handleAlarmCreated(MetricData metricData, String compositeAlarmId,
+      AlarmSubExpression alarmSubExpression) {
+    LOG.debug("{} Received AlarmCreatedEvent for composite alarm id {}, {}",
+        context.getThisTaskId(), compositeAlarmId, alarmSubExpression);
+    long initialTimestamp = System.currentTimeMillis();
+    metricData.addAlarm(new SubAlarm(compositeAlarmId, alarmSubExpression), initialTimestamp);
+    compositeAlarms.put(compositeAlarmId, alarmSubExpression.getId());
   }
 
   void handleAlarmDeleted(MetricData metricData, String compositeAlarmId) {
+    LOG.debug("{} Received AlarmDeletedEvent for composite alarm id {}", context.getThisTaskId(),
+        compositeAlarmId);
     for (String alarmId : compositeAlarms.removeAll(compositeAlarmId))
       metricData.removeAlarm(alarmId);
   }
