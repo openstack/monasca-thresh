@@ -47,10 +47,8 @@ public class TopologyModule extends AbstractModule {
 
   @Provides
   Config stormConfig() {
-    if (stormConfig !=null)
+    if (stormConfig != null)
       return stormConfig;
-//    Config config = new Config();
-//    config.put(key, value)
     return new Config();
   }
 
@@ -87,14 +85,16 @@ public class TopologyModule extends AbstractModule {
     // Metrics / Event -> Aggregation
     builder.setBolt("aggregation", new MetricAggregationBolt(), config.aggregationParallelism)
         .fieldsGrouping("metrics", new Fields("metricDefinition"))
-        .fieldsGrouping("event-bolt", EventProcessingBolt.ALARM_EVENT_STREAM_ID,
+        .fieldsGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID,
+            new Fields("metricDefinition"))
+        .fieldsGrouping("event-bolt", EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID,
             new Fields("metricDefinition"));
 
     // Aggregation / Event -> Thresholding
     builder.setBolt("thresholding", new AlarmThresholdingBolt(), config.thresholdingParallelism)
-        .fieldsGrouping("aggregation", new Fields("compositeAlarmId"))
-        .fieldsGrouping("event-bolt", EventProcessingBolt.COMPOSITE_ALARM_EVENT_STREAM_ID,
-            new Fields("compositeAlarmId"));
+        .fieldsGrouping("aggregation", new Fields("alarmId"))
+        .fieldsGrouping("event-bolt", EventProcessingBolt.ALARM_EVENT_STREAM_ID,
+            new Fields("alarmId"));
 
     return builder.createTopology();
   }

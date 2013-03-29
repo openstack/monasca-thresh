@@ -17,15 +17,18 @@ import com.hpcloud.maas.common.event.AlarmCreatedEvent;
 import com.hpcloud.maas.common.event.AlarmDeletedEvent;
 import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.maas.common.model.metric.MetricDefinition;
+import com.hpcloud.maas.domain.model.SubAlarm;
 
 /**
  * Processes events by emitting tuples related to the event.
  * 
  * <ul>
  * <li>Input: Object event
- * <li>Output alarm-events: MetricDefinition metricDefinition, String compositeAlarmId, String
- * eventType, [AlarmSubExpression alarm]
- * <li>Output composite-alarm-events: String compositeAlarmId, String eventType
+ * <li>Output alarm-events: String eventType, String alarmId
+ * <li>Output metric-alarm-events: String eventType, MetricDefinition metricDefinition, String
+ * alarmId
+ * <li>Output metric-sub-alarm-events: String eventType, MetricDefinition metricDefinition, SubAlarm
+ * subAlarm
  * </ul>
  * 
  * @author Jonathan Halterman
@@ -33,18 +36,23 @@ import com.hpcloud.maas.common.model.metric.MetricDefinition;
 public class EventProcessingBolt extends BaseRichBolt {
   private static final long serialVersionUID = 897171858708109378L;
   private static final Logger LOG = LoggerFactory.getLogger(EventProcessingBolt.class);
+  /** Stream for alarm specific events. */
   public static final String ALARM_EVENT_STREAM_ID = "alarm-events";
-  public static final String COMPOSITE_ALARM_EVENT_STREAM_ID = "composite-alarm-events";
+  /** Stream for metric and alarm specific events. */
+  public static final String METRIC_ALARM_EVENT_STREAM_ID = "metric-alarm-events";
+  /** Stream for metric and sub-alarm specific events. */
+  public static final String METRIC_SUB_ALARM_EVENT_STREAM_ID = "metric-sub-alarm-events";
 
   private TopologyContext context;
   private OutputCollector collector;
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
-    declarer.declareStream(ALARM_EVENT_STREAM_ID, new Fields("metricDefinition",
-        "compositeAlarmId", "eventType", "alarm"));
-    declarer.declareStream(COMPOSITE_ALARM_EVENT_STREAM_ID, new Fields("compositeAlarmId",
-        "eventType"));
+    declarer.declareStream(ALARM_EVENT_STREAM_ID, new Fields("eventType", "alarmId"));
+    declarer.declareStream(METRIC_ALARM_EVENT_STREAM_ID, new Fields("eventType",
+        "metricDefinition", "alarmId"));
+    declarer.declareStream(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Fields("eventType",
+        "metricDefinition", "subAlarm"));
   }
 
   @Override
@@ -66,15 +74,17 @@ public class EventProcessingBolt extends BaseRichBolt {
   }
 
   void handle(AlarmCreatedEvent event) {
-    for (AlarmSubExpression alarm : event.expression.getSubExpressions())
-      collector.emit(ALARM_EVENT_STREAM_ID, new Values(alarm.getMetricDefinition(), event.id,
-          event.getClass().getSimpleName(), alarm));
+    String eventType = event.getClass().getSimpleName();
+    for (Map.Entry<String, AlarmSubExpression> subExpressionEntry : event.alarmSubExpressions.entrySet())
+      collector.emit(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Values(eventType,
+          subExpressionEntry.getValue().getMetricDefinition(), new SubAlarm(event.alarmId,
+              subExpressionEntry.getKey(), subExpressionEntry.getValue())));
   }
 
   void handle(AlarmDeletedEvent event) {
+    String eventType = event.getClass().getSimpleName();
     for (MetricDefinition metricDef : event.metricDefinitions)
-      collector.emit(ALARM_EVENT_STREAM_ID, new Values(metricDef, event.id, event.getClass()
-          .getSimpleName()));
-    collector.emit(COMPOSITE_ALARM_EVENT_STREAM_ID, new Values(event.id, event));
+      collector.emit(METRIC_ALARM_EVENT_STREAM_ID, new Values(eventType, metricDef, event.alarmId));
+    collector.emit(ALARM_EVENT_STREAM_ID, new Values(eventType, event.alarmId));
   }
 }

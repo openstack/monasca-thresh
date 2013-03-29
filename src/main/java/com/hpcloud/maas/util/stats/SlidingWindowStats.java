@@ -47,8 +47,8 @@ public class SlidingWindowStats {
   }
 
   /**
-   * Creates a RollingWindow containing {@code numSlots} slots of size {@code slotWidthSeconds}
-   * starting at the {@code initialPeriod}.
+   * Creates a SlidingWindow containing {@code numSlots} slots of size {@code slotWidthSeconds}
+   * starting at the {@code initialTimestamp}.
    * 
    * @param timescale to scale timestamps with
    * @param slotWidthSeconds the width of a slot in seconds

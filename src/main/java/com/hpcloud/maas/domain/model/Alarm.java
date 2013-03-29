@@ -30,7 +30,7 @@ public class Alarm extends AbstractEntity {
     this.expression = expression;
     this.subAlarms = new HashMap<String, SubAlarm>();
     for (SubAlarm subAlarm : subAlarms)
-      this.subAlarms.put(subAlarm.getExpression().getId(), subAlarm);
+      this.subAlarms.put(subAlarm.getId(), subAlarm);
     this.state = state;
   }
 
@@ -40,8 +40,8 @@ public class Alarm extends AbstractEntity {
    */
   public boolean evaluate() {
     if (!AlarmState.UNDETERMINED.equals(state)) {
-      for (SubAlarm alarm : subAlarms.values())
-        if (AlarmState.UNDETERMINED.equals(alarm.getState())) {
+      for (SubAlarm subAlarm : subAlarms.values())
+        if (AlarmState.UNDETERMINED.equals(subAlarm.getState())) {
           state = AlarmState.UNDETERMINED;
           return true;
         }
@@ -67,14 +67,6 @@ public class Alarm extends AbstractEntity {
     return true;
   }
 
-  public SubAlarm getAlarm(String alarmId) {
-    return subAlarms.get(alarmId);
-  }
-
-  public Collection<SubAlarm> getAlarms() {
-    return subAlarms.values();
-  }
-
   public AlarmExpression getExpression() {
     return expression;
   }
@@ -85,6 +77,14 @@ public class Alarm extends AbstractEntity {
 
   public AlarmState getState() {
     return state;
+  }
+
+  public SubAlarm getSubAlarm(String subAlarmId) {
+    return subAlarms.get(subAlarmId);
+  }
+
+  public Collection<SubAlarm> getSubAlarms() {
+    return subAlarms.values();
   }
 
   public String getTenantId() {
@@ -113,10 +113,10 @@ public class Alarm extends AbstractEntity {
 
   @Override
   public String toString() {
-    return name;
+    return String.format("Alarm [name=%s]", name);
   }
 
-  public void updateAlarm(SubAlarm alarm) {
-    subAlarms.put(alarm.getExpression().getId(), alarm);
+  public void updateSubAlarm(SubAlarm subAlarm) {
+    subAlarms.put(subAlarm.getId(), subAlarm);
   }
 }

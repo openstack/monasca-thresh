@@ -13,8 +13,8 @@ import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 
 import com.hpcloud.maas.common.event.AlarmDeletedEvent;
-import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.model.Alarm;
+import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.service.AlarmDAO;
 import com.hpcloud.maas.infrastructure.storm.Streams;
 import com.hpcloud.util.Injector;
@@ -23,11 +23,11 @@ import com.hpcloud.util.Injector;
  * Determines whether an alarm threshold has been exceeded.
  * 
  * <p>
- * Receives composite alarm state changes and events.
+ * Receives alarm state changes and events.
  * 
  * <ul>
- * <li>Input: String compositeAlarmId, Object alarm
- * <li>Input composite-alarm-events: String compositeAlarmId, String eventType
+ * <li>Input: String alarmId, SubAlarm subAlarm
+ * <li>Input alarm-events: String eventType, String alarmId
  * </ul>
  * 
  * @author Jonathan Halterman
@@ -36,7 +36,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   private static final Logger LOG = LoggerFactory.getLogger(AlarmThresholdingBolt.class);
   private static final long serialVersionUID = -4126465124017857754L;
 
-  private final Map<String, Alarm> compositeAlarms = new HashMap<String, Alarm>();
+  private final Map<String, Alarm> alarms = new HashMap<String, Alarm>();
   private transient AlarmDAO alarmDAO;
   private TopologyContext context;
   private OutputCollector collector;
@@ -48,19 +48,19 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   @Override
   public void execute(Tuple tuple) {
     if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-      String compositeAlarmId = tuple.getString(0);
-      Alarm compositeAlarm = getOrCreateCompositeAlarm(compositeAlarmId);
-      if (compositeAlarm == null)
+      String alarmId = tuple.getString(0);
+      Alarm alarm = getOrCreateAlarm(alarmId);
+      if (alarm == null)
         return;
 
-      SubAlarm alarm = (SubAlarm) tuple.getValue(1);
-      evaluateThreshold(compositeAlarm, alarm);
-    } else if (EventProcessingBolt.COMPOSITE_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-      String compositeAlarmId = tuple.getString(0);
-      String eventType = tuple.getString(1);
+      SubAlarm subAlarm = (SubAlarm) tuple.getValue(1);
+      evaluateThreshold(alarm, subAlarm);
+    } else if (EventProcessingBolt.ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
+      String eventType = tuple.getString(0);
+      String alarmId = tuple.getString(1);
 
       if (AlarmDeletedEvent.class.getSimpleName().equals(eventType))
-        handleAlarmDeleted(compositeAlarmId);
+        handleAlarmDeleted(alarmId);
     }
   }
 
@@ -72,33 +72,31 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     alarmDAO = Injector.getInstance(AlarmDAO.class);
   }
 
-  void evaluateThreshold(Alarm compositeAlarm, SubAlarm alarm) {
-    LOG.debug("{} Received state change for composite alarm id {}, {}", context.getThisTaskId(),
-        compositeAlarm.getId(), alarm);
-    compositeAlarm.updateAlarm(alarm);
-    if (compositeAlarm.evaluate()) {
+  void evaluateThreshold(Alarm alarm, SubAlarm subAlarm) {
+    LOG.debug("{} Received state change for {}", context.getThisTaskId(), subAlarm);
+    alarm.updateSubAlarm(subAlarm);
+    if (alarm.evaluate()) {
       // Emit notification
       // Update persistent alarm state
     }
   }
 
-  void handleAlarmDeleted(String compositeAlarmId) {
-    LOG.debug("{} Received AlarmDeletedEvent for composite alarm id {}", context.getThisTaskId(),
-        compositeAlarmId);
-    compositeAlarms.remove(compositeAlarmId);
+  void handleAlarmDeleted(String alarmId) {
+    LOG.debug("{} Received AlarmDeletedEvent for alarm id {}", context.getThisTaskId(), alarmId);
+    alarms.remove(alarmId);
   }
 
-  private Alarm getOrCreateCompositeAlarm(String compositeAlarmId) {
-    Alarm compositeAlarm = compositeAlarms.get(compositeAlarmId);
-    if (compositeAlarm == null) {
-      compositeAlarm = alarmDAO.findByCompositeId(compositeAlarmId);
-      if (compositeAlarm == null)
-        LOG.error("Failed to locate composite alarm for id {}", compositeAlarmId);
+  private Alarm getOrCreateAlarm(String alarmId) {
+    Alarm alarm = alarms.get(alarmId);
+    if (alarm == null) {
+      alarm = alarmDAO.findById(alarmId);
+      if (alarm == null)
+        LOG.error("Failed to locate alarm for id {}", alarmId);
       else {
-        compositeAlarms.put(compositeAlarmId, compositeAlarm);
+        alarms.put(alarmId, alarm);
       }
     }
 
-    return compositeAlarm;
+    return alarm;
   }
 }

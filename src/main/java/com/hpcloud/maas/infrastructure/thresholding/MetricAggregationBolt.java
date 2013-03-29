@@ -20,13 +20,12 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.hpcloud.maas.common.event.AlarmCreatedEvent;
 import com.hpcloud.maas.common.event.AlarmDeletedEvent;
-import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.maas.common.model.metric.Metric;
 import com.hpcloud.maas.common.model.metric.MetricDefinition;
-import com.hpcloud.maas.domain.model.MetricData;
 import com.hpcloud.maas.domain.model.SubAlarm;
-import com.hpcloud.maas.domain.model.SubAlarmData;
-import com.hpcloud.maas.domain.service.AlarmDAO;
+import com.hpcloud.maas.domain.model.SubAlarmStats;
+import com.hpcloud.maas.domain.service.SubAlarmDAO;
+import com.hpcloud.maas.domain.service.SubAlarmStatsRepository;
 import com.hpcloud.maas.infrastructure.storm.Streams;
 import com.hpcloud.maas.infrastructure.storm.Tuples;
 import com.hpcloud.util.Injector;
@@ -38,9 +37,11 @@ import com.hpcloud.util.Injector;
  * 
  * <ul>
  * <li>Input: MetricDefinition metricDefinition, Metric metric
- * <li>Input alarm-events: MetricDefinition metricDefinition, String compositeAlarmId, String
- * eventType, [AlarmSubExpression alarm]
- * <li>Output: String compositeAlarmId, Alarm alarm
+ * <li>Input metric-alarm-events: String eventType, MetricDefinition metricDefinition, String
+ * alarmId
+ * <li>Input metric-sub-alarm-events: String eventType, MetricDefinition metricDefinition, SubAlarm
+ * subAlarm
+ * <li>Output: String alarmId, SubAlarm subAlarm
  * </ul>
  * 
  * @author Jonathan Halterman
@@ -49,15 +50,15 @@ public class MetricAggregationBolt extends BaseRichBolt {
   private static final Logger LOG = LoggerFactory.getLogger(MetricAggregationBolt.class);
   private static final long serialVersionUID = 5624314196838090726L;
 
-  private final Map<MetricDefinition, MetricData> metricsData = new HashMap<MetricDefinition, MetricData>();
-  private final Multimap<String, String> compositeAlarms = ArrayListMultimap.create();
-  private transient AlarmDAO alarmDAO;
+  private final Map<MetricDefinition, SubAlarmStatsRepository> subAlarmStatsRepos = new HashMap<MetricDefinition, SubAlarmStatsRepository>();
+  private final Multimap<String, String> alarmSubAlarms = ArrayListMultimap.create();
+  private transient SubAlarmDAO subAlarmDAO;
   private TopologyContext context;
   private OutputCollector collector;
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
-    declarer.declare(new Fields("compositeAlarmId", "alarm"));
+    declarer.declare(new Fields("alarmId", "subAlarm"));
   }
 
   @Override
@@ -68,20 +69,22 @@ public class MetricAggregationBolt extends BaseRichBolt {
       if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
         Metric metric = (Metric) tuple.getValueByField("metric");
         aggregateValues(metric);
-      } else if (EventProcessingBolt.ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-        MetricDefinition metricDefinition = (MetricDefinition) tuple.getValue(0);
-        MetricData metricData = getOrCreateMetricData(metricDefinition);
+      } else {
+        MetricDefinition metricDefinition = (MetricDefinition) tuple.getValue(1);
+        SubAlarmStatsRepository metricData = getOrCreateSubAlarmStatsRepo(metricDefinition);
         if (metricData == null)
           return;
 
-        String compositeAlarmId = tuple.getString(1);
-        String eventType = tuple.getString(2);
+        String eventType = tuple.getString(0);
 
-        if (AlarmCreatedEvent.class.getSimpleName().equals(eventType)) {
-          AlarmSubExpression alarmSubExpression = (AlarmSubExpression) tuple.getValueByField("alarm");
-          handleAlarmCreated(metricData, compositeAlarmId, alarmSubExpression);
-        } else if (AlarmDeletedEvent.class.getSimpleName().equals(eventType)) {
-          handleAlarmDeleted(metricData, compositeAlarmId);
+        if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
+          String alarmId = tuple.getString(2);
+          if (AlarmDeletedEvent.class.getSimpleName().equals(eventType))
+            handleAlarmDeleted(metricData, alarmId);
+        } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
+          SubAlarm subAlarm = (SubAlarm) tuple.getValue(2);
+          if (AlarmCreatedEvent.class.getSimpleName().equals(eventType))
+            handleAlarmCreated(metricData, subAlarm);
         }
       }
     }
@@ -99,7 +102,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
     this.context = context;
     this.collector = collector;
-    alarmDAO = Injector.getInstance(AlarmDAO.class);
+    subAlarmDAO = Injector.getInstance(SubAlarmDAO.class);
   }
 
   /**
@@ -107,58 +110,56 @@ public class MetricAggregationBolt extends BaseRichBolt {
    */
   void aggregateValues(Metric metric) {
     LOG.debug("{} Aggregating values for {}", context.getThisTaskId(), metric);
-    MetricData metricData = getOrCreateMetricData(metric.definition);
-    if (metricData == null)
+    SubAlarmStatsRepository subAlarmStatsRepo = getOrCreateSubAlarmStatsRepo(metric.definition);
+    if (subAlarmStatsRepo == null)
       return;
 
-    metricData.addValue(metric.value, metric.timestamp);
+    for (SubAlarmStats stats : subAlarmStatsRepo.get())
+      stats.getStats().addValue(metric.value, metric.timestamp);
   }
 
   void evaluateAlarmsAndAdvanceWindows() {
     LOG.debug("{} Evaluating alarms and advancing windows", context.getThisTaskId());
     long initialTimestamp = System.currentTimeMillis();
-    for (MetricData metricData : metricsData.values())
-      for (SubAlarmData alarmData : metricData.getAlarmData()) {
+    for (SubAlarmStatsRepository metricSubAlarm : subAlarmStatsRepos.values())
+      for (SubAlarmStats alarmData : metricSubAlarm.get()) {
         LOG.debug("{} Evaluating {}", context.getThisTaskId(), alarmData.getStats());
         if (alarmData.evaluate(initialTimestamp)) {
-          LOG.debug("Alarm state changed for {}", alarmData.getAlarm());
-          collector.emit(new Values(alarmData.getAlarm().getCompositeId(), alarmData.getAlarm()));
+          LOG.debug("Alarm state changed for {}", alarmData.getSubAlarm());
+          collector.emit(new Values(alarmData.getSubAlarm().getAlarmId(), alarmData.getSubAlarm()));
         }
 
         alarmData.getStats().advanceWindowTo(initialTimestamp);
       }
   }
 
-  MetricData getOrCreateMetricData(MetricDefinition metricDefinition) {
-    MetricData metricData = metricsData.get(metricDefinition);
-    if (metricData == null) {
-      List<SubAlarm> alarms = alarmDAO.find(metricDefinition);
-      if (alarms.isEmpty())
-        LOG.warn("Failed to find alarm data for {}", metricDefinition);
+  SubAlarmStatsRepository getOrCreateSubAlarmStatsRepo(MetricDefinition metricDefinition) {
+    SubAlarmStatsRepository subAlarmStatsRepo = subAlarmStatsRepos.get(metricDefinition);
+    if (subAlarmStatsRepo == null) {
+      List<SubAlarm> subAlarms = subAlarmDAO.find(metricDefinition);
+      if (subAlarms.isEmpty())
+        LOG.warn("Failed to find sub alarms for {}", metricDefinition);
       else {
-        metricData = new MetricData(alarms);
-        metricsData.put(metricDefinition, metricData);
-        for (SubAlarm alarm : alarms)
-          compositeAlarms.put(alarm.getCompositeId(), alarm.getExpression().getId());
+        subAlarmStatsRepo = new SubAlarmStatsRepository(subAlarms);
+        subAlarmStatsRepos.put(metricDefinition, subAlarmStatsRepo);
+        for (SubAlarm subAlarm : subAlarms)
+          alarmSubAlarms.put(subAlarm.getAlarmId(), subAlarm.getId());
       }
     }
 
-    return metricData;
+    return subAlarmStatsRepo;
   }
 
-  void handleAlarmCreated(MetricData metricData, String compositeAlarmId,
-      AlarmSubExpression alarmSubExpression) {
-    LOG.debug("{} Received AlarmCreatedEvent for composite alarm id {}, {}",
-        context.getThisTaskId(), compositeAlarmId, alarmSubExpression);
+  void handleAlarmCreated(SubAlarmStatsRepository metricData, SubAlarm subAlarm) {
+    LOG.debug("{} Received AlarmCreatedEvent for {}", context.getThisTaskId(), subAlarm);
     long initialTimestamp = System.currentTimeMillis();
-    metricData.addAlarm(new SubAlarm(compositeAlarmId, alarmSubExpression), initialTimestamp);
-    compositeAlarms.put(compositeAlarmId, alarmSubExpression.getId());
+    metricData.add(subAlarm, initialTimestamp);
+    alarmSubAlarms.put(subAlarm.getAlarmId(), subAlarm.getId());
   }
 
-  void handleAlarmDeleted(MetricData metricData, String compositeAlarmId) {
-    LOG.debug("{} Received AlarmDeletedEvent for composite alarm id {}", context.getThisTaskId(),
-        compositeAlarmId);
-    for (String alarmId : compositeAlarms.removeAll(compositeAlarmId))
-      metricData.removeAlarm(alarmId);
+  void handleAlarmDeleted(SubAlarmStatsRepository metricData, String alarmId) {
+    LOG.debug("{} Received AlarmDeletedEvent for alarm id {}", context.getThisTaskId(), alarmId);
+    for (String subAlarmId : alarmSubAlarms.removeAll(alarmId))
+      metricData.remove(subAlarmId);
   }
 }

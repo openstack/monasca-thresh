@@ -6,27 +6,27 @@ import com.hpcloud.maas.util.stats.Statistics;
 import com.hpcloud.maas.util.time.Timescale;
 
 /**
- * Data for a specific alarm. Value object.
+ * Aggregates statistics for a specific SubAlarm.
  * 
  * @author Jonathan Halterman
  */
-public class SubAlarmData {
+public class SubAlarmStats {
   /**
    * Helps determine how many observations to wait for before changing an alarm's state to
    * insufficient data.
    */
   private static final int INSUFFICIENT_DATA_COEFFICIENT = 3;
 
-  private final SubAlarm alarm;
+  private final SubAlarm subAlarm;
   private final SlidingWindowStats stats;
   private final int emptySlotObservationThreshold;
   private int emptySlotObservations;
 
-  public SubAlarmData(SubAlarm alarm, long initialTimestamp) {
-    this.alarm = alarm;
-    this.stats = new SlidingWindowStats(Timescale.SECONDS_SINCE_EPOCH, alarm.getExpression()
-        .getPeriod(), alarm.getExpression().getPeriods(),
-        Statistics.statTypeFor(alarm.getExpression().getFunction()), initialTimestamp);
+  public SubAlarmStats(SubAlarm subAlarm, long initialTimestamp) {
+    this.subAlarm = subAlarm;
+    this.stats = new SlidingWindowStats(Timescale.SECONDS_SINCE_EPOCH, subAlarm.getExpression()
+        .getPeriod(), subAlarm.getExpression().getPeriods(),
+        Statistics.statTypeFor(subAlarm.getExpression().getFunction()), initialTimestamp);
     emptySlotObservationThreshold = (stats.getSlotWidthInMinutes() == 0 ? 1
         : stats.getSlotWidthInMinutes()) * INSUFFICIENT_DATA_COEFFICIENT;
   }
@@ -48,19 +48,19 @@ public class SubAlarmData {
     // TODO initialTimestamp should come into play here for selecting the appropriate portion of the
     // window. maybe? does that mean the window needs to be larger than it is by default?
 
-    AlarmState initialState = alarm.getState();
+    AlarmState initialState = subAlarm.getState();
     if (emptySlotObservations >= emptySlotObservationThreshold) {
       if (AlarmState.UNDETERMINED.equals(initialState))
         return false;
-      alarm.setState(AlarmState.UNDETERMINED);
+      subAlarm.setState(AlarmState.UNDETERMINED);
       return true;
     }
 
     boolean alarmed = true;
     for (double value : stats.getValues())
-      if (!alarm.getExpression()
+      if (!subAlarm.getExpression()
           .getOperator()
-          .evaluate(value, alarm.getExpression().getThreshold())) {
+          .evaluate(value, subAlarm.getExpression().getThreshold())) {
         alarmed = false;
         break;
       }
@@ -68,25 +68,25 @@ public class SubAlarmData {
     if (alarmed) {
       if (AlarmState.ALARM.equals(initialState))
         return false;
-      alarm.setState(AlarmState.ALARM);
+      subAlarm.setState(AlarmState.ALARM);
       return true;
     }
 
     if (AlarmState.OK.equals(initialState))
       return false;
-    alarm.setState(AlarmState.OK);
+    subAlarm.setState(AlarmState.OK);
     return true;
   }
 
   /**
    * Returns the alarm that data is being observed for.
    */
-  public SubAlarm getAlarm() {
-    return alarm;
+  public SubAlarm getSubAlarm() {
+    return subAlarm;
   }
 
   @Override
   public String toString() {
-    return String.format("AlarmData [alarm=%s, stats=%s]", alarm, stats);
+    return String.format("SubAlarmStats [subAlarm=%s, stats=%s]", subAlarm, stats);
   }
 }
