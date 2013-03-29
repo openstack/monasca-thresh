@@ -1,14 +1,14 @@
 package com.hpcloud.maas.util.time;
 
 /**
- * Scales time values.
+ * Timescale.
  * 
  * @author Jonathan Halterman
  */
 public interface Timescale {
   long scale(long timestamp);
 
-  public static final Timescale ABSOLUTE = new Timescale() {
+  public static final Timescale RELATIVE = new Timescale() {
     @Override
     public long scale(long timestamp) {
       return timestamp;
