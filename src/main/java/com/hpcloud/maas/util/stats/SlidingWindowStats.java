@@ -20,13 +20,10 @@ public class SlidingWindowStats {
   private static final Logger LOG = LoggerFactory.getLogger(SlidingWindowStats.class);
 
   private final Timescale timescale;
-  private final int slotWidthInMilliseconds;
-  private final int slotWidthInMinutes;
-  private final int windowLengthInMilliseconds;
+  private final int slotWidth;
+  private final int windowLength;
   private final Slot[] slots;
-  /** Timestamp for the head of the window in seconds. */
   private long windowHeadTimestamp;
-  /** Timestamp for the head slot in seconds. */
   private long slotHeadTimestamp;
   private int headIndex;
   private int emptySlots;
@@ -47,28 +44,27 @@ public class SlidingWindowStats {
   }
 
   /**
-   * Creates a SlidingWindow containing {@code numSlots} slots of size {@code slotWidthSeconds}
-   * starting at the {@code initialTimestamp}.
+   * Creates a SlidingWindow containing {@code numSlots} slots of size {@code slotWidth} starting at
+   * the {@code initialTimestamp}.
    * 
    * @param timescale to scale timestamps with
-   * @param slotWidthSeconds the width of a slot in seconds
+   * @param slotWidth time-based width of the slot
    * @param numSlots the number of slots in the window
    * @param statType to calculate values for
-   * @param initialTimestamp to start window at as milliseconds since epoch
+   * @param initialTimestamp to start window at
    */
-  public SlidingWindowStats(Timescale timescale, int slotWidthSeconds, int numSlots,
+  public SlidingWindowStats(Timescale timescale, int slotWidth, int numSlots,
       Class<? extends Statistic> statType, long initialTimestamp) {
     this.timescale = timescale;
     initialTimestamp = timescale.scale(initialTimestamp);
-    this.slotWidthInMilliseconds = slotWidthSeconds * 1000;
-    this.slotWidthInMinutes = slotWidthSeconds / 60;
-    this.windowLengthInMilliseconds = slotWidthSeconds * 1000 * numSlots;
+    this.slotWidth = slotWidth;
+    this.windowLength = slotWidth * numSlots;
     windowHeadTimestamp = initialTimestamp;
     slotHeadTimestamp = initialTimestamp;
     slots = new Slot[numSlots];
 
     long timestamp = initialTimestamp;
-    for (int i = numSlots - 1; i > -1; i--, timestamp -= slotWidthInMilliseconds)
+    for (int i = numSlots - 1; i > -1; i--, timestamp -= slotWidth)
       slots[i] = createSlot(timestamp, statType);
     headIndex = numSlots - 1;
   }
@@ -88,13 +84,13 @@ public class SlidingWindowStats {
    * else <b>does nothing</b> if the {@code timestamp} is outside of the window.
    * 
    * @param value to add
-   * @param timestamp milliseconds since epoch
+   * @param timestamp to add value for
    */
   public void addValue(double value, long timestamp) {
     timestamp = timescale.scale(timestamp);
     int index = slotIndexFor(timestamp);
     if (index == -1)
-      LOG.trace("Add value attempt for {} outside of window {}", timestamp, toString());
+      LOG.warn("Timestamp {} is outside of window {}", timestamp, toString());
     else {
       if (!slots[index].stat.isInitialized())
         emptySlots--;
@@ -107,18 +103,18 @@ public class SlidingWindowStats {
    * Advances the sliding window to the slot for the {@code timestamp}, erasing values for any slots
    * along the way.
    * 
-   * @param timestamp milliseconds since epoch
+   * @param timestamp advance window to
    */
   public void advanceWindowTo(long timestamp) {
     timestamp = timescale.scale(timestamp);
     if (timestamp <= windowHeadTimestamp)
       return;
     long timeDiff = timestamp - slotHeadTimestamp;
-    int slotsToAdvance = (int) timeDiff / slotWidthInMilliseconds;
-    slotsToAdvance += timeDiff % slotWidthInMilliseconds == 0 ? 0 : 1;
+    int slotsToAdvance = (int) timeDiff / slotWidth;
+    slotsToAdvance += timeDiff % slotWidth == 0 ? 0 : 1;
     for (int i = slotsToAdvance; i > 0; i--) {
       Slot slot = slots[headIndex = indexAfter(headIndex)];
-      slot.timestamp = slotHeadTimestamp += slotWidthInMilliseconds;
+      slot.timestamp = slotHeadTimestamp += slotWidth;
       slot.stat.reset();
       emptySlots++;
     }
@@ -131,9 +127,9 @@ public class SlidingWindowStats {
     return slots.length;
   }
 
-  /** Returns the width of the window's slots in minutes. */
-  public int getSlotWidthInMinutes() {
-    return slotWidthInMinutes;
+  /** Returns the window's slot width. */
+  public int getSlotWidth() {
+    return slotWidth;
   }
 
   /**
@@ -143,7 +139,7 @@ public class SlidingWindowStats {
   public long[] getTimestamps() {
     long[] timestamps = new long[slots.length];
     long timestamp = windowHeadTimestamp;
-    for (int i = 0; i < slots.length; i++, timestamp -= slotWidthInMilliseconds)
+    for (int i = 0; i < slots.length; i++, timestamp -= slotWidth)
       timestamps[i] = timestamp;
     return timestamps;
   }
@@ -158,7 +154,7 @@ public class SlidingWindowStats {
   /**
    * Returns the value for the window slot associated with {@code timestamp}.
    * 
-   * @param timestamp milliseconds since epoch
+   * @param timestamp to get value for
    * @throws IllegalStateException if no value is within the window for the {@code timestamp}
    */
   public double getValue(long timestamp) {
@@ -207,9 +203,9 @@ public class SlidingWindowStats {
    */
   int slotIndexFor(long timestamp) {
     if (timestamp <= windowHeadTimestamp) {
-      int timeDiff = (int) (windowHeadTimestamp - timestamp);
-      if (timeDiff < windowLengthInMilliseconds) {
-        int slotDiff = timeDiff / slotWidthInMilliseconds;
+      int timeDiff = (int) (slotHeadTimestamp - timestamp);
+      if (timeDiff < windowLength) {
+        int slotDiff = timeDiff / slotWidth;
         int offset = headIndex - slotDiff;
         if (offset < 0)
           offset += slots.length;
