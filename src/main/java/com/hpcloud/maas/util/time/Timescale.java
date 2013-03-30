@@ -15,7 +15,7 @@ public interface Timescale {
     }
   };
 
-  public static final Timescale SECONDS_SINCE_EPOCH = new Timescale() {
+  public static final Timescale MILLISECONDS = new Timescale() {
     @Override
     public long scale(long timestamp) {
       return Times.roundDownToNearestSecond(timestamp);

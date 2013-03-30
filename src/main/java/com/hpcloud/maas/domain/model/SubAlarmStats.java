@@ -12,8 +12,7 @@ import com.hpcloud.maas.util.time.Timescale;
  */
 public class SubAlarmStats {
   /**
-   * Helps determine how many observations to wait for before changing an alarm's state to
-   * insufficient data.
+   * Determines how many observations to wait for before changing an alarm's state to undetermined.
    */
   private static final int INSUFFICIENT_DATA_COEFFICIENT = 3;
 
@@ -24,28 +23,51 @@ public class SubAlarmStats {
 
   public SubAlarmStats(SubAlarm subAlarm, long initialTimestamp) {
     this.subAlarm = subAlarm;
-    this.stats = new SlidingWindowStats(Timescale.SECONDS_SINCE_EPOCH, subAlarm.getExpression()
-        .getPeriod(), subAlarm.getExpression().getPeriods(),
+    this.stats = new SlidingWindowStats(Timescale.MILLISECONDS, subAlarm.getExpression()
+        .getPeriod() * 1000, subAlarm.getExpression().getPeriods(),
         Statistics.statTypeFor(subAlarm.getExpression().getFunction()), initialTimestamp);
-    emptySlotObservationThreshold = (stats.getSlotWidthInMinutes() == 0 ? 1
-        : stats.getSlotWidthInMinutes()) * INSUFFICIENT_DATA_COEFFICIENT;
-  }
-
-  public SlidingWindowStats getStats() {
-    return stats;
+    emptySlotObservationThreshold = (subAlarm.getExpression().getPeriod() == 0 ? 1
+        : subAlarm.getExpression().getPeriod())
+        * INSUFFICIENT_DATA_COEFFICIENT;
+    emptySlotObservations = emptySlotObservationThreshold;
   }
 
   /**
    * Evaluates the {@code alarm}, updating the alarm's state if necessary and returning true if the
    * alarm's state changed, else false.
    */
-  public boolean evaluate(long initialTimestamp) {
+  public boolean evaluateAndAdvanceWindow(long timestamp) {
+    boolean result = evaluate(timestamp);
+    stats.advanceWindowTo(timestamp);
+    return result;
+  }
+
+  /**
+   * Returns the stats.
+   */
+  public SlidingWindowStats getStats() {
+    return stats;
+  }
+
+  /**
+   * Returns the SubAlarm.
+   */
+  public SubAlarm getSubAlarm() {
+    return subAlarm;
+  }
+
+  @Override
+  public String toString() {
+    return String.format("SubAlarmStats [subAlarm=%s, stats=%s]", subAlarm, stats);
+  }
+
+  private boolean evaluate(long timestamp) {
     if (stats.hasEmptySlots())
       emptySlotObservations++;
     else
       emptySlotObservations = 0;
 
-    // TODO initialTimestamp should come into play here for selecting the appropriate portion of the
+    // TODO timestamp should come into play here for selecting the appropriate portion of the
     // window. maybe? does that mean the window needs to be larger than it is by default?
 
     AlarmState initialState = subAlarm.getState();
@@ -76,17 +98,5 @@ public class SubAlarmStats {
       return false;
     subAlarm.setState(AlarmState.OK);
     return true;
-  }
-
-  /**
-   * Returns the alarm that data is being observed for.
-   */
-  public SubAlarm getSubAlarm() {
-    return subAlarm;
-  }
-
-  @Override
-  public String toString() {
-    return String.format("SubAlarmStats [subAlarm=%s, stats=%s]", subAlarm, stats);
   }
 }

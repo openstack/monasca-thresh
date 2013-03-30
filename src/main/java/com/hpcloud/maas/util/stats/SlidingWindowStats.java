@@ -62,6 +62,7 @@ public class SlidingWindowStats {
     windowHeadTimestamp = initialTimestamp;
     slotHeadTimestamp = initialTimestamp;
     slots = new Slot[numSlots];
+    emptySlots = slots.length;
 
     long timestamp = initialTimestamp;
     for (int i = numSlots - 1; i > -1; i--, timestamp -= slotWidth)
@@ -115,8 +116,8 @@ public class SlidingWindowStats {
     for (int i = slotsToAdvance; i > 0; i--) {
       Slot slot = slots[headIndex = indexAfter(headIndex)];
       slot.timestamp = slotHeadTimestamp += slotWidth;
+      emptySlots += slot.stat.isInitialized() ? 1 : 0;
       slot.stat.reset();
-      emptySlots++;
     }
 
     windowHeadTimestamp = timestamp;

@@ -16,7 +16,7 @@
     <versionNumber>1.0.0</versionNumber>
     <computedVersion>${versionNumber}-SNAPSHOT</computedVersion>
     <ps.common.version>1.0.0.222</ps.common.version>
-    <maas.commons.version>1.0.0.26</maas.commons.version>
+    <maas.commons.version>1.0.0.27</maas.commons.version>
     <dropwizard.version>0.6.1</dropwizard.version>
 
     <skipITs>true</skipITs>

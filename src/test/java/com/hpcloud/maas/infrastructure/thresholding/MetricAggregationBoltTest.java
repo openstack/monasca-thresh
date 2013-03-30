@@ -30,7 +30,6 @@ import com.hpcloud.maas.common.model.metric.Metric;
 import com.hpcloud.maas.common.model.metric.MetricDefinition;
 import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.model.SubAlarmStats;
-import com.hpcloud.maas.domain.service.AlarmDAO;
 import com.hpcloud.maas.domain.service.SubAlarmDAO;
 import com.hpcloud.maas.domain.service.SubAlarmStatsRepository;
 import com.hpcloud.util.Injector;
@@ -43,26 +42,24 @@ public class MetricAggregationBoltTest {
   private MetricAggregationBolt bolt;
   private TopologyContext context;
   private OutputCollector collector;
-  private List<MetricDefinition> metricDefs;
+  private List<AlarmSubExpression> subExpressions;
   private Map<MetricDefinition, SubAlarm> subAlarms;
 
   @BeforeClass
   protected void beforeClass() {
-    MetricDefinition metricDef1 = new MetricDefinition("compute", "cpu", null, null);
-    MetricDefinition metricDef2 = new MetricDefinition("compute", "mem", null, null);
-    metricDefs = Arrays.asList(metricDef1, metricDef2);
+    AlarmSubExpression subExpr1 = AlarmSubExpression.of("avg(compute:cpu:{id=5}, 2, 3) >= 90");
+    AlarmSubExpression subExpr2 = AlarmSubExpression.of("avg(compute:mem:{id=5}, 2, 3) >= 90");
+    subExpressions = Arrays.asList(subExpr1, subExpr2);
   }
 
   @BeforeMethod
   protected void beforeMethod() {
     // Fixtures
-    SubAlarm subAlarm1 = new SubAlarm("1", "123",
-        AlarmSubExpression.of("avg(compute:cpu, 2, 3) >= 90"), AlarmState.OK);
-    SubAlarm subAlarm2 = new SubAlarm("1", "456",
-        AlarmSubExpression.of("avg(compute:mem, 2, 3) >= 90"), AlarmState.OK);
+    SubAlarm subAlarm1 = new SubAlarm("1", "123", subExpressions.get(0), AlarmState.OK);
+    SubAlarm subAlarm2 = new SubAlarm("1", "456", subExpressions.get(1), AlarmState.OK);
     subAlarms = new HashMap<MetricDefinition, SubAlarm>();
-    subAlarms.put(metricDefs.get(0), subAlarm1);
-    subAlarms.put(metricDefs.get(1), subAlarm2);
+    subAlarms.put(subAlarm1.getExpression().getMetricDefinition(), subAlarm1);
+    subAlarms.put(subAlarm2.getExpression().getMetricDefinition(), subAlarm2);
 
     final SubAlarmDAO dao = mock(SubAlarmDAO.class);
     when(dao.find(any(MetricDefinition.class))).thenAnswer(new Answer<List<SubAlarm>>() {
@@ -88,15 +85,17 @@ public class MetricAggregationBoltTest {
   public void shouldAggregateValues() {
     long t1 = System.currentTimeMillis() - 2000;
 
-    bolt.aggregateValues(new Metric(metricDefs.get(0), 100, t1));
-    bolt.aggregateValues(new Metric(metricDefs.get(0), 80, t1));
-    bolt.aggregateValues(new Metric(metricDefs.get(1), 50, t1));
-    bolt.aggregateValues(new Metric(metricDefs.get(1), 40, t1));
+    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), 100, t1));
+    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), 80, t1));
+    bolt.aggregateValues(new Metric(subExpressions.get(1).getMetricDefinition(), 50, t1));
+    bolt.aggregateValues(new Metric(subExpressions.get(1).getMetricDefinition(), 40, t1));
 
-    SubAlarmStats alarmData = bolt.getOrCreateSubAlarmStatsRepo(metricDefs.get(0)).get("123");
+    SubAlarmStats alarmData = bolt.getOrCreateSubAlarmStatsRepo(
+        subExpressions.get(0).getMetricDefinition()).get("123");
     assertEquals(alarmData.getStats().getValue(t1), 90.0);
 
-    alarmData = bolt.getOrCreateSubAlarmStatsRepo(metricDefs.get(1)).get("456");
+    alarmData = bolt.getOrCreateSubAlarmStatsRepo(subExpressions.get(1).getMetricDefinition()).get(
+        "456");
     assertEquals(alarmData.getStats().getValue(t1), 45.0);
   }
 
@@ -104,14 +103,14 @@ public class MetricAggregationBoltTest {
   public void shouldEvaluateAlarms() {
     // Given
     long t1 = System.currentTimeMillis();
-    bolt.aggregateValues(new Metric(metricDefs.get(0), 100, t1));
-    bolt.aggregateValues(new Metric(metricDefs.get(0), 95, t1 - 2000));
-    bolt.aggregateValues(new Metric(metricDefs.get(0), 88, t1 - 4000));
+    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), 100, t1));
+    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), 95, t1 - 2000));
+    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), 88, t1 - 4000));
 
     bolt.evaluateAlarmsAndAdvanceWindows();
     verify(collector, never()).emit(any(List.class));
 
-    bolt.aggregateValues(new Metric(metricDefs.get(0), 99, t1 - 4000));
+    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), 99, t1 - 4000));
 
     bolt.evaluateAlarmsAndAdvanceWindows();
     verify(collector, times(1)).emit(any(List.class));
@@ -126,8 +125,10 @@ public class MetricAggregationBoltTest {
   }
 
   public void shouldGetOrCreateSameMetricData() {
-    SubAlarmStatsRepository data = bolt.getOrCreateSubAlarmStatsRepo(metricDefs.get(0));
+    SubAlarmStatsRepository data = bolt.getOrCreateSubAlarmStatsRepo(subExpressions.get(0)
+        .getMetricDefinition());
     assertNotNull(data);
-    assertEquals(bolt.getOrCreateSubAlarmStatsRepo(metricDefs.get(0)), data);
+    assertEquals(bolt.getOrCreateSubAlarmStatsRepo(subExpressions.get(0).getMetricDefinition()),
+        data);
   }
 }

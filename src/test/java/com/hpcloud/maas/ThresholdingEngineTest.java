@@ -29,6 +29,7 @@ import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.service.AlarmDAO;
 import com.hpcloud.maas.domain.service.SubAlarmDAO;
 import com.hpcloud.maas.infrastructure.storm.TopologyTestCase;
+import com.hpcloud.maas.infrastructure.thresholding.MetricAggregationBolt;
 import com.hpcloud.util.Injector;
 
 /**
@@ -41,13 +42,16 @@ public class ThresholdingEngineTest extends TopologyTestCase {
   private AlarmDAO alarmDAO;
   private SubAlarmDAO subAlarmDAO;
   private Map<String, Alarm> alarms;
+  private List<MetricDefinition> metricDefs;
   private Map<MetricDefinition, SubAlarm> subAlarms;
 
   public ThresholdingEngineTest() {
     // Fixtures
     AlarmExpression expression = new AlarmExpression(
-        "count(compute:cpu, 5, 2) >= 3 and count(compute:mem, 5, 2) >= 3");
+        "count(compute:cpu:{id=5}, 3, 3) >= 3 and count(compute:mem:{id=5}, 2, 4) >= 3");
 
+    metricDefs = Arrays.asList(expression.getSubExpressions().get(0).getMetricDefinition(),
+        expression.getSubExpressions().get(1).getMetricDefinition());
     SubAlarm subAlarm1 = new SubAlarm("1", "123", expression.getSubExpressions().get(0));
     SubAlarm subAlarm2 = new SubAlarm("1", "456", expression.getSubExpressions().get(1));
     subAlarms = new HashMap<MetricDefinition, SubAlarm>();
@@ -77,6 +81,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
       }
     });
 
+    // Bindings
     Injector.reset();
     Injector.registerModules(new AbstractModule() {
       protected void configure() {
@@ -93,12 +98,29 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     metricSpout = new FeederSpout(new Fields("metricDefinition", "metric"));
     eventSpout = new FeederSpout(new Fields("event"));
     Injector.registerModules(new TopologyModule(threshConfig, stormConfig, metricSpout, eventSpout));
+
+    // Evaluate alarm stats every 5 seconds
+    System.setProperty(MetricAggregationBolt.TICK_TUPLE_SECONDS_KEY, "5");
   }
 
   public void shouldThreshold() throws Exception {
-    for (int i = 0; i < 20; i++) {
-      MetricDefinition metricDef = new MetricDefinition("compute", "cpu", null, null);
-      metricSpout.feed(new Values(metricDef, new Metric(metricDef, 95, System.currentTimeMillis())));
+    int waitCount = 0;
+    int feedCount = 5;
+    for (int i = 1; i < 40; i++) {
+      if (feedCount > 0) {
+        System.out.println("Feeding metrics...");
+
+        long time = System.currentTimeMillis();
+        metricSpout.feed(new Values(metricDefs.get(0), new Metric(metricDefs.get(0), 333, time)));
+        metricSpout.feed(new Values(metricDefs.get(1), new Metric(metricDefs.get(1), 333, time)));
+
+        if (--feedCount == 0)
+          waitCount = 3;
+      } else {
+        System.out.println("Waiting...");
+        if (--waitCount == 0)
+          feedCount = 5;
+      }
 
       try {
         Thread.sleep(1000);

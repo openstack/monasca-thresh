@@ -49,6 +49,7 @@ import com.hpcloud.util.Injector;
 public class MetricAggregationBolt extends BaseRichBolt {
   private static final Logger LOG = LoggerFactory.getLogger(MetricAggregationBolt.class);
   private static final long serialVersionUID = 5624314196838090726L;
+  public static final String TICK_TUPLE_SECONDS_KEY = "maas.aggregation.tick.seconds";
 
   private final Map<MetricDefinition, SubAlarmStatsRepository> subAlarmStatsRepos = new HashMap<MetricDefinition, SubAlarmStatsRepository>();
   private final Multimap<String, String> alarmSubAlarms = ArrayListMultimap.create();
@@ -93,7 +94,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
   @Override
   public Map<String, Object> getComponentConfiguration() {
     Map<String, Object> conf = new HashMap<String, Object>();
-    conf.put(Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS, 5);// TODO undo to 60
+    conf.put(Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS,
+        Integer.valueOf(System.getProperty(TICK_TUPLE_SECONDS_KEY, "60")).intValue());
     return conf;
   }
 
@@ -121,15 +123,16 @@ public class MetricAggregationBolt extends BaseRichBolt {
   void evaluateAlarmsAndAdvanceWindows() {
     LOG.debug("{} Evaluating alarms and advancing windows", context.getThisTaskId());
     long initialTimestamp = System.currentTimeMillis();
-    for (SubAlarmStatsRepository metricSubAlarm : subAlarmStatsRepos.values())
-      for (SubAlarmStats alarmData : metricSubAlarm.get()) {
-        LOG.debug("{} Evaluating {}", context.getThisTaskId(), alarmData.getStats());
-        if (alarmData.evaluate(initialTimestamp)) {
-          LOG.debug("Alarm state changed for {}", alarmData.getSubAlarm());
-          collector.emit(new Values(alarmData.getSubAlarm().getAlarmId(), alarmData.getSubAlarm()));
+    for (SubAlarmStatsRepository subAlarmStatsRepo : subAlarmStatsRepos.values())
+      for (SubAlarmStats subAlarmStats : subAlarmStatsRepo.get()) {
+        LOG.debug("{} Evaluating {}", context.getThisTaskId(), subAlarmStats.getStats());
+        if (subAlarmStats.evaluateAndAdvanceWindow(initialTimestamp)) {
+          LOG.debug("Alarm state changed for {}", subAlarmStats.getSubAlarm());
+          collector.emit(new Values(subAlarmStats.getSubAlarm().getAlarmId(),
+              subAlarmStats.getSubAlarm()));
         }
 
-        alarmData.getStats().advanceWindowTo(initialTimestamp);
+        LOG.debug("Updated {}", subAlarmStats);
       }
   }
 
