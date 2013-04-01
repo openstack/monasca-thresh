@@ -64,6 +64,8 @@ public class EventProcessingBolt extends BaseRichBolt {
       handle((AlarmCreatedEvent) event);
     else if (event instanceof AlarmDeletedEvent)
       handle((AlarmDeletedEvent) event);
+    
+    collector.ack(tuple);
   }
 
   @Override

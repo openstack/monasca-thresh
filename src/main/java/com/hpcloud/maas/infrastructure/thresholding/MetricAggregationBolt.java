@@ -89,6 +89,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
         }
       }
     }
+    
+    collector.ack(tuple);
   }
 
   @Override

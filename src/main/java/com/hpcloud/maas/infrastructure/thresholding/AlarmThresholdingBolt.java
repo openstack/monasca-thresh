@@ -62,6 +62,8 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
       if (AlarmDeletedEvent.class.getSimpleName().equals(eventType))
         handleAlarmDeleted(alarmId);
     }
+
+    collector.ack(tuple);
   }
 
   @Override
@@ -76,8 +78,8 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     LOG.debug("{} Received state change for {}", context.getThisTaskId(), subAlarm);
     alarm.updateSubAlarm(subAlarm);
     if (alarm.evaluate()) {
+      alarmDAO.updateState(alarm.getState());
       // Emit notification
-      // Update persistent alarm state
     }
   }
 
