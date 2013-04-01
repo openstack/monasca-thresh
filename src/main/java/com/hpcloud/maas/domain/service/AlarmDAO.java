@@ -1,5 +1,6 @@
 package com.hpcloud.maas.domain.service;
 
+import com.hpcloud.maas.common.model.alarm.AlarmState;
 import com.hpcloud.maas.domain.model.Alarm;
 
 /**
@@ -10,4 +11,7 @@ import com.hpcloud.maas.domain.model.Alarm;
 public interface AlarmDAO {
   /** Finds and returns the Alarm for the {@code id}. */
   Alarm findById(String id);
+
+  /** Updates the alarm state. */
+  void updateState(AlarmState state);
 }
