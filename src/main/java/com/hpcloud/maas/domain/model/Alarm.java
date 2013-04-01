@@ -39,15 +39,13 @@ public class Alarm extends AbstractEntity {
    * alarm's state changed, else false.
    */
   public boolean evaluate() {
-    if (!AlarmState.UNDETERMINED.equals(state)) {
-      for (SubAlarm subAlarm : subAlarms.values())
-        if (AlarmState.UNDETERMINED.equals(subAlarm.getState())) {
-          state = AlarmState.UNDETERMINED;
-          return true;
-        }
-    }
-
     AlarmState initialState = state;
+    for (SubAlarm subAlarm : subAlarms.values()) {
+      if (AlarmState.UNDETERMINED.equals(subAlarm.getState())) {
+        state = AlarmState.UNDETERMINED;
+        return !AlarmState.UNDETERMINED.equals(initialState);
+      }
+    }
 
     Map<AlarmSubExpression, Boolean> subExpressionValues = new HashMap<AlarmSubExpression, Boolean>();
     for (SubAlarm subAlarm : subAlarms.values())
