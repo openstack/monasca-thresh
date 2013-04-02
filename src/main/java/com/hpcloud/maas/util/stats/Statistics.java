@@ -13,6 +13,11 @@ public final class Statistics {
     protected double value;
 
     @Override
+    public boolean isInitialized() {
+      return initialized;
+    }
+
+    @Override
     public void reset() {
       initialized = false;
       value = 0;
@@ -27,11 +32,6 @@ public final class Statistics {
     public double value() {
       return value;
     }
-
-    @Override
-    public boolean isInitialized() {
-      return initialized;
-    }
   }
 
   public static class Average extends Sum {
@@ -41,6 +41,12 @@ public final class Statistics {
     public void addValue(double value) {
       super.addValue(value);
       this.count++;
+    }
+
+    @Override
+    public void reset() {
+      super.reset();
+      count = 0;
     }
 
     @Override
