@@ -44,17 +44,17 @@ public class SlidingWindowStats {
   }
 
   /**
-   * Creates a SlidingWindow containing {@code numSlots} slots of size {@code slotWidth} starting at
-   * the {@code initialTimestamp}.
+   * Creates a SlidingWindowStats containing {@code numSlots} slots of size {@code slotWidth}
+   * starting at the {@code initialTimestamp}.
    * 
+   * @param statType to calculate values for
    * @param timescale to scale timestamps with
    * @param slotWidth time-based width of the slot
    * @param numSlots the number of slots in the window
-   * @param statType to calculate values for
    * @param initialTimestamp to start window at
    */
-  public SlidingWindowStats(Timescale timescale, int slotWidth, int numSlots,
-      Class<? extends Statistic> statType, long initialTimestamp) {
+  public SlidingWindowStats(Class<? extends Statistic> statType, Timescale timescale,
+      int slotWidth, int numSlots, long initialTimestamp) {
     this.timescale = timescale;
     initialTimestamp = timescale.scale(initialTimestamp);
     this.slotWidth = slotWidth;
@@ -145,8 +145,11 @@ public class SlidingWindowStats {
     return timestamps;
   }
 
-  public double getValue(int index) {
-    int offset = headIndex - index;
+  /**
+   * Returns the value for the logical slot identified by the {@code slotIndex}.
+   */
+  public double getValue(int slotIndex) {
+    int offset = headIndex - slotIndex;
     if (offset < 0)
       offset += slots.length;
     return slots[offset].stat.value();
@@ -161,7 +164,7 @@ public class SlidingWindowStats {
   public double getValue(long timestamp) {
     int index = slotIndexFor(timescale.scale(timestamp));
     if (index == -1)
-      throw new IllegalStateException();
+      throw new IllegalStateException(timestamp + " is outside of the window");
     return slots[index].stat.value();
   }
 
@@ -171,6 +174,23 @@ public class SlidingWindowStats {
   public double[] getValues() {
     double[] values = new double[slots.length];
     for (int i = 0, index = headIndex; i < slots.length; i++, index = indexBefore(index))
+      if (slots[index] != null)
+        values[i] = slots[index].stat.value();
+    return values;
+  }
+
+  /**
+   * Returns the values of the sliding window up to and including values for the {@code timestamp}
+   * decreasing in time from newest to oldest.
+   * 
+   * @throws IllegalStateException if no value is within the window for the {@code timestamp}
+   */
+  public double[] getValuesUpTo(long timestamp) {
+    int index = slotIndexFor(timescale.scale(timestamp));
+    if (index == -1)
+      throw new IllegalStateException(timestamp + " is outside of the window");
+    double[] values = new double[lengthToIndex(index)];
+    for (int i = 0; i < values.length; i++, index = indexBefore(index))
       if (slots[index] != null)
         values[i] = slots[index].stat.value();
     return values;
@@ -195,6 +215,14 @@ public class SlidingWindowStats {
     }
 
     return b.append(']').toString();
+  }
+
+  /** Returns the length of the window up to and including the {@code slotIndex}. */
+  int lengthToIndex(int slotIndex) {
+    if (headIndex >= slotIndex)
+      return slotIndex + slots.length - headIndex;
+    else
+      return slotIndex - headIndex;
   }
 
   /**

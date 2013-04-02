@@ -11,9 +11,9 @@ import com.hpcloud.maas.util.time.Timescale;
  * @author Jonathan Halterman
  */
 public class SubAlarmStats {
-  /**
-   * Determines how many observations to wait for before changing an alarm's state to undetermined.
-   */
+  /** Number of slots for future minutes that we should collect metrics for. */
+  private static final int FUTURE_SLOTS = 2;
+  /** Determines how many observations to wait for before changing an alarm's state to undetermined. */
   private static final int INSUFFICIENT_DATA_COEFFICIENT = 3;
 
   private final SubAlarm subAlarm;
@@ -23,9 +23,9 @@ public class SubAlarmStats {
 
   public SubAlarmStats(SubAlarm subAlarm, long initialTimestamp) {
     this.subAlarm = subAlarm;
-    this.stats = new SlidingWindowStats(Timescale.MILLISECONDS, subAlarm.getExpression()
-        .getPeriod() * 1000, subAlarm.getExpression().getPeriods(),
-        Statistics.statTypeFor(subAlarm.getExpression().getFunction()), initialTimestamp);
+    this.stats = new SlidingWindowStats(Statistics.statTypeFor(subAlarm.getExpression()
+        .getFunction()), Timescale.MILLISECONDS, subAlarm.getExpression().getPeriod() * 1000,
+        subAlarm.getExpression().getPeriods() + FUTURE_SLOTS, initialTimestamp);
     emptySlotObservationThreshold = (subAlarm.getExpression().getPeriod() == 0 ? 1
         : subAlarm.getExpression().getPeriod())
         * INSUFFICIENT_DATA_COEFFICIENT;
@@ -67,9 +67,6 @@ public class SubAlarmStats {
     else
       emptySlotObservations = 0;
 
-    // TODO timestamp should come into play here for selecting the appropriate portion of the
-    // window. maybe? does that mean the window needs to be larger than it is by default?
-
     AlarmState initialState = subAlarm.getState();
     if (emptySlotObservations >= emptySlotObservationThreshold) {
       if (AlarmState.UNDETERMINED.equals(initialState))
@@ -79,7 +76,7 @@ public class SubAlarmStats {
     }
 
     boolean alarmed = true;
-    for (double value : stats.getValues())
+    for (double value : stats.getValuesUpTo(timestamp))
       if (!subAlarm.getExpression()
           .getOperator()
           .evaluate(value, subAlarm.getExpression().getThreshold())) {

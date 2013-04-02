@@ -12,9 +12,6 @@ import com.hpcloud.messaging.rabbitmq.RabbitMQConfiguration;
 import com.yammer.dropwizard.db.DatabaseConfiguration;
 
 public class ThresholdingConfiguration {
- // public static final String SECONDS_SINCE
-  
-  
   @NotNull public Integer metricSpoutParallelism = 3;
   @NotNull public Integer eventSpoutParallelism = 1;
   @NotNull public Integer eventBoltParallelism = 2;
