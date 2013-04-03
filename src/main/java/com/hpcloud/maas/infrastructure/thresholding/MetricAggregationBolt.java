@@ -50,6 +50,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
   private static final Logger LOG = LoggerFactory.getLogger(MetricAggregationBolt.class);
   private static final long serialVersionUID = 5624314196838090726L;
   public static final String TICK_TUPLE_SECONDS_KEY = "maas.aggregation.tick.seconds";
+  private static final int SIXTY_SECONDS = 60000;
 
   private final Map<MetricDefinition, SubAlarmStatsRepository> subAlarmStatsRepos = new HashMap<MetricDefinition, SubAlarmStatsRepository>();
   private final Multimap<String, String> alarmSubAlarms = ArrayListMultimap.create();
@@ -65,15 +66,15 @@ public class MetricAggregationBolt extends BaseRichBolt {
   @Override
   public void execute(Tuple tuple) {
     if (Tuples.isTickTuple(tuple)) {
-      evaluateAlarmsAndAdvanceWindows();
+      evaluateAlarmsAndSlideWindows();
     } else {
       if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
         Metric metric = (Metric) tuple.getValueByField("metric");
         aggregateValues(metric);
       } else {
         MetricDefinition metricDefinition = (MetricDefinition) tuple.getValue(1);
-        SubAlarmStatsRepository metricData = getOrCreateSubAlarmStatsRepo(metricDefinition);
-        if (metricData == null)
+        SubAlarmStatsRepository subAlarmStatsRepo = getOrCreateSubAlarmStatsRepo(metricDefinition);
+        if (subAlarmStatsRepo == null)
           return;
 
         String eventType = tuple.getString(0);
@@ -81,15 +82,15 @@ public class MetricAggregationBolt extends BaseRichBolt {
         if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
           String alarmId = tuple.getString(2);
           if (AlarmDeletedEvent.class.getSimpleName().equals(eventType))
-            handleAlarmDeleted(metricData, alarmId);
+            handleAlarmDeleted(subAlarmStatsRepo, alarmId);
         } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
           SubAlarm subAlarm = (SubAlarm) tuple.getValue(2);
           if (AlarmCreatedEvent.class.getSimpleName().equals(eventType))
-            handleAlarmCreated(metricData, subAlarm);
+            handleAlarmCreated(subAlarmStatsRepo, subAlarm);
         }
       }
     }
-    
+
     collector.ack(tuple);
   }
 
@@ -122,13 +123,18 @@ public class MetricAggregationBolt extends BaseRichBolt {
       stats.getStats().addValue(metric.value, metric.timestamp);
   }
 
-  void evaluateAlarmsAndAdvanceWindows() {
+  /**
+   * Evaluates all SubAlarms for all SubAlarmStatsRepositories using an evaluation time of 1 minute
+   * ago, then sliding the window to the current time.
+   */
+  void evaluateAlarmsAndSlideWindows() {
     LOG.debug("{} Evaluating alarms and advancing windows", context.getThisTaskId());
-    long initialTimestamp = System.currentTimeMillis();
+    long newWindowTimestamp = System.currentTimeMillis();
+    long evaluationTimestamp = newWindowTimestamp - SIXTY_SECONDS;
     for (SubAlarmStatsRepository subAlarmStatsRepo : subAlarmStatsRepos.values())
       for (SubAlarmStats subAlarmStats : subAlarmStatsRepo.get()) {
         LOG.debug("{} Evaluating {}", context.getThisTaskId(), subAlarmStats.getStats());
-        if (subAlarmStats.evaluateAndAdvanceWindow(initialTimestamp)) {
+        if (subAlarmStats.evaluateAndSlideWindow(evaluationTimestamp, newWindowTimestamp)) {
           LOG.debug("Alarm state changed for {}", subAlarmStats.getSubAlarm());
           collector.emit(new Values(subAlarmStats.getSubAlarm().getAlarmId(),
               subAlarmStats.getSubAlarm()));
@@ -138,6 +144,11 @@ public class MetricAggregationBolt extends BaseRichBolt {
       }
   }
 
+  /**
+   * Returns an existing or newly created SubAlarmStatsRepository for the {@code metricDefinition}.
+   * Newly created SubAlarmStatsRepositories are initialized with SubAlarms with initial times of 1
+   * minute ago.
+   */
   SubAlarmStatsRepository getOrCreateSubAlarmStatsRepo(MetricDefinition metricDefinition) {
     SubAlarmStatsRepository subAlarmStatsRepo = subAlarmStatsRepos.get(metricDefinition);
     if (subAlarmStatsRepo == null) {
@@ -145,7 +156,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
       if (subAlarms.isEmpty())
         LOG.warn("Failed to find sub alarms for {}", metricDefinition);
       else {
-        subAlarmStatsRepo = new SubAlarmStatsRepository(subAlarms);
+        long initialTimestamp = System.currentTimeMillis() - SIXTY_SECONDS;
+        subAlarmStatsRepo = new SubAlarmStatsRepository(subAlarms, initialTimestamp);
         subAlarmStatsRepos.put(metricDefinition, subAlarmStatsRepo);
         for (SubAlarm subAlarm : subAlarms)
           alarmSubAlarms.put(subAlarm.getAlarmId(), subAlarm.getId());
@@ -155,16 +167,24 @@ public class MetricAggregationBolt extends BaseRichBolt {
     return subAlarmStatsRepo;
   }
 
-  void handleAlarmCreated(SubAlarmStatsRepository metricData, SubAlarm subAlarm) {
+  /**
+   * Adds the {@code subAlarm} to the {@code subAlarmStatsRepo} for an initial time of 1 minute ago,
+   * and adds the {@code subAlarm} to the {@link #alarmSubAlarms}.
+   */
+  void handleAlarmCreated(SubAlarmStatsRepository subAlarmStatsRepo, SubAlarm subAlarm) {
     LOG.debug("{} Received AlarmCreatedEvent for {}", context.getThisTaskId(), subAlarm);
-    long initialTimestamp = System.currentTimeMillis();
-    metricData.add(subAlarm, initialTimestamp);
+    long initialTimestamp = System.currentTimeMillis() - SIXTY_SECONDS;
+    subAlarmStatsRepo.add(subAlarm, initialTimestamp);
     alarmSubAlarms.put(subAlarm.getAlarmId(), subAlarm.getId());
   }
 
-  void handleAlarmDeleted(SubAlarmStatsRepository metricData, String alarmId) {
+  /**
+   * Removes all SubAlarms from the {@code subAlarmStatsRepo} and the {@link #alarmSubAlarms} for
+   * the {@code alarmId}.
+   */
+  void handleAlarmDeleted(SubAlarmStatsRepository subAlarmStatsRepo, String alarmId) {
     LOG.debug("{} Received AlarmDeletedEvent for alarm id {}", context.getThisTaskId(), alarmId);
     for (String subAlarmId : alarmSubAlarms.removeAll(alarmId))
-      metricData.remove(subAlarmId);
+      subAlarmStatsRepo.remove(subAlarmId);
   }
 }

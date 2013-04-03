@@ -16,12 +16,19 @@ import com.hpcloud.maas.domain.model.SubAlarmStats;
 public class SubAlarmStatsRepository {
   private final Map<String, SubAlarmStats> subAlarmStats = new HashMap<String, SubAlarmStats>();
 
-  public SubAlarmStatsRepository(List<SubAlarm> subAlarms) {
-    long initialTimestamp = System.currentTimeMillis();
+  /**
+   * Creates a new SubAlarmStatsRepository initialized with SubAlarmStats for each of the
+   * {@code subAlarms} with the {@code initialTimestamp}.
+   */
+  public SubAlarmStatsRepository(List<SubAlarm> subAlarms, long initialTimestamp) {
     for (SubAlarm subAlarm : subAlarms)
       add(subAlarm, initialTimestamp);
   }
 
+  /**
+   * Creates a new SubAlarmStats instance for the {@code subAlarm} and {@code initialTimestamp} and
+   * adds it to the repository.
+   */
   public void add(SubAlarm subAlarm, long initialTimestamp) {
     subAlarmStats.put(subAlarm.getId(), new SubAlarmStats(subAlarm, initialTimestamp));
   }

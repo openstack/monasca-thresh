@@ -1,5 +1,8 @@
 package com.hpcloud.maas.domain.model;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.hpcloud.maas.common.model.alarm.AlarmState;
 import com.hpcloud.maas.util.stats.SlidingWindowStats;
 import com.hpcloud.maas.util.stats.Statistics;
@@ -11,6 +14,7 @@ import com.hpcloud.maas.util.time.Timescale;
  * @author Jonathan Halterman
  */
 public class SubAlarmStats {
+  private static final Logger LOG = LoggerFactory.getLogger(SubAlarmStats.class);
   /** Number of slots for future periods that we should collect metrics for. */
   private static final int FUTURE_SLOTS = 2;
   /** Determines how many observations to wait for before changing an alarm's state to undetermined. */
@@ -27,7 +31,7 @@ public class SubAlarmStats {
     this.subAlarm = subAlarm;
     this.stats = new SlidingWindowStats(Statistics.statTypeFor(subAlarm.getExpression()
         .getFunction()), Timescale.MILLISECONDS, slotWidth, subAlarm.getExpression().getPeriods(),
-        FUTURE_SLOTS, initialTimestamp);
+        FUTURE_SLOTS + 1, initialTimestamp);
     emptySlotObservationThreshold = (subAlarm.getExpression().getPeriod() == 0 ? 1
         : subAlarm.getExpression().getPeriod())
         * INSUFFICIENT_DATA_COEFFICIENT;
@@ -35,12 +39,15 @@ public class SubAlarmStats {
   }
 
   /**
-   * Evaluates the {@code alarm}, updating the alarm's state if necessary and returning true if the
-   * alarm's state changed, else false.
+   * Evaluates the {@link #subAlarm} for stats up to and including the {@code evaluationTimestamp},
+   * updating the sub-alarm's state if necessary and sliding the window to the
+   * {@code slideToTimestamp}.
+   * 
+   * @return true if the alarm's state changed, else false.
    */
-  public boolean evaluateAndAdvanceWindow(long timestamp) {
-    boolean result = evaluate(timestamp);
-    stats.advanceViewTo(timestamp);
+  public boolean evaluateAndSlideWindow(long evaluateTimestamp, long slideToTimestamp) {
+    boolean result = evaluate(evaluateTimestamp);
+    stats.slideViewTo(slideToTimestamp);
     return result;
   }
 
@@ -63,7 +70,7 @@ public class SubAlarmStats {
     return String.format("SubAlarmStats [subAlarm=%s, stats=%s]", subAlarm, stats);
   }
 
-  private boolean evaluate(long timestamp) {
+  public boolean evaluate(long timestamp) {
     if (stats.hasEmptySlotsInView())
       emptySlotObservations++;
     else
@@ -77,10 +84,11 @@ public class SubAlarmStats {
       return true;
     }
 
-    // Get alarm values 1 slot back
-    timestamp -= slotWidth;
+    double[] values = stats.getValuesUpTo(timestamp);
+    LOG.debug("Evaluating {} for values {}", subAlarm, values);
+
     boolean alarmed = true;
-    for (double value : stats.getValuesUpTo(timestamp))
+    for (double value : values)
       if (!subAlarm.getExpression()
           .getOperator()
           .evaluate(value, subAlarm.getExpression().getThreshold())) {

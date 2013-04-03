@@ -46,8 +46,9 @@ public class SlidingWindowStats {
   }
 
   /**
-   * Creates a SlidingWindowStats containing {@code numSlots} slots of size {@code slotWidth}
-   * starting at the {@code initialTimestamp}.
+   * Creates a time based SlidingWindowStats containing a fixed {@code numSlots} representing a view
+   * up to the {@code initialViewTimestamp}, and an additional {@code numFutureSlots} for timestamps
+   * beyond the current window view.
    * 
    * @param statType to calculate values for
    * @param timescale to scale timestamps with
@@ -62,6 +63,7 @@ public class SlidingWindowStats {
     this.slotWidth = slotWidth;
     this.numViewSlots = numViewSlots;
     this.windowLength = (numViewSlots + numFutureSlots) * slotWidth;
+
     initialViewTimestamp = timescale.scale(initialViewTimestamp);
     viewHeadTimestamp = initialViewTimestamp;
     slotHeadTimestamp = viewHeadTimestamp;
@@ -104,41 +106,6 @@ public class SlidingWindowStats {
       LOG.trace("Adding value for {}. Current window{}", timestamp, toString());
       slots[index].stat.addValue(value);
     }
-  }
-
-  /**
-   * Advances the sliding window's view to the slot for the {@code timestamp}, erasing values for
-   * any slots along the way.
-   * 
-   * @param timestamp advance view to
-   */
-  public void advanceViewTo(long timestamp) {
-    timestamp = timescale.scale(timestamp);
-    if (timestamp <= viewHeadTimestamp)
-      return;
-    long timeDiff = timestamp - slotHeadTimestamp;
-    int slotsToAdvance = (int) timeDiff / slotWidth;
-    slotsToAdvance += timeDiff % slotWidth == 0 ? 0 : 1;
-
-    for (int i = 0; i < slotsToAdvance; i++) {
-      // Adjust emptySlotsInView for the old slot moving out of the window
-      if (!slots[indexOf(0)].stat.isInitialized())
-        emptySlotsInView--;
-
-      slotHeadTimestamp += slotWidth;
-      windowHeadTimestamp += slotWidth;
-      viewHeadIndex = indexAfter(viewHeadIndex);
-      windowHeadIndex = indexAfter(windowHeadIndex);
-      Slot slot = slots[windowHeadIndex];
-      slot.timestamp = windowHeadTimestamp;
-      slot.stat.reset();
-
-      // Adjust emptySlotsInView for the new slot that moved into the window
-      if (!slots[viewHeadIndex].stat.isInitialized())
-        emptySlotsInView++;
-    }
-
-    viewHeadTimestamp = timestamp;
   }
 
   /** Returns the number of slots in the window. */
@@ -221,6 +188,41 @@ public class SlidingWindowStats {
   }
 
   /**
+   * Slides window's view to the slot for the {@code timestamp}, erasing values for any slots along
+   * the way.
+   * 
+   * @param timestamp slide view to
+   */
+  public void slideViewTo(long timestamp) {
+    timestamp = timescale.scale(timestamp);
+    if (timestamp <= viewHeadTimestamp)
+      return;
+    long timeDiff = timestamp - slotHeadTimestamp;
+    int slotsToAdvance = (int) timeDiff / slotWidth;
+    slotsToAdvance += timeDiff % slotWidth == 0 ? 0 : 1;
+
+    for (int i = 0; i < slotsToAdvance; i++) {
+      // Adjust emptySlotsInView for the old slot moving out of the window
+      if (!slots[indexOf(0)].stat.isInitialized())
+        emptySlotsInView--;
+
+      slotHeadTimestamp += slotWidth;
+      windowHeadTimestamp += slotWidth;
+      viewHeadIndex = indexAfter(viewHeadIndex);
+      windowHeadIndex = indexAfter(windowHeadIndex);
+      Slot slot = slots[windowHeadIndex];
+      slot.timestamp = windowHeadTimestamp;
+      slot.stat.reset();
+
+      // Adjust emptySlotsInView for the new slot that moved into the window
+      if (!slots[viewHeadIndex].stat.isInitialized())
+        emptySlotsInView++;
+    }
+
+    viewHeadTimestamp = timestamp;
+  }
+
+  /**
    * Returns a logical view of the sliding window with increasing timestamps from left to right.
    */
   @Override
@@ -279,7 +281,7 @@ public class SlidingWindowStats {
       return slotIndex - windowHeadIndex;
   }
 
-  /** Returns the physical index for the slot in time after the {@index}. */
+  /** Returns the physical index for the slot logically positioned after the {@code index}. */
   private int indexAfter(int index) {
     return ++index == slots.length ? 0 : index;
   }
