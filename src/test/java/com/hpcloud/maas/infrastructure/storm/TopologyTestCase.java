@@ -2,6 +2,7 @@ package com.hpcloud.maas.infrastructure.storm;
 
 import org.testng.annotations.AfterSuite;
 import org.testng.annotations.BeforeSuite;
+import org.testng.annotations.Test;
 
 import backtype.storm.Config;
 import backtype.storm.LocalCluster;
@@ -13,6 +14,7 @@ import com.hpcloud.util.Injector;
 /**
  * @author Jonathan Halterman
  */
+@Test(groups = "integration")
 public class TopologyTestCase {
   public static final String TEST_TOPOLOGY_NAME = "test-maas-alarming";
   protected static volatile LocalCluster cluster;

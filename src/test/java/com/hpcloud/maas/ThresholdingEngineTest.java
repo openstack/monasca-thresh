@@ -35,7 +35,7 @@ import com.hpcloud.util.Injector;
 /**
  * @author Jonathan Halterman
  */
-@Test
+@Test(groups = "integration")
 public class ThresholdingEngineTest extends TopologyTestCase {
   private FeederSpout metricSpout;
   private FeederSpout eventSpout;
