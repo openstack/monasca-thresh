@@ -28,7 +28,7 @@ public class SlidingWindowStats {
   private long windowHeadTimestamp;
   private int viewHeadIndex;
   private int windowHeadIndex;
-  private int emptySlots;
+  private int emptySlotsInView;
 
   private static class Slot {
     private long timestamp;
@@ -68,7 +68,7 @@ public class SlidingWindowStats {
     windowHeadTimestamp = initialViewTimestamp + (numFutureSlots * slotWidth);
     viewHeadIndex = numViewSlots - 1;
     windowHeadIndex = numViewSlots + numFutureSlots - 1;
-    emptySlots = numViewSlots;
+    emptySlotsInView = numViewSlots;
 
     slots = new Slot[numViewSlots + numFutureSlots];
     long timestamp = windowHeadTimestamp;
@@ -100,7 +100,7 @@ public class SlidingWindowStats {
       LOG.warn("Timestamp {} is outside of window {}", timestamp, toString());
     else {
       if (!slots[index].stat.isInitialized() && isIndexInView(index))
-        emptySlots--;
+        emptySlotsInView--;
       LOG.trace("Adding value for {}. Current window{}", timestamp, toString());
       slots[index].stat.addValue(value);
     }
@@ -121,9 +121,9 @@ public class SlidingWindowStats {
     slotsToAdvance += timeDiff % slotWidth == 0 ? 0 : 1;
 
     for (int i = 0; i < slotsToAdvance; i++) {
-      // Adjust empty slots for old slots moving out of the window
+      // Adjust emptySlotsInView for the old slot moving out of the window
       if (!slots[indexOf(0)].stat.isInitialized())
-        emptySlots--;
+        emptySlotsInView--;
 
       slotHeadTimestamp += slotWidth;
       windowHeadTimestamp += slotWidth;
@@ -133,9 +133,9 @@ public class SlidingWindowStats {
       slot.timestamp = windowHeadTimestamp;
       slot.stat.reset();
 
-      // Adjust empty slots for the new slot that moved into the window
+      // Adjust emptySlotsInView for the new slot that moved into the window
       if (!slots[viewHeadIndex].stat.isInitialized())
-        emptySlots++;
+        emptySlotsInView++;
     }
 
     viewHeadTimestamp = timestamp;
@@ -177,6 +177,23 @@ public class SlidingWindowStats {
   }
 
   /**
+   * Returns the values for the window up to and including the {@code timestamp}.
+   * 
+   * @param timestamp to get value for
+   * @throws IllegalStateException if no value is within the window for the {@code timestamp}
+   */
+  public double[] getValuesUpTo(long timestamp) {
+    int endIndex = indexOfTime(timescale.scale(timestamp));
+    if (endIndex == -1)
+      throw new IllegalStateException(timestamp + " is outside of the window");
+    double[] values = new double[lengthToIndex(endIndex)];
+    for (int i = 0, index = indexOf(0); i < values.length; i++, index = indexAfter(index))
+      if (slots[index] != null)
+        values[i] = slots[index].stat.value();
+    return values;
+  }
+
+  /**
    * Returns the values of the sliding view increasing from oldest to newest.
    */
   public double[] getViewValues() {
@@ -200,7 +217,7 @@ public class SlidingWindowStats {
 
   /** Returns true if the window has slots in the view which have no values, else false. */
   public boolean hasEmptySlotsInView() {
-    return emptySlots > 0;
+    return emptySlotsInView > 0;
   }
 
   /**

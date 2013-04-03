@@ -11,21 +11,23 @@ import com.hpcloud.maas.util.time.Timescale;
  * @author Jonathan Halterman
  */
 public class SubAlarmStats {
-  /** Number of slots for future minutes that we should collect metrics for. */
+  /** Number of slots for future periods that we should collect metrics for. */
   private static final int FUTURE_SLOTS = 2;
   /** Determines how many observations to wait for before changing an alarm's state to undetermined. */
   private static final int INSUFFICIENT_DATA_COEFFICIENT = 3;
 
+  private final int slotWidth;
   private final SubAlarm subAlarm;
   private final SlidingWindowStats stats;
   private final int emptySlotObservationThreshold;
   private int emptySlotObservations;
 
   public SubAlarmStats(SubAlarm subAlarm, long initialTimestamp) {
+    slotWidth = subAlarm.getExpression().getPeriod() * 1000;
     this.subAlarm = subAlarm;
     this.stats = new SlidingWindowStats(Statistics.statTypeFor(subAlarm.getExpression()
-        .getFunction()), Timescale.MILLISECONDS, subAlarm.getExpression().getPeriod() * 1000,
-        subAlarm.getExpression().getPeriods() + FUTURE_SLOTS, initialTimestamp);
+        .getFunction()), Timescale.MILLISECONDS, slotWidth, subAlarm.getExpression().getPeriods(),
+        FUTURE_SLOTS, initialTimestamp);
     emptySlotObservationThreshold = (subAlarm.getExpression().getPeriod() == 0 ? 1
         : subAlarm.getExpression().getPeriod())
         * INSUFFICIENT_DATA_COEFFICIENT;
@@ -38,7 +40,7 @@ public class SubAlarmStats {
    */
   public boolean evaluateAndAdvanceWindow(long timestamp) {
     boolean result = evaluate(timestamp);
-    stats.advanceWindowTo(timestamp);
+    stats.advanceViewTo(timestamp);
     return result;
   }
 
@@ -62,7 +64,7 @@ public class SubAlarmStats {
   }
 
   private boolean evaluate(long timestamp) {
-    if (stats.hasEmptySlots())
+    if (stats.hasEmptySlotsInView())
       emptySlotObservations++;
     else
       emptySlotObservations = 0;
@@ -75,6 +77,8 @@ public class SubAlarmStats {
       return true;
     }
 
+    // Get alarm values 1 slot back
+    timestamp -= slotWidth;
     boolean alarmed = true;
     for (double value : stats.getValuesUpTo(timestamp))
       if (!subAlarm.getExpression()

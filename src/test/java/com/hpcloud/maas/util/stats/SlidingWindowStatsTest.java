@@ -4,6 +4,7 @@ import static com.hpcloud.maas.Assert.assertArraysEqual;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
 
 import org.testng.annotations.Test;
 
@@ -275,5 +276,46 @@ public class SlidingWindowStatsTest {
     assertFalse(window.hasEmptySlotsInView());
     window.advanceViewTo(30);
     assertTrue(window.hasEmptySlotsInView());
+  }
+
+  public void shouldGetValuesUpTo() {
+    SlidingWindowStats window = new SlidingWindowStats(Statistics.Sum.class, Timescale.RELATIVE, 5,
+        3, 2, 15);
+    // Window is 5 10 15 20 25
+    window.addValue(2, 5);
+    window.addValue(3, 10);
+    window.addValue(4, 15);
+
+    assertEquals(window.getValuesUpTo(13), new double[] { 2, 3, 4 });
+    assertEquals(window.getValuesUpTo(7), new double[] { 2, 3 });
+    assertEquals(window.getValuesUpTo(4), new double[] { 2 });
+
+    // Window is 30 10 15 20 25
+    window.advanceViewTo(17);
+    window.addValue(5, 17);
+    assertEquals(window.getValuesUpTo(17), new double[] { 3, 4, 5 });
+    assertEquals(window.getValuesUpTo(12), new double[] { 3, 4 });
+    assertEquals(window.getValuesUpTo(7), new double[] { 3 });
+
+    // Window is 30 35 15 20 25
+    window.advanceViewTo(22);
+    window.addValue(6, 21);
+    assertEquals(window.getValuesUpTo(22), new double[] { 4, 5, 6 });
+    assertEquals(window.getValuesUpTo(20), new double[] { 4, 5 });
+    assertEquals(window.getValuesUpTo(14), new double[] { 4 });
+
+    // Assert out of bounds
+    try {
+      assertEquals(window.getValuesUpTo(9), new double[] {});
+      fail();
+    } catch (Exception expected) {
+    }
+
+    // Assert out of bounds
+    try {
+      assertEquals(window.getValuesUpTo(36), new double[] {});
+      fail();
+    } catch (Exception expected) {
+    }
   }
 }
