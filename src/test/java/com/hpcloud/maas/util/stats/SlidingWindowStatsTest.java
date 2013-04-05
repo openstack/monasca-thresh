@@ -99,7 +99,7 @@ public class SlidingWindowStatsTest {
     assertEquals(window.getWindowValues(), new double[] { 999, 999, 999, 999, 999 });
 
     window.slideViewTo(12);
-    assertEquals(window.getWindowValues(), new double[] { 999, 999, 999, 0, 0 });
+    assertEquals(window.getWindowValues(), new double[] { 999, 999, 999, Double.NaN, Double.NaN });
 
     window.addValue(777, 14);
     window.addValue(888, 17);
