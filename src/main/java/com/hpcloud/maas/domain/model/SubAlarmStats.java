@@ -17,14 +17,15 @@ public class SubAlarmStats {
   private static final Logger LOG = LoggerFactory.getLogger(SubAlarmStats.class);
   /** Number of slots for future periods that we should collect metrics for. */
   private static final int FUTURE_SLOTS = 2;
-  /** Determines how many observations to wait for before changing an alarm's state to undetermined. */
-  private static final int UNDETERMINED_COEFFICIENT = 3;
+  /** Helps determine how many empty window observations before transitioning to UNDETERMINED. */
+  private static final int UNDETERMINED_COEFFICIENT = 2;
 
   private final int slotWidth;
   private final SubAlarm subAlarm;
   private final SlidingWindowStats stats;
-  private final int emptySlotObservationThreshold;
-  private int emptySlotObservations;
+  /** The number of times we can observe an empty window before transitioning to UNDETERMINED state. */
+  private final int emptyWindowObservationThreshold;
+  private int emptyWindowObservations;
 
   public SubAlarmStats(SubAlarm subAlarm, long initialTimestamp) {
     slotWidth = subAlarm.getExpression().getPeriod() * 1000;
@@ -32,10 +33,10 @@ public class SubAlarmStats {
     this.stats = new SlidingWindowStats(Statistics.statTypeFor(subAlarm.getExpression()
         .getFunction()), Timescale.MILLISECONDS, slotWidth, subAlarm.getExpression().getPeriods(),
         FUTURE_SLOTS + 1, initialTimestamp);
-    emptySlotObservationThreshold = (subAlarm.getExpression().getPeriod() == 0 ? 1
-        : subAlarm.getExpression().getPeriod())
+    emptyWindowObservationThreshold = (subAlarm.getExpression().getPeriod() == 0 ? 1
+        : subAlarm.getExpression().getPeriod() * subAlarm.getExpression().getPeriods())
         * UNDETERMINED_COEFFICIENT;
-    emptySlotObservations = emptySlotObservationThreshold;
+    emptyWindowObservations = emptyWindowObservationThreshold;
   }
 
   /**
@@ -75,49 +76,52 @@ public class SubAlarmStats {
   @Override
   public String toString() {
     return String.format(
-        "SubAlarmStats [subAlarm=%s, stats=%s, emptySlotObservations=%s, emptySlotObservationThreshold=%s]",
-        subAlarm, stats, emptySlotObservations, emptySlotObservationThreshold);
+        "SubAlarmStats [subAlarm=%s, stats=%s, emptyWindowObservations=%s, emptyWindowObservationThreshold=%s]",
+        subAlarm, stats, emptyWindowObservations, emptyWindowObservationThreshold);
   }
 
   /**
    * @throws IllegalStateException if the {@code timestamp} is outside of the {@link #stats} window
    */
   boolean evaluate(long timestamp) {
-    if (stats.hasEmptySlotsInView())
-      emptySlotObservations++;
-    else
-      emptySlotObservations = 0;
-
-    AlarmState initialState = subAlarm.getState();
-    if (emptySlotObservations >= emptySlotObservationThreshold) {
-      if (AlarmState.UNDETERMINED.equals(initialState))
-        return false;
-      subAlarm.setState(AlarmState.UNDETERMINED);
-      return true;
-    }
-
     double[] values = stats.getValuesUpTo(timestamp);
     LOG.debug("Evaluating {} for values {}", subAlarm, values);
 
-    boolean alarmed = true;
-    for (double value : values)
-      if (!subAlarm.getExpression()
-          .getOperator()
-          .evaluate(value, subAlarm.getExpression().getThreshold())) {
-        alarmed = false;
-        break;
-      }
+    AlarmState initialState = subAlarm.getState();
+    boolean thresholdExceeded = false;
+    for (double value : values) {
+      if (!Double.isNaN(value)) {
+        emptyWindowObservations = 0;
 
-    if (alarmed) {
+        // Check if value is OK
+        if (!subAlarm.getExpression()
+            .getOperator()
+            .evaluate(value, subAlarm.getExpression().getThreshold())) {
+          if (AlarmState.OK.equals(initialState))
+            return false;
+          subAlarm.setState(AlarmState.OK);
+          return true;
+        } else
+          thresholdExceeded = true;
+      }
+    }
+
+    if (thresholdExceeded) {
       if (AlarmState.ALARM.equals(initialState))
         return false;
       subAlarm.setState(AlarmState.ALARM);
       return true;
     }
 
-    if (AlarmState.OK.equals(initialState))
-      return false;
-    subAlarm.setState(AlarmState.OK);
-    return true;
+    // Window is empty at this point
+    emptyWindowObservations++;
+
+    if (emptyWindowObservations >= emptyWindowObservationThreshold
+        && !AlarmState.UNDETERMINED.equals(initialState)) {
+      subAlarm.setState(AlarmState.UNDETERMINED);
+      return true;
+    }
+
+    return false;
   }
 }
