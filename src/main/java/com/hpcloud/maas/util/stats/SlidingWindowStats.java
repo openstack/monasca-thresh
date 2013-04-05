@@ -145,7 +145,8 @@ public class SlidingWindowStats {
   }
 
   /**
-   * Returns the values for the window up to and including the {@code timestamp}.
+   * Returns the values for the window up to and including the {@code timestamp}. Values for
+   * uninitialized slots will be Double.NaN.
    * 
    * @param timestamp to get value for
    * @throws IllegalStateException if no value is within the window for the {@code timestamp}
