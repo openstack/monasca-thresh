@@ -25,7 +25,7 @@ public final class Statistics {
 
     @Override
     public String toString() {
-      return Double.valueOf(value()).toString();
+      return !initialized ? "NaN" : Double.valueOf(value()).toString();
     }
 
     @Override
