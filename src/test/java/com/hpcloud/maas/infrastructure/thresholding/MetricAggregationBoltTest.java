@@ -47,8 +47,8 @@ public class MetricAggregationBoltTest {
 
   @BeforeClass
   protected void beforeClass() {
-    AlarmSubExpression subExpr1 = AlarmSubExpression.of("avg(compute:cpu:{id=5}, 60, 3) >= 90");
-    AlarmSubExpression subExpr2 = AlarmSubExpression.of("avg(compute:mem:{id=5}, 60, 3) >= 90");
+    AlarmSubExpression subExpr1 = AlarmSubExpression.of("avg(compute:cpu:{id=5}, 60) >= 90 times 3");
+    AlarmSubExpression subExpr2 = AlarmSubExpression.of("avg(compute:mem:{id=5}, 60) >= 90 times 3");
     subExpressions = Arrays.asList(subExpr1, subExpr2);
   }
 
