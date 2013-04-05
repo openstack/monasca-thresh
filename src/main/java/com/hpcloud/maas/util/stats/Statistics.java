@@ -25,17 +25,17 @@ public final class Statistics {
 
     @Override
     public String toString() {
-      return !initialized ? "NaN" : Double.valueOf(value()).toString();
+      return Double.valueOf(value()).toString();
     }
 
     @Override
     public double value() {
-      return value;
+      return !initialized ? Double.NaN : value;
     }
   }
 
   public static class Average extends Sum {
-    protected double count;
+    protected int count;
 
     @Override
     public void addValue(double value) {
@@ -51,7 +51,7 @@ public final class Statistics {
 
     @Override
     public double value() {
-      return count == 0 ? 0 : value / count;
+      return !initialized ? Double.NaN : count == 0 ? 0 : value / count;
     }
   }
 
