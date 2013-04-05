@@ -18,7 +18,7 @@ public class SubAlarmStats {
   /** Number of slots for future periods that we should collect metrics for. */
   private static final int FUTURE_SLOTS = 2;
   /** Determines how many observations to wait for before changing an alarm's state to undetermined. */
-  private static final int INSUFFICIENT_DATA_COEFFICIENT = 3;
+  private static final int UNDETERMINED_COEFFICIENT = 3;
 
   private final int slotWidth;
   private final SubAlarm subAlarm;
@@ -34,7 +34,7 @@ public class SubAlarmStats {
         FUTURE_SLOTS + 1, initialTimestamp);
     emptySlotObservationThreshold = (subAlarm.getExpression().getPeriod() == 0 ? 1
         : subAlarm.getExpression().getPeriod())
-        * INSUFFICIENT_DATA_COEFFICIENT;
+        * UNDETERMINED_COEFFICIENT;
     emptySlotObservations = emptySlotObservationThreshold;
   }
 
@@ -46,7 +46,14 @@ public class SubAlarmStats {
    * @return true if the alarm's state changed, else false.
    */
   public boolean evaluateAndSlideWindow(long evaluateTimestamp, long slideToTimestamp) {
-    boolean result = evaluate(evaluateTimestamp);
+    boolean result = false;
+
+    try {
+      result = evaluate(evaluateTimestamp);
+    } catch (Exception e) {
+      LOG.error("Failed to evaluate {} for timestamp {}", this, evaluateTimestamp, e);
+    }
+
     stats.slideViewTo(slideToTimestamp);
     return result;
   }
@@ -67,10 +74,15 @@ public class SubAlarmStats {
 
   @Override
   public String toString() {
-    return String.format("SubAlarmStats [subAlarm=%s, stats=%s]", subAlarm, stats);
+    return String.format(
+        "SubAlarmStats [subAlarm=%s, stats=%s, emptySlotObservations=%s, emptySlotObservationThreshold=%s]",
+        subAlarm, stats, emptySlotObservations, emptySlotObservationThreshold);
   }
 
-  public boolean evaluate(long timestamp) {
+  /**
+   * @throws IllegalStateException if the {@code timestamp} is outside of the {@link #stats} window
+   */
+  boolean evaluate(long timestamp) {
     if (stats.hasEmptySlotsInView())
       emptySlotObservations++;
     else
