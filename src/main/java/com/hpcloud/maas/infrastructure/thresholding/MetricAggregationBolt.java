@@ -35,6 +35,9 @@ import com.hpcloud.util.Injector;
  * outputs alarm information whenever an alarm's state changes. Concerned with alarms that relate to
  * a specific metric.
  * 
+ * The TICK_TUPLE_SECONDS_KEY value should be no greater than the smallest possible window width.
+ * This ensures that the window slides in time with the expected metrics.
+ * 
  * <ul>
  * <li>Input: MetricDefinition metricDefinition, Metric metric
  * <li>Input metric-alarm-events: String eventType, MetricDefinition metricDefinition, String
@@ -50,13 +53,13 @@ public class MetricAggregationBolt extends BaseRichBolt {
   private static final Logger LOG = LoggerFactory.getLogger(MetricAggregationBolt.class);
   private static final long serialVersionUID = 5624314196838090726L;
   public static final String TICK_TUPLE_SECONDS_KEY = "maas.aggregation.tick.seconds";
-  private static final int SIXTY_SECONDS = 60000;
 
   private final Map<MetricDefinition, SubAlarmStatsRepository> subAlarmStatsRepos = new HashMap<MetricDefinition, SubAlarmStatsRepository>();
   private final Multimap<String, String> alarmSubAlarms = ArrayListMultimap.create();
   private transient SubAlarmDAO subAlarmDAO;
   private TopologyContext context;
   private OutputCollector collector;
+  private int evaluationTimeOffset;
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
@@ -65,33 +68,37 @@ public class MetricAggregationBolt extends BaseRichBolt {
 
   @Override
   public void execute(Tuple tuple) {
-    if (Tuples.isTickTuple(tuple)) {
-      evaluateAlarmsAndSlideWindows();
-    } else {
-      if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-        Metric metric = (Metric) tuple.getValueByField("metric");
-        aggregateValues(metric);
+    try {
+      if (Tuples.isTickTuple(tuple)) {
+        evaluateAlarmsAndSlideWindows();
       } else {
-        MetricDefinition metricDefinition = (MetricDefinition) tuple.getValue(1);
-        SubAlarmStatsRepository subAlarmStatsRepo = getOrCreateSubAlarmStatsRepo(metricDefinition);
-        if (subAlarmStatsRepo == null)
-          return;
+        if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
+          Metric metric = (Metric) tuple.getValueByField("metric");
+          aggregateValues(metric);
+        } else {
+          MetricDefinition metricDefinition = (MetricDefinition) tuple.getValue(1);
+          SubAlarmStatsRepository subAlarmStatsRepo = getOrCreateSubAlarmStatsRepo(metricDefinition);
+          if (subAlarmStatsRepo == null)
+            return;
 
-        String eventType = tuple.getString(0);
+          String eventType = tuple.getString(0);
 
-        if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-          String alarmId = tuple.getString(2);
-          if (AlarmDeletedEvent.class.getSimpleName().equals(eventType))
-            handleAlarmDeleted(subAlarmStatsRepo, alarmId);
-        } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-          SubAlarm subAlarm = (SubAlarm) tuple.getValue(2);
-          if (AlarmCreatedEvent.class.getSimpleName().equals(eventType))
-            handleAlarmCreated(subAlarmStatsRepo, subAlarm);
+          if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
+            String alarmId = tuple.getString(2);
+            if (AlarmDeletedEvent.class.getSimpleName().equals(eventType))
+              handleAlarmDeleted(subAlarmStatsRepo, alarmId);
+          } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
+            SubAlarm subAlarm = (SubAlarm) tuple.getValue(2);
+            if (AlarmCreatedEvent.class.getSimpleName().equals(eventType))
+              handleAlarmCreated(subAlarmStatsRepo, subAlarm);
+          }
         }
       }
-    }
 
-    collector.ack(tuple);
+      collector.ack(tuple);
+    } catch (Exception e) {
+      LOG.error("{} Error processing tuple {}", context.getThisTaskId(), tuple, e);
+    }
   }
 
   @Override
@@ -108,6 +115,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
     this.context = context;
     this.collector = collector;
     subAlarmDAO = Injector.getInstance(SubAlarmDAO.class);
+    evaluationTimeOffset = Integer.valueOf(System.getProperty(TICK_TUPLE_SECONDS_KEY, "60"))
+        .intValue() * 1000;
   }
 
   /**
@@ -130,17 +139,16 @@ public class MetricAggregationBolt extends BaseRichBolt {
   void evaluateAlarmsAndSlideWindows() {
     LOG.debug("{} Evaluating alarms and advancing windows", context.getThisTaskId());
     long newWindowTimestamp = System.currentTimeMillis();
-    long evaluationTimestamp = newWindowTimestamp - SIXTY_SECONDS;
+    long evaluationTimestamp = newWindowTimestamp - evaluationTimeOffset;
     for (SubAlarmStatsRepository subAlarmStatsRepo : subAlarmStatsRepos.values())
       for (SubAlarmStats subAlarmStats : subAlarmStatsRepo.get()) {
-        LOG.debug("{} Evaluating {}", context.getThisTaskId(), subAlarmStats.getStats());
+        LOG.debug("{} Evaluating {} for timestamp {}", context.getThisTaskId(), subAlarmStats,
+            evaluationTimestamp);
         if (subAlarmStats.evaluateAndSlideWindow(evaluationTimestamp, newWindowTimestamp)) {
-          LOG.debug("Alarm state changed for {}", subAlarmStats.getSubAlarm());
+          LOG.debug("{} Alarm state changed for {}", context.getThisTaskId(), subAlarmStats);
           collector.emit(new Values(subAlarmStats.getSubAlarm().getAlarmId(),
               subAlarmStats.getSubAlarm()));
         }
-
-        LOG.debug("Updated {}", subAlarmStats);
       }
   }
 
@@ -154,9 +162,9 @@ public class MetricAggregationBolt extends BaseRichBolt {
     if (subAlarmStatsRepo == null) {
       List<SubAlarm> subAlarms = subAlarmDAO.find(metricDefinition);
       if (subAlarms.isEmpty())
-        LOG.warn("Failed to find sub alarms for {}", metricDefinition);
+        LOG.warn("{} Failed to find sub alarms for {}", context.getThisTaskId(), metricDefinition);
       else {
-        long initialTimestamp = System.currentTimeMillis() - SIXTY_SECONDS;
+        long initialTimestamp = System.currentTimeMillis() - evaluationTimeOffset;
         subAlarmStatsRepo = new SubAlarmStatsRepository(subAlarms, initialTimestamp);
         subAlarmStatsRepos.put(metricDefinition, subAlarmStatsRepo);
         for (SubAlarm subAlarm : subAlarms)
@@ -173,7 +181,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
    */
   void handleAlarmCreated(SubAlarmStatsRepository subAlarmStatsRepo, SubAlarm subAlarm) {
     LOG.debug("{} Received AlarmCreatedEvent for {}", context.getThisTaskId(), subAlarm);
-    long initialTimestamp = System.currentTimeMillis() - SIXTY_SECONDS;
+    long initialTimestamp = System.currentTimeMillis() - evaluationTimeOffset;
     subAlarmStatsRepo.add(subAlarm, initialTimestamp);
     alarmSubAlarms.put(subAlarm.getAlarmId(), subAlarm.getId());
   }

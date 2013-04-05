@@ -57,15 +57,19 @@ public class EventProcessingBolt extends BaseRichBolt {
 
   @Override
   public void execute(Tuple tuple) {
-    Object event = tuple.getValue(0);
+    try {
+      Object event = tuple.getValue(0);
 
-    LOG.trace("{} Received event for processing {}", context.getThisTaskId(), event);
-    if (event instanceof AlarmCreatedEvent)
-      handle((AlarmCreatedEvent) event);
-    else if (event instanceof AlarmDeletedEvent)
-      handle((AlarmDeletedEvent) event);
-    
-    collector.ack(tuple);
+      LOG.trace("{} Received event for processing {}", context.getThisTaskId(), event);
+      if (event instanceof AlarmCreatedEvent)
+        handle((AlarmCreatedEvent) event);
+      else if (event instanceof AlarmDeletedEvent)
+        handle((AlarmDeletedEvent) event);
+
+      collector.ack(tuple);
+    } catch (Exception e) {
+      LOG.error("Error processing tuple {}", tuple, e);
+    }
   }
 
   @Override

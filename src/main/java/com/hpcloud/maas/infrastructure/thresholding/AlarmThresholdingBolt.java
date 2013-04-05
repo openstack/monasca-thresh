@@ -47,23 +47,27 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
 
   @Override
   public void execute(Tuple tuple) {
-    if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-      String alarmId = tuple.getString(0);
-      Alarm alarm = getOrCreateAlarm(alarmId);
-      if (alarm == null)
-        return;
+    try {
+      if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
+        String alarmId = tuple.getString(0);
+        Alarm alarm = getOrCreateAlarm(alarmId);
+        if (alarm == null)
+          return;
 
-      SubAlarm subAlarm = (SubAlarm) tuple.getValue(1);
-      evaluateThreshold(alarm, subAlarm);
-    } else if (EventProcessingBolt.ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-      String eventType = tuple.getString(0);
-      String alarmId = tuple.getString(1);
+        SubAlarm subAlarm = (SubAlarm) tuple.getValue(1);
+        evaluateThreshold(alarm, subAlarm);
+      } else if (EventProcessingBolt.ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
+        String eventType = tuple.getString(0);
+        String alarmId = tuple.getString(1);
 
-      if (AlarmDeletedEvent.class.getSimpleName().equals(eventType))
-        handleAlarmDeleted(alarmId);
+        if (AlarmDeletedEvent.class.getSimpleName().equals(eventType))
+          handleAlarmDeleted(alarmId);
+      }
+
+      collector.ack(tuple);
+    } catch (Exception e) {
+      LOG.error("{} Error processing tuple {}", context.getThisTaskId(), tuple, e);
     }
-
-    collector.ack(tuple);
   }
 
   @Override
@@ -93,7 +97,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     if (alarm == null) {
       alarm = alarmDAO.findById(alarmId);
       if (alarm == null)
-        LOG.error("Failed to locate alarm for id {}", alarmId);
+        LOG.error("{} Failed to locate alarm for id {}", context.getThisTaskId(), alarmId);
       else {
         alarms.put(alarmId, alarm);
       }
