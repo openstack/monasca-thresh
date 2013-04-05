@@ -137,7 +137,8 @@ public class SlidingWindowStats {
    * @throws IllegalStateException if no value is within the window for the {@code timestamp}
    */
   public double getValue(long timestamp) {
-    int index = indexOfTime(timescale.scale(timestamp));
+    timestamp = timescale.scale(timestamp);
+    int index = indexOfTime(timestamp);
     if (index == -1)
       throw new IllegalStateException(timestamp + " is outside of the window");
     return slots[index].stat.value();
@@ -150,7 +151,8 @@ public class SlidingWindowStats {
    * @throws IllegalStateException if no value is within the window for the {@code timestamp}
    */
   public double[] getValuesUpTo(long timestamp) {
-    int endIndex = indexOfTime(timescale.scale(timestamp));
+    timestamp = timescale.scale(timestamp);
+    int endIndex = indexOfTime(timestamp);
     if (endIndex == -1)
       throw new IllegalStateException(timestamp + " is outside of the window");
     double[] values = new double[lengthToIndex(endIndex)];
