@@ -18,17 +18,16 @@ public class SlidingWindowStats {
   private static final Logger LOG = LoggerFactory.getLogger(SlidingWindowStats.class);
 
   private final Timescale timescale;
-  private final int slotWidth;
+  private final long slotWidth;
   private final int numViewSlots;
-  private final int windowLength;
+  private final long windowLength;
   private final Slot[] slots;
 
-  private long viewHeadTimestamp;
-  private long slotHeadTimestamp;
-  private long windowHeadTimestamp;
-  private int viewHeadIndex;
-  private int windowHeadIndex;
-  private int emptySlotsInView;
+  private long viewEndTimestamp;
+  private long slotEndTimestamp;
+  private long windowEndTimestamp;
+  private int lastViewIndex;
+  private int windowBeginIndex;
 
   private static class Slot {
     private long timestamp;
@@ -50,30 +49,31 @@ public class SlidingWindowStats {
    * up to the {@code initialViewTimestamp}, and an additional {@code numFutureSlots} for timestamps
    * beyond the current window view.
    * 
+   * It is recommended to make the {@code viewEndTimestamp} one time unit less than the current
+   * time, so that as the window slides to the right any added values will slide all the way across
+   * the view.
+   * 
    * @param statType to calculate values for
    * @param timescale to scale timestamps with
    * @param slotWidth time-based width of the slot
    * @param numViewSlots the number of viewable slots
    * @param numFutureSlots the number of future slots to allow values for
-   * @param initialViewTimestamp to start window view at
+   * @param viewEndTimestamp timestamp to end view at
    */
   public SlidingWindowStats(Class<? extends Statistic> statType, Timescale timescale,
-      int slotWidth, int numViewSlots, int numFutureSlots, long initialViewTimestamp) {
+      long slotWidth, int numViewSlots, int numFutureSlots, long viewEndTimestamp) {
     this.timescale = timescale;
     this.slotWidth = slotWidth;
     this.numViewSlots = numViewSlots;
     this.windowLength = (numViewSlots + numFutureSlots) * slotWidth;
 
-    initialViewTimestamp = timescale.scale(initialViewTimestamp);
-    viewHeadTimestamp = initialViewTimestamp;
-    slotHeadTimestamp = viewHeadTimestamp;
-    windowHeadTimestamp = initialViewTimestamp + (numFutureSlots * slotWidth);
-    viewHeadIndex = numViewSlots - 1;
-    windowHeadIndex = numViewSlots + numFutureSlots - 1;
-    emptySlotsInView = numViewSlots;
+    this.viewEndTimestamp = timescale.scale(viewEndTimestamp);
+    slotEndTimestamp = viewEndTimestamp;
+    windowEndTimestamp = viewEndTimestamp + (numFutureSlots * slotWidth);
+    lastViewIndex = numViewSlots - 1;
 
     slots = new Slot[numViewSlots + numFutureSlots];
-    long timestamp = windowHeadTimestamp;
+    long timestamp = windowEndTimestamp - slotWidth;
     for (int i = numViewSlots + numFutureSlots - 1; i > -1; i--, timestamp -= slotWidth)
       slots[i] = createSlot(timestamp, statType);
   }
@@ -101,8 +101,6 @@ public class SlidingWindowStats {
     if (index == -1)
       LOG.warn("Timestamp {} is outside of window {}", timestamp, toString());
     else {
-      if (!slots[index].stat.isInitialized() && isIndexInView(index))
-        emptySlotsInView--;
       LOG.trace("Adding value for {}. Current window{}", timestamp, toString());
       slots[index].stat.addValue(value);
     }
@@ -114,7 +112,7 @@ public class SlidingWindowStats {
   }
 
   /** Returns the window's slot width. */
-  public int getSlotWidth() {
+  public long getSlotWidth() {
     return slotWidth;
   }
 
@@ -124,7 +122,7 @@ public class SlidingWindowStats {
    */
   public long[] getTimestamps() {
     long[] timestamps = new long[numViewSlots];
-    long timestamp = windowHeadTimestamp - ((slots.length - 1) * slotWidth);
+    long timestamp = windowEndTimestamp - ((slots.length - 1) * slotWidth);
     for (int i = 0; i < numViewSlots; i++, timestamp += slotWidth)
       timestamps[i] = timestamp;
     return timestamps;
@@ -157,7 +155,7 @@ public class SlidingWindowStats {
     if (endIndex == -1)
       throw new IllegalStateException(timestamp + " is outside of the window");
     double[] values = new double[lengthToIndex(endIndex)];
-    for (int i = 0, index = indexOf(0); i < values.length; i++, index = indexAfter(index))
+    for (int i = 0, index = windowBeginIndex; i < values.length; i++, index = indexAfter(index))
       if (slots[index] != null)
         values[i] = slots[index].stat.value();
     return values;
@@ -168,7 +166,7 @@ public class SlidingWindowStats {
    */
   public double[] getViewValues() {
     double[] values = new double[numViewSlots];
-    for (int i = 0, index = indexOf(0); i < numViewSlots; i++, index = indexAfter(index))
+    for (int i = 0, index = windowBeginIndex; i < numViewSlots; i++, index = indexAfter(index))
       if (slots[index] != null)
         values[i] = slots[index].stat.value();
     return values;
@@ -179,15 +177,10 @@ public class SlidingWindowStats {
    */
   public double[] getWindowValues() {
     double[] values = new double[slots.length];
-    for (int i = 0, index = indexOf(0); i < slots.length; i++, index = indexAfter(index))
+    for (int i = 0, index = windowBeginIndex; i < slots.length; i++, index = indexAfter(index))
       if (slots[index] != null)
         values[i] = slots[index].stat.value();
     return values;
-  }
-
-  /** Returns true if the window has slots in the view which have no values, else false. */
-  public boolean hasEmptySlotsInView() {
-    return emptySlotsInView > 0;
   }
 
   /**
@@ -198,31 +191,24 @@ public class SlidingWindowStats {
    */
   public void slideViewTo(long timestamp) {
     timestamp = timescale.scale(timestamp);
-    if (timestamp <= viewHeadTimestamp)
+    if (timestamp <= viewEndTimestamp)
       return;
-    long timeDiff = timestamp - slotHeadTimestamp;
-    int slotsToAdvance = (int) timeDiff / slotWidth;
+    long timeDiff = timestamp - slotEndTimestamp;
+    int slotsToAdvance = (int) (timeDiff / slotWidth);
     slotsToAdvance += timeDiff % slotWidth == 0 ? 0 : 1;
 
     for (int i = 0; i < slotsToAdvance; i++) {
-      // Adjust emptySlotsInView for the old slot moving out of the window
-      if (!slots[indexOf(0)].stat.isInitialized())
-        emptySlotsInView--;
-
-      slotHeadTimestamp += slotWidth;
-      windowHeadTimestamp += slotWidth;
-      viewHeadIndex = indexAfter(viewHeadIndex);
-      windowHeadIndex = indexAfter(windowHeadIndex);
-      Slot slot = slots[windowHeadIndex];
-      slot.timestamp = windowHeadTimestamp;
+      windowBeginIndex = indexAfter(windowBeginIndex);
+      Slot slot = slots[indexOf(slots.length - 1)];
+      slot.timestamp = windowEndTimestamp;
       slot.stat.reset();
 
-      // Adjust emptySlotsInView for the new slot that moved into the window
-      if (!slots[viewHeadIndex].stat.isInitialized())
-        emptySlotsInView++;
+      slotEndTimestamp += slotWidth;
+      windowEndTimestamp += slotWidth;
+      lastViewIndex = indexAfter(lastViewIndex);
     }
 
-    viewHeadTimestamp = timestamp;
+    viewEndTimestamp = timestamp;
   }
 
   /**
@@ -232,7 +218,7 @@ public class SlidingWindowStats {
   public String toString() {
     StringBuilder b = new StringBuilder();
     b.append("SlidingWindowStats [[");
-    for (int i = 0, index = indexOf(0); i < slots.length; i++, index = indexAfter(index)) {
+    for (int i = 0, index = windowBeginIndex; i < slots.length; i++, index = indexAfter(index)) {
       if (i == numViewSlots)
         b.append("], ");
       else if (i != 0)
@@ -243,9 +229,12 @@ public class SlidingWindowStats {
     return b.append(']').toString();
   }
 
-  /** Returns the physical index of the logical {@code slotIndex}. */
+  /**
+   * Returns the physical index of the logical {@code slotIndex} calculated from the
+   * {@code windowBeginIndex}.
+   */
   int indexOf(int slotIndex) {
-    int offset = windowHeadIndex + 1 + slotIndex;
+    int offset = windowBeginIndex + slotIndex;
     if (offset >= slots.length)
       offset -= slots.length;
     return offset;
@@ -257,31 +246,24 @@ public class SlidingWindowStats {
    * wrapping.
    */
   int indexOfTime(long timestamp) {
-    if (timestamp <= windowHeadTimestamp) {
-      int timeDiff = (int) (windowHeadTimestamp - timestamp);
-      if (timeDiff < windowLength) {
-        int slotDiff = timeDiff / slotWidth;
-        int offset = windowHeadIndex - slotDiff;
-        if (offset < 0)
-          offset += slots.length;
-        return offset;
+    if (timestamp < windowEndTimestamp) {
+      long windowStartTimestamp = windowEndTimestamp - windowLength;
+      int timeDiff = (int) (timestamp - windowStartTimestamp);
+      if (timeDiff >= 0) {
+        int logicalIndex = (int) (timeDiff / slotWidth);
+        return indexOf(logicalIndex);
       }
     }
 
     return -1;
   }
 
-  /** Returns true if the physical {@code slotIndex} is inside the view, else false. */
-  boolean isIndexInView(int slotIndex) {
-    return lengthToIndex(slotIndex) <= numViewSlots;
-  }
-
   /** Returns the length of the window up to and including the physical {@code slotIndex}. */
   int lengthToIndex(int slotIndex) {
-    if (windowHeadIndex >= slotIndex)
-      return slotIndex + slots.length - windowHeadIndex;
+    if (windowBeginIndex <= slotIndex)
+      return slotIndex - windowBeginIndex + 1;
     else
-      return slotIndex - windowHeadIndex;
+      return slotIndex + slots.length - windowBeginIndex + 1;
   }
 
   /** Returns the physical index for the slot logically positioned after the {@code index}. */
