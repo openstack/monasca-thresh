@@ -224,6 +224,7 @@ public class SlidingWindowStatsTest {
     window.addValue(3, 10);
     window.addValue(4, 15);
 
+    assertEquals(window.getValuesUpTo(20), new double[] { 2, 3, 4, Double.NaN });
     assertEquals(window.getValuesUpTo(18), new double[] { 2, 3, 4 });
     assertEquals(window.getValuesUpTo(12), new double[] { 2, 3 });
     assertEquals(window.getValuesUpTo(9), new double[] { 2 });

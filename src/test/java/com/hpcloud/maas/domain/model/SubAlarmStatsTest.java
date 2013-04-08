@@ -23,7 +23,7 @@ public class SubAlarmStatsTest {
   protected void beforeMethod() {
     expression = AlarmSubExpression.of("avg(compute:cpu:{id=5}, 1) > 3 times 3");
     subAlarm = new SubAlarm("1", "123", expression);
-    subAlarmStats = new SubAlarmStats(subAlarm, 3000);
+    subAlarmStats = new SubAlarmStats(subAlarm, 4000);
   }
 
   public void shouldBeOkIfAnySlotsInViewAreBelowThreshold() {
@@ -56,7 +56,7 @@ public class SubAlarmStatsTest {
    */
   public void shouldEvaluateAndSlideWindow() {
     long initialTime = 11000;
-    subAlarmStats = new SubAlarmStats(subAlarm, initialTime - 1000);
+    subAlarmStats = new SubAlarmStats(subAlarm, initialTime);
 
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
     assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1000));
@@ -64,23 +64,23 @@ public class SubAlarmStatsTest {
     assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1000));
 
     // Add value and trigger OK
-    subAlarmStats.getStats().addValue(1, initialTime);
+    subAlarmStats.getStats().addValue(1, initialTime - 1000);
     assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1000));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.OK);
 
     // Slide in some values that exceed the threshold
-    subAlarmStats.getStats().addValue(5, initialTime);
+    subAlarmStats.getStats().addValue(5, initialTime - 1000);
     assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1000));
-    subAlarmStats.getStats().addValue(5, initialTime);
+    subAlarmStats.getStats().addValue(5, initialTime - 1000);
     assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1000));
-    subAlarmStats.getStats().addValue(5, initialTime);
+    subAlarmStats.getStats().addValue(5, initialTime - 1000);
 
     // Trigger ALARM
     assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1000));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.ALARM);
 
     // Add value and trigger OK
-    subAlarmStats.getStats().addValue(1, initialTime);
+    subAlarmStats.getStats().addValue(1, initialTime - 1000);
     assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1000));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.OK);
 

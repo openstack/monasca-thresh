@@ -85,7 +85,7 @@ public class SubAlarmStats {
    */
   boolean evaluate(long timestamp) {
     double[] values = stats.getValuesUpTo(timestamp);
-    LOG.debug("Evaluating {} for values {}", subAlarm, values);
+    LOG.debug("Evaluating {} at timestamp {} for values {}", subAlarm, timestamp, values);
 
     AlarmState initialState = subAlarm.getState();
     boolean thresholdExceeded = false;

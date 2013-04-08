@@ -33,6 +33,9 @@ import com.hpcloud.maas.infrastructure.thresholding.MetricAggregationBolt;
 import com.hpcloud.util.Injector;
 
 /**
+ * Simulates a real'ish run of the thresholding engine, using seconds instead of minutes for the
+ * evaluation timescale.
+ * 
  * @author Jonathan Halterman
  */
 @Test(groups = "integration")
@@ -48,7 +51,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
   public ThresholdingEngineTest() {
     // Fixtures
     AlarmExpression expression = new AlarmExpression(
-        "count(compute:cpu:{id=5}, 3, 3) >= 3 and count(compute:mem:{id=5}, 2, 4) >= 3");
+        "avg(compute:cpu:{id=5}, 3) >= 3 times 2 and avg(compute:mem:{id=5}, 3) >= 3 times 2");
 
     metricDefs = Arrays.asList(expression.getSubExpressions().get(0).getMetricDefinition(),
         expression.getSubExpressions().get(1).getMetricDefinition());
@@ -94,28 +97,33 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     ThresholdingConfiguration threshConfig = new ThresholdingConfiguration();
     Config stormConfig = new Config();
     stormConfig.setMaxTaskParallelism(1);
-    // stormConfig.setDebug(true);
     metricSpout = new FeederSpout(new Fields("metricDefinition", "metric"));
     eventSpout = new FeederSpout(new Fields("event"));
     Injector.registerModules(new TopologyModule(threshConfig, stormConfig, metricSpout, eventSpout));
 
-    // Evaluate alarm stats every 5 seconds
-    System.setProperty(MetricAggregationBolt.TICK_TUPLE_SECONDS_KEY, "5");
+    // Evaluate alarm stats every 1 seconds
+    System.setProperty(MetricAggregationBolt.TICK_TUPLE_SECONDS_KEY, "1");
   }
 
   public void shouldThreshold() throws Exception {
     int waitCount = 0;
     int feedCount = 5;
+    int goodValueCount = 0;
     for (int i = 1; i < 40; i++) {
       if (feedCount > 0) {
         System.out.println("Feeding metrics...");
 
         long time = System.currentTimeMillis();
-        metricSpout.feed(new Values(metricDefs.get(0), new Metric(metricDefs.get(0), 333, time)));
-        metricSpout.feed(new Values(metricDefs.get(1), new Metric(metricDefs.get(1), 333, time)));
+        metricSpout.feed(new Values(metricDefs.get(0), new Metric(metricDefs.get(0),
+            ++goodValueCount == 15 ? 1 : 555, time)));
+        // metricSpout.feed(new Values(metricDefs.get(1), new Metric(metricDefs.get(1), 555,
+        // time)));
 
         if (--feedCount == 0)
           waitCount = 3;
+
+        if (goodValueCount == 15)
+          goodValueCount = 0;
       } else {
         System.out.println("Waiting...");
         if (--waitCount == 0)
