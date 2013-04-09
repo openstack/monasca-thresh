@@ -5,7 +5,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.hpcloud.maas.util.time.Timescale;
+import com.hpcloud.maas.util.time.TimeResolution;
 
 /**
  * A time based sliding window containing statistics for a fixed number of slots of a fixed length.
@@ -17,7 +17,7 @@ import com.hpcloud.maas.util.time.Timescale;
 public class SlidingWindowStats {
   private static final Logger LOG = LoggerFactory.getLogger(SlidingWindowStats.class);
 
-  private final Timescale timescale;
+  private final TimeResolution timescale;
   private final long slotWidth;
   private final int numViewSlots;
   private final long windowLength;
@@ -60,14 +60,14 @@ public class SlidingWindowStats {
    * @param numFutureSlots the number of future slots to allow values for
    * @param viewEndTimestamp timestamp to end view at
    */
-  public SlidingWindowStats(Class<? extends Statistic> statType, Timescale timescale,
+  public SlidingWindowStats(Class<? extends Statistic> statType, TimeResolution timescale,
       long slotWidth, int numViewSlots, int numFutureSlots, long viewEndTimestamp) {
     this.timescale = timescale;
     this.slotWidth = slotWidth;
     this.numViewSlots = numViewSlots;
     this.windowLength = (numViewSlots + numFutureSlots) * slotWidth;
 
-    this.viewEndTimestamp = timescale.scale(viewEndTimestamp);
+    this.viewEndTimestamp = timescale.adjust(viewEndTimestamp);
     slotEndTimestamp = viewEndTimestamp;
     windowEndTimestamp = viewEndTimestamp + (numFutureSlots * slotWidth);
     lastViewIndex = numViewSlots - 1;
@@ -96,7 +96,7 @@ public class SlidingWindowStats {
    * @param timestamp to add value for
    */
   public void addValue(double value, long timestamp) {
-    timestamp = timescale.scale(timestamp);
+    timestamp = timescale.adjust(timestamp);
     int index = indexOfTime(timestamp);
     if (index == -1)
       LOG.warn("Timestamp {} is outside of window {}", timestamp, toString());
@@ -135,7 +135,7 @@ public class SlidingWindowStats {
    * @throws IllegalStateException if no value is within the window for the {@code timestamp}
    */
   public double getValue(long timestamp) {
-    timestamp = timescale.scale(timestamp);
+    timestamp = timescale.adjust(timestamp);
     int index = indexOfTime(timestamp);
     if (index == -1)
       throw new IllegalStateException(timestamp + " is outside of the window");
@@ -150,7 +150,7 @@ public class SlidingWindowStats {
    * @throws IllegalStateException if no value is within the window for the {@code timestamp}
    */
   public double[] getValuesUpTo(long timestamp) {
-    timestamp = timescale.scale(timestamp);
+    timestamp = timescale.adjust(timestamp);
     int endIndex = indexOfTime(timestamp);
     if (endIndex == -1)
       throw new IllegalStateException(timestamp + " is outside of the window");
@@ -190,7 +190,7 @@ public class SlidingWindowStats {
    * @param timestamp slide view to
    */
   public void slideViewTo(long timestamp) {
-    timestamp = timescale.scale(timestamp);
+    timestamp = timescale.adjust(timestamp);
     if (timestamp <= viewEndTimestamp)
       return;
     long timeDiff = timestamp - slotEndTimestamp;

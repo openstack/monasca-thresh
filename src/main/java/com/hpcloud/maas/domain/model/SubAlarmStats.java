@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory;
 import com.hpcloud.maas.common.model.alarm.AlarmState;
 import com.hpcloud.maas.util.stats.SlidingWindowStats;
 import com.hpcloud.maas.util.stats.Statistics;
-import com.hpcloud.maas.util.time.Timescale;
+import com.hpcloud.maas.util.time.TimeResolution;
 
 /**
  * Aggregates statistics for a specific SubAlarm.
@@ -31,7 +31,7 @@ public class SubAlarmStats {
     slotWidth = subAlarm.getExpression().getPeriod() * 1000;
     this.subAlarm = subAlarm;
     this.stats = new SlidingWindowStats(Statistics.statTypeFor(subAlarm.getExpression()
-        .getFunction()), Timescale.MILLISECONDS, slotWidth, subAlarm.getExpression().getPeriods(),
+        .getFunction()), TimeResolution.MILLISECONDS, slotWidth, subAlarm.getExpression().getPeriods(),
         FUTURE_SLOTS + 1, initialTimestamp);
     emptyWindowObservationThreshold = (subAlarm.getExpression().getPeriod() == 0 ? 1
         : subAlarm.getExpression().getPeriod() * subAlarm.getExpression().getPeriods())

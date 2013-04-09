@@ -64,6 +64,7 @@ public class Alarm extends AbstractEntity {
     if (subAlarmExpressions != null) {
       if (AlarmState.UNDETERMINED.equals(initialState))
         return false;
+      state = AlarmState.UNDETERMINED;
       stateChangeReason = buildStateChangeReason(state, subAlarmExpressions);
       return true;
     }
@@ -77,11 +78,13 @@ public class Alarm extends AbstractEntity {
     if (expression.evaluate(subExpressionValues)) {
       if (AlarmState.ALARM.equals(initialState))
         return false;
-      state = AlarmState.ALARM;
+
       subAlarmExpressions = new ArrayList<String>();
       for (SubAlarm subAlarm : subAlarms.values())
         if (AlarmState.ALARM.equals(subAlarm.getState()))
           subAlarmExpressions.add(subAlarm.getExpression().toString());
+
+      state = AlarmState.ALARM;
       stateChangeReason = buildStateChangeReason(state, subAlarmExpressions);
       return true;
     }
