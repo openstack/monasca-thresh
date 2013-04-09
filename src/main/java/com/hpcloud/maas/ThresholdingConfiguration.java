@@ -1,16 +1,17 @@
 package com.hpcloud.maas;
 
 import javax.validation.Valid;
-import javax.validation.constraints.Min;
 import javax.validation.constraints.NotNull;
 
-import org.hibernate.validator.constraints.NotEmpty;
-
 import com.hpcloud.maas.infrastructure.storm.amqp.AMQPSpoutConfiguration;
-import com.hpcloud.messaging.amqp.AMQPChannelConfiguration;
 import com.hpcloud.messaging.rabbitmq.RabbitMQConfiguration;
 import com.yammer.dropwizard.db.DatabaseConfiguration;
 
+/**
+ * Thresholding configuration.
+ * 
+ * @author Jonathan Halterman
+ */
 public class ThresholdingConfiguration {
   @NotNull public Integer metricSpoutParallelism = 3;
   @NotNull public Integer eventSpoutParallelism = 1;
@@ -22,20 +23,8 @@ public class ThresholdingConfiguration {
   @Valid @NotNull public AMQPSpoutConfiguration metricSpout;
   /** Configuration for the spout that receives messages from the API servers. */
   @Valid @NotNull public AMQPSpoutConfiguration eventSpout;
-
-  @Valid @NotNull public RabbitMQConfiguration internalRabbit = new RabbitMQConfiguration();
-  /** Threshold for scaling internal connections up */
-  @NotNull @Min(1) public Integer internalConnectionScalingThreshold;
-  /** Max number of total internal connections */
-  @NotNull public Integer maxInternalConnections;
-
+  /** Configuration for publishing to the alerts exchange. */
   @Valid @NotNull public RabbitMQConfiguration externalRabbit = new RabbitMQConfiguration();
-
-  @Valid @NotNull public AMQPChannelConfiguration controlChannel = new AMQPChannelConfiguration();
-  @NotEmpty public String internalExchange;
-  @NotEmpty public String externalExchange;
-  @NotEmpty public String controlExchange;
-  @NotEmpty public String controlRoutingKey;
-
+  /** MaaS API database configuration. */
   @Valid @NotNull public DatabaseConfiguration database = new DatabaseConfiguration();
 }
