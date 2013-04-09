@@ -54,22 +54,22 @@ public class SlidingWindowStats {
    * the view.
    * 
    * @param statType to calculate values for
-   * @param timescale to scale timestamps with
+   * @param timeResolution to adjust timestamps with
    * @param slotWidth time-based width of the slot
    * @param numViewSlots the number of viewable slots
    * @param numFutureSlots the number of future slots to allow values for
    * @param viewEndTimestamp timestamp to end view at
    */
-  public SlidingWindowStats(Class<? extends Statistic> statType, TimeResolution timescale,
+  public SlidingWindowStats(Class<? extends Statistic> statType, TimeResolution timeResolution,
       long slotWidth, int numViewSlots, int numFutureSlots, long viewEndTimestamp) {
-    this.timescale = timescale;
+    this.timescale = timeResolution;
     this.slotWidth = slotWidth;
     this.numViewSlots = numViewSlots;
     this.windowLength = (numViewSlots + numFutureSlots) * slotWidth;
 
-    this.viewEndTimestamp = timescale.adjust(viewEndTimestamp);
-    slotEndTimestamp = viewEndTimestamp;
-    windowEndTimestamp = viewEndTimestamp + (numFutureSlots * slotWidth);
+    this.viewEndTimestamp = timeResolution.adjust(viewEndTimestamp);
+    slotEndTimestamp = this.viewEndTimestamp;
+    windowEndTimestamp = this.viewEndTimestamp + (numFutureSlots * slotWidth);
     lastViewIndex = numViewSlots - 1;
 
     slots = new Slot[numViewSlots + numFutureSlots];
@@ -101,8 +101,8 @@ public class SlidingWindowStats {
     if (index == -1)
       LOG.warn("Timestamp {} is outside of window {}", timestamp, toString());
     else {
-      LOG.trace("Adding value for {}. Current window{}", timestamp, toString());
       slots[index].stat.addValue(value);
+      LOG.trace("Added value for {}. New window {}", timestamp, toString());
     }
   }
 
