@@ -13,11 +13,16 @@ import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 
 import com.hpcloud.maas.common.event.AlarmDeletedEvent;
+import com.hpcloud.maas.common.model.alarm.AlarmState;
 import com.hpcloud.maas.domain.model.Alarm;
+import com.hpcloud.maas.domain.model.AlarmStateTransitionEvent;
 import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.service.AlarmDAO;
 import com.hpcloud.maas.infrastructure.storm.Streams;
+import com.hpcloud.messaging.rabbitmq.RabbitMQService;
+import com.hpcloud.util.Exceptions;
 import com.hpcloud.util.Injector;
+import com.hpcloud.util.Serialization;
 
 /**
  * Determines whether an alarm threshold has been exceeded.
@@ -35,9 +40,12 @@ import com.hpcloud.util.Injector;
 public class AlarmThresholdingBolt extends BaseRichBolt {
   private static final Logger LOG = LoggerFactory.getLogger(AlarmThresholdingBolt.class);
   private static final long serialVersionUID = -4126465124017857754L;
+  private static final String ALERT_EXCHANGE = "alerts";
+  private static final String ALERT_ADDRESS = "alert";
 
   private final Map<String, Alarm> alarms = new HashMap<String, Alarm>();
   private transient AlarmDAO alarmDAO;
+  private transient RabbitMQService rabbitService;
   private TopologyContext context;
   private OutputCollector collector;
 
@@ -76,20 +84,35 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     this.context = context;
     this.collector = collector;
     alarmDAO = Injector.getInstance(AlarmDAO.class);
+    rabbitService = Injector.getInstance(RabbitMQService.class);
+
+    try {
+      rabbitService.start();
+    } catch (Exception e) {
+      throw Exceptions.uncheck(e);
+    }
   }
 
   void evaluateThreshold(Alarm alarm, SubAlarm subAlarm) {
     LOG.debug("{} Received state change for {}", context.getThisTaskId(), subAlarm);
     alarm.updateSubAlarm(subAlarm);
+    AlarmState initialState = alarm.getState();
     if (alarm.evaluate()) {
       alarmDAO.updateState(alarm.getState());
-      // Emit notification
+      AlarmStateTransitionEvent event = new AlarmStateTransitionEvent(alarm.getTenantId(),
+          alarm.getId(), alarm.getName(), initialState, alarm.getState(),
+          alarm.getStateChangeReason(), System.currentTimeMillis());
+      rabbitService.send(ALERT_EXCHANGE, ALERT_ADDRESS, Serialization.toJson(event));
     }
   }
 
   void handleAlarmDeleted(String alarmId) {
     LOG.debug("{} Received AlarmDeletedEvent for alarm id {}", context.getThisTaskId(), alarmId);
     alarms.remove(alarmId);
+  }
+
+  String buildStateChangeReason() {
+    return null;
   }
 
   private Alarm getOrCreateAlarm(String alarmId) {

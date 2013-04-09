@@ -5,6 +5,7 @@ import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 
 import java.util.Arrays;
+import java.util.List;
 
 import org.testng.annotations.Test;
 
@@ -85,5 +86,22 @@ public class AlarmTest {
     subAlarm2.setState(AlarmState.UNDETERMINED);
     assertTrue(alarm.evaluate());
     assertEquals(alarm.getState(), AlarmState.UNDETERMINED);
+  }
+
+  public void shouldBuiltStateChangeReason() {
+    AlarmExpression expr = new AlarmExpression(
+        "avg(compute:cpu:1:{instance_id=5}, 1) > 5 times 3 OR avg(compute:mem:{flavor_id=3}, 2) < 4 times 3");
+    SubAlarm subAlarm1 = new SubAlarm("1", "123", expr.getSubExpressions().get(0));
+    SubAlarm subAlarm2 = new SubAlarm("1", "456", expr.getSubExpressions().get(1));
+    List<String> expressions = Arrays.asList(subAlarm1.getExpression().toString(),
+        subAlarm2.getExpression().toString());
+
+    assertEquals(
+        Alarm.buildStateChangeReason(AlarmState.UNDETERMINED, expressions),
+        "No data was present for the sub-alarms: [average(compute:cpu:1:{instance_id=5}, 1) >= 5.0 times 3, average(compute:mem:{flavor_id=3}, 2) < 4.0 times 3]");
+
+    assertEquals(
+        Alarm.buildStateChangeReason(AlarmState.ALARM, expressions),
+        "Thresholds were exceeded for the sub-alarms: [average(compute:cpu:1:{instance_id=5}, 1) >= 5.0 times 3, average(compute:mem:{flavor_id=3}, 2) < 4.0 times 3]");
   }
 }
