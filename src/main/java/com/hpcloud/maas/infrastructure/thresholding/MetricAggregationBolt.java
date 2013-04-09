@@ -164,8 +164,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
       if (subAlarms.isEmpty())
         LOG.warn("{} Failed to find sub alarms for {}", context.getThisTaskId(), metricDefinition);
       else {
-        long initialTimestamp = System.currentTimeMillis() - evaluationTimeOffset;
-        subAlarmStatsRepo = new SubAlarmStatsRepository(subAlarms, initialTimestamp);
+        long viewEndTimestamp = System.currentTimeMillis() + evaluationTimeOffset;
+        subAlarmStatsRepo = new SubAlarmStatsRepository(subAlarms, viewEndTimestamp);
         subAlarmStatsRepos.put(metricDefinition, subAlarmStatsRepo);
         for (SubAlarm subAlarm : subAlarms)
           alarmSubAlarms.put(subAlarm.getAlarmId(), subAlarm.getId());
@@ -181,8 +181,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
    */
   void handleAlarmCreated(SubAlarmStatsRepository subAlarmStatsRepo, SubAlarm subAlarm) {
     LOG.debug("{} Received AlarmCreatedEvent for {}", context.getThisTaskId(), subAlarm);
-    long initialTimestamp = System.currentTimeMillis() - evaluationTimeOffset;
-    subAlarmStatsRepo.add(subAlarm, initialTimestamp);
+    long viewEndTimestamp = System.currentTimeMillis() + evaluationTimeOffset;
+    subAlarmStatsRepo.add(subAlarm, viewEndTimestamp);
     alarmSubAlarms.put(subAlarm.getAlarmId(), subAlarm.getId());
   }
 

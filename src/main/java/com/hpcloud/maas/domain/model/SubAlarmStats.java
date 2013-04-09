@@ -27,12 +27,12 @@ public class SubAlarmStats {
   private final int emptyWindowObservationThreshold;
   private int emptyWindowObservations;
 
-  public SubAlarmStats(SubAlarm subAlarm, long initialTimestamp) {
+  public SubAlarmStats(SubAlarm subAlarm, long viewEndTimestamp) {
     slotWidth = subAlarm.getExpression().getPeriod() * 1000;
     this.subAlarm = subAlarm;
     this.stats = new SlidingWindowStats(Statistics.statTypeFor(subAlarm.getExpression()
         .getFunction()), TimeResolution.MILLISECONDS, slotWidth, subAlarm.getExpression().getPeriods(),
-        FUTURE_SLOTS + 1, initialTimestamp);
+        FUTURE_SLOTS + 1, viewEndTimestamp);
     emptyWindowObservationThreshold = (subAlarm.getExpression().getPeriod() == 0 ? 1
         : subAlarm.getExpression().getPeriod() * subAlarm.getExpression().getPeriods())
         * UNDETERMINED_COEFFICIENT;

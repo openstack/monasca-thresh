@@ -18,19 +18,19 @@ public class SubAlarmStatsRepository {
 
   /**
    * Creates a new SubAlarmStatsRepository initialized with SubAlarmStats for each of the
-   * {@code subAlarms} with the {@code initialTimestamp}.
+   * {@code subAlarms} with the {@code viewEndTimestamp}.
    */
-  public SubAlarmStatsRepository(List<SubAlarm> subAlarms, long initialTimestamp) {
+  public SubAlarmStatsRepository(List<SubAlarm> subAlarms, long viewEndTimestamp) {
     for (SubAlarm subAlarm : subAlarms)
-      add(subAlarm, initialTimestamp);
+      add(subAlarm, viewEndTimestamp);
   }
 
   /**
-   * Creates a new SubAlarmStats instance for the {@code subAlarm} and {@code initialTimestamp} and
+   * Creates a new SubAlarmStats instance for the {@code subAlarm} and {@code viewEndTimestamp} and
    * adds it to the repository.
    */
-  public void add(SubAlarm subAlarm, long initialTimestamp) {
-    subAlarmStats.put(subAlarm.getId(), new SubAlarmStats(subAlarm, initialTimestamp));
+  public void add(SubAlarm subAlarm, long viewEndTimestamp) {
+    subAlarmStats.put(subAlarm.getId(), new SubAlarmStats(subAlarm, viewEndTimestamp));
   }
 
   public Collection<SubAlarmStats> get() {
