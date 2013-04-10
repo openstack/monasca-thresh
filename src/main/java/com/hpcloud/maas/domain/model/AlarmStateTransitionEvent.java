@@ -31,4 +31,11 @@ public class AlarmStateTransitionEvent {
     this.stateChangeReason = stateChangeReason;
     this.timestamp = timestamp;
   }
+
+  @Override
+  public String toString() {
+    return String.format(
+        "AlarmStateTransitionEvent [tenantId=%s, alarmId=%s, alarmName=%s, oldState=%s, newState=%s, stateChangeReason=%s, timestamp=%s]",
+        tenantId, alarmId, alarmName, oldState, newState, stateChangeReason, timestamp);
+  }
 }
