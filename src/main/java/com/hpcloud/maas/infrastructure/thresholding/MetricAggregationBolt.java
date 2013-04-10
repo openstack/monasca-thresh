@@ -154,8 +154,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
 
   /**
    * Returns an existing or newly created SubAlarmStatsRepository for the {@code metricDefinition}.
-   * Newly created SubAlarmStatsRepositories are initialized with SubAlarms with initial times of 1
-   * minute ago.
+   * Newly created SubAlarmStatsRepositories are initialized with stats whose view ends one minute
+   * from now.
    */
   SubAlarmStatsRepository getOrCreateSubAlarmStatsRepo(MetricDefinition metricDefinition) {
     SubAlarmStatsRepository subAlarmStatsRepo = subAlarmStatsRepos.get(metricDefinition);
@@ -176,8 +176,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
   }
 
   /**
-   * Adds the {@code subAlarm} to the {@code subAlarmStatsRepo} for an initial time of 1 minute ago,
-   * and adds the {@code subAlarm} to the {@link #alarmSubAlarms}.
+   * Adds the {@code subAlarm} to the {@code subAlarmStatsRepo} with a view end time of one minute
+   * from now, and adds the {@code subAlarm} to the {@link #alarmSubAlarms}.
    */
   void handleAlarmCreated(SubAlarmStatsRepository subAlarmStatsRepo, SubAlarm subAlarm) {
     LOG.debug("{} Received AlarmCreatedEvent for {}", context.getThisTaskId(), subAlarm);
