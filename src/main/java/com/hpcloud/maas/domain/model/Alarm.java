@@ -146,7 +146,7 @@ public class Alarm extends AbstractEntity {
 
   @Override
   public String toString() {
-    return String.format("Alarm [name=%s]", name);
+    return String.format("Alarm [tenantId=%s, name=%s, state=%s]", tenantId, name, state);
   }
 
   public void updateSubAlarm(SubAlarm subAlarm) {
