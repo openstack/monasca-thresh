@@ -96,13 +96,20 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   void evaluateThreshold(Alarm alarm, SubAlarm subAlarm) {
     LOG.debug("{} Received state change for {}", context.getThisTaskId(), subAlarm);
     alarm.updateSubAlarm(subAlarm);
+
     AlarmState initialState = alarm.getState();
     if (alarm.evaluate()) {
       alarmDAO.updateState(alarm.getState());
-      AlarmStateTransitionEvent event = new AlarmStateTransitionEvent(alarm.getTenantId(),
-          alarm.getId(), alarm.getName(), initialState, alarm.getState(),
-          alarm.getStateChangeReason(), System.currentTimeMillis());
-      rabbitService.send(ALERT_EXCHANGE, ALERT_ADDRESS, Serialization.toJson(event));
+
+      if (AlarmState.ALARM.equals(alarm.getState())) {
+        LOG.debug("{} ALARM triggered for {}", context.getThisTaskId(), alarm);
+        alarmDAO.updateState(alarm.getState());
+        AlarmStateTransitionEvent event = new AlarmStateTransitionEvent(alarm.getTenantId(),
+            alarm.getId(), alarm.getName(), initialState, alarm.getState(),
+            alarm.getStateChangeReason(), System.currentTimeMillis());
+        rabbitService.send(ALERT_EXCHANGE, ALERT_ADDRESS, Serialization.toJson(event));
+      } else
+        LOG.debug("{} State changed for {}", context.getThisTaskId(), alarm);
     }
   }
 
