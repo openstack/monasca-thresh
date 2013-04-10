@@ -83,7 +83,7 @@ public class MetricAggregationBoltTest {
   }
 
   public void shouldAggregateValues() {
-    long t1 = System.currentTimeMillis() - 60000;
+    long t1 = System.currentTimeMillis();
 
     bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), 100, t1));
     bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), 80, t1));
@@ -102,7 +102,7 @@ public class MetricAggregationBoltTest {
   @SuppressWarnings("unchecked")
   public void shouldEvaluateAlarms() {
     // Given
-    long t1 = System.currentTimeMillis() - 60000;
+    long t1 = System.currentTimeMillis();
     bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), 100, t1));
     bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), 95, t1 -= 60000));
     bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), 88, t1 -= 60000));

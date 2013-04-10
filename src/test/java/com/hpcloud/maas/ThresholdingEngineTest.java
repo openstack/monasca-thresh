@@ -6,9 +6,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -30,6 +29,7 @@ import com.hpcloud.maas.domain.service.AlarmDAO;
 import com.hpcloud.maas.domain.service.SubAlarmDAO;
 import com.hpcloud.maas.infrastructure.storm.TopologyTestCase;
 import com.hpcloud.maas.infrastructure.thresholding.MetricAggregationBolt;
+import com.hpcloud.messaging.rabbitmq.RabbitMQService;
 import com.hpcloud.util.Injector;
 
 /**
@@ -44,34 +44,24 @@ public class ThresholdingEngineTest extends TopologyTestCase {
   private FeederSpout eventSpout;
   private AlarmDAO alarmDAO;
   private SubAlarmDAO subAlarmDAO;
-  private Map<String, Alarm> alarms;
-  private List<MetricDefinition> metricDefs;
-  private Map<MetricDefinition, SubAlarm> subAlarms;
+  private MetricDefinition cpuMetricDef;
+  private MetricDefinition memMetricDef;
 
   public ThresholdingEngineTest() {
     // Fixtures
-    AlarmExpression expression = new AlarmExpression(
-        "avg(compute:cpu:{id=5}, 3) >= 3 times 2 and avg(compute:mem:{id=5}, 3) >= 3 times 2");
+    final AlarmExpression expression = new AlarmExpression(
+        "avg(compute:cpu:{id=5}, 3) >= 3 times 2 and avg(compute:mem:{id=5}, 3) >= 5 times 2");
 
-    metricDefs = Arrays.asList(expression.getSubExpressions().get(0).getMetricDefinition(),
-        expression.getSubExpressions().get(1).getMetricDefinition());
-    SubAlarm subAlarm1 = new SubAlarm("1", "123", expression.getSubExpressions().get(0));
-    SubAlarm subAlarm2 = new SubAlarm("1", "456", expression.getSubExpressions().get(1));
-    subAlarms = new HashMap<MetricDefinition, SubAlarm>();
-    subAlarms.put(subAlarm1.getExpression().getMetricDefinition(), subAlarm1);
-    subAlarms.put(subAlarm2.getExpression().getMetricDefinition(), subAlarm2);
-
-    alarms = new HashMap<String, Alarm>();
-    alarms.put("1",
-        new Alarm("1", "bob", "test-alarm", expression, Arrays.asList(subAlarm1, subAlarm2),
-            AlarmState.OK));
+    cpuMetricDef = expression.getSubExpressions().get(0).getMetricDefinition();
+    memMetricDef = expression.getSubExpressions().get(1).getMetricDefinition();
 
     // Mocks
     alarmDAO = mock(AlarmDAO.class);
     when(alarmDAO.findById(anyString())).thenAnswer(new Answer<Alarm>() {
       @Override
       public Alarm answer(InvocationOnMock invocation) throws Throwable {
-        return alarms.get((String) invocation.getArguments()[0]);
+        return new Alarm("1", "bob", "test-alarm", expression, subAlarmsFor(expression),
+            AlarmState.OK);
       }
     });
 
@@ -80,9 +70,15 @@ public class ThresholdingEngineTest extends TopologyTestCase {
       @Override
       public List<SubAlarm> answer(InvocationOnMock invocation) throws Throwable {
         MetricDefinition metricDef = (MetricDefinition) invocation.getArguments()[0];
-        return Arrays.asList(subAlarms.get(metricDef));
+        if (metricDef.equals(cpuMetricDef))
+          return Arrays.asList(new SubAlarm("1", "123", expression.getSubExpressions().get(0)));
+        else if (metricDef.equals(memMetricDef))
+          return Arrays.asList(new SubAlarm("1", "456", expression.getSubExpressions().get(1)));
+        return Collections.emptyList();
       }
     });
+
+    final RabbitMQService rabbitMQService = mock(RabbitMQService.class);
 
     // Bindings
     Injector.reset();
@@ -90,6 +86,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
       protected void configure() {
         bind(AlarmDAO.class).toInstance(alarmDAO);
         bind(SubAlarmDAO.class).toInstance(subAlarmDAO);
+        bind(RabbitMQService.class).toInstance(rabbitMQService);
       }
     });
 
@@ -105,6 +102,12 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     System.setProperty(MetricAggregationBolt.TICK_TUPLE_SECONDS_KEY, "1");
   }
 
+  private List<SubAlarm> subAlarmsFor(AlarmExpression expression) {
+    SubAlarm subAlarm1 = new SubAlarm("1", "123", expression.getSubExpressions().get(0));
+    SubAlarm subAlarm2 = new SubAlarm("1", "456", expression.getSubExpressions().get(1));
+    return Arrays.asList(subAlarm1, subAlarm2);
+  }
+
   public void shouldThreshold() throws Exception {
     int waitCount = 0;
     int feedCount = 5;
@@ -114,10 +117,10 @@ public class ThresholdingEngineTest extends TopologyTestCase {
         System.out.println("Feeding metrics...");
 
         long time = System.currentTimeMillis();
-        metricSpout.feed(new Values(metricDefs.get(0), new Metric(metricDefs.get(0),
+        metricSpout.feed(new Values(cpuMetricDef, new Metric(cpuMetricDef,
             ++goodValueCount == 15 ? 1 : 555, time)));
-        // metricSpout.feed(new Values(metricDefs.get(1), new Metric(metricDefs.get(1), 555,
-        // time)));
+        metricSpout.feed(new Values(memMetricDef, new Metric(memMetricDef, goodValueCount == 15 ? 1
+            : 555, time)));
 
         if (--feedCount == 0)
           waitCount = 3;
