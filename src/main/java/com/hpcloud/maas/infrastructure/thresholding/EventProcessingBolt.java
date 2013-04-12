@@ -82,9 +82,9 @@ public class EventProcessingBolt extends BaseRichBolt {
   void handle(AlarmCreatedEvent event) {
     String eventType = event.getClass().getSimpleName();
     for (Map.Entry<String, AlarmSubExpression> subExpressionEntry : event.alarmSubExpressions.entrySet())
-      collector.emit(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Values(eventType,
-          subExpressionEntry.getValue().getMetricDefinition(), new SubAlarm(event.alarmId,
-              subExpressionEntry.getKey(), subExpressionEntry.getValue())));
+      collector.emit(METRIC_SUB_ALARM_EVENT_STREAM_ID,
+          new Values(eventType, subExpressionEntry.getValue().getMetricDefinition(), new SubAlarm(
+              subExpressionEntry.getKey(), event.alarmId, subExpressionEntry.getValue())));
   }
 
   void handle(AlarmDeletedEvent event) {

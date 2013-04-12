@@ -20,9 +20,9 @@ public class AlarmTest {
   public void shouldBeUndeterminedIfAnySubAlarmIsUndetermined() {
     AlarmExpression expr = new AlarmExpression(
         "avg(compute:cpu:1:{instance_id=5}, 1) > 5 times 3 AND avg(compute:mem:{flavor_id=3}, 2) < 4 times 3");
-    SubAlarm subAlarm1 = new SubAlarm("1", "123", expr.getSubExpressions().get(0),
+    SubAlarm subAlarm1 = new SubAlarm("123", "1", expr.getSubExpressions().get(0),
         AlarmState.UNDETERMINED);
-    SubAlarm subAlarm2 = new SubAlarm("1", "456", expr.getSubExpressions().get(1), AlarmState.ALARM);
+    SubAlarm subAlarm2 = new SubAlarm("456", "1", expr.getSubExpressions().get(1), AlarmState.ALARM);
     Alarm alarm = new Alarm("1", "joe", "test alarm", expr, Arrays.asList(subAlarm1, subAlarm2),
         AlarmState.UNDETERMINED);
 
@@ -33,8 +33,8 @@ public class AlarmTest {
   public void shouldEvaluateExpressionWithBooleanAnd() {
     AlarmExpression expr = new AlarmExpression(
         "avg(compute:cpu:1:{instance_id=5}, 1) > 5 times 3 AND avg(compute:mem:{flavor_id=3}, 2) < 4 times 3");
-    SubAlarm subAlarm1 = new SubAlarm("1", "123", expr.getSubExpressions().get(0));
-    SubAlarm subAlarm2 = new SubAlarm("1", "456", expr.getSubExpressions().get(1));
+    SubAlarm subAlarm1 = new SubAlarm("123", "1", expr.getSubExpressions().get(0));
+    SubAlarm subAlarm2 = new SubAlarm("456", "1", expr.getSubExpressions().get(1));
 
     Alarm alarm = new Alarm("1", "joe", "test alarm", expr, Arrays.asList(subAlarm1, subAlarm2),
         AlarmState.UNDETERMINED);
@@ -67,8 +67,8 @@ public class AlarmTest {
   public void shouldEvaluateExpressionWithBooleanOr() {
     AlarmExpression expr = new AlarmExpression(
         "avg(compute:cpu:1:{instance_id=5}, 1) > 5 times 3 OR avg(compute:mem:{flavor_id=3}, 2) < 4 times 3");
-    SubAlarm subAlarm1 = new SubAlarm("1", "123", expr.getSubExpressions().get(0));
-    SubAlarm subAlarm2 = new SubAlarm("1", "456", expr.getSubExpressions().get(1));
+    SubAlarm subAlarm1 = new SubAlarm("123", "1", expr.getSubExpressions().get(0));
+    SubAlarm subAlarm2 = new SubAlarm("456", "1", expr.getSubExpressions().get(1));
 
     Alarm alarm = new Alarm("1", "joe", "test alarm", expr, Arrays.asList(subAlarm1, subAlarm2),
         AlarmState.UNDETERMINED);
@@ -104,8 +104,8 @@ public class AlarmTest {
   public void shouldBuiltStateChangeReason() {
     AlarmExpression expr = new AlarmExpression(
         "avg(compute:cpu:1:{instance_id=5}, 1) > 5 times 3 OR avg(compute:mem:{flavor_id=3}, 2) < 4 times 3");
-    SubAlarm subAlarm1 = new SubAlarm("1", "123", expr.getSubExpressions().get(0));
-    SubAlarm subAlarm2 = new SubAlarm("1", "456", expr.getSubExpressions().get(1));
+    SubAlarm subAlarm1 = new SubAlarm("123", "1", expr.getSubExpressions().get(0));
+    SubAlarm subAlarm2 = new SubAlarm("456", "1", expr.getSubExpressions().get(1));
     List<String> expressions = Arrays.asList(subAlarm1.getExpression().toString(),
         subAlarm2.getExpression().toString());
 

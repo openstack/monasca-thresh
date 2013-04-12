@@ -13,5 +13,5 @@ public interface AlarmDAO {
   Alarm findById(String id);
 
   /** Updates the alarm state. */
-  void updateState(AlarmState state);
+  void updateState(String id, AlarmState state);
 }

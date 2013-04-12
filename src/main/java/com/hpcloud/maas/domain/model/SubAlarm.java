@@ -10,20 +10,20 @@ import com.hpcloud.maas.domain.common.AbstractEntity;
  * @author Jonathan Halterman
  */
 public class SubAlarm extends AbstractEntity {
-  private String alarmId;
-  private AlarmSubExpression expression;
+  private final String alarmId;
+  private final AlarmSubExpression expression;
   private AlarmState state;
 
-  public SubAlarm(String alarmId, String id, AlarmSubExpression expression) {
-    this.alarmId = alarmId;
+  public SubAlarm(String id, String alarmId, AlarmSubExpression expression) {
     this.id = id;
+    this.alarmId = alarmId;
     this.expression = expression;
     this.state = AlarmState.UNDETERMINED;
   }
 
-  public SubAlarm(String alarmId, String id, AlarmSubExpression expression, AlarmState state) {
-    this.alarmId = alarmId;
+  public SubAlarm(String id, String alarmId, AlarmSubExpression expression, AlarmState state) {
     this.id = id;
+    this.alarmId = alarmId;
     this.expression = expression;
     this.state = state;
   }
@@ -46,7 +46,7 @@ public class SubAlarm extends AbstractEntity {
 
   @Override
   public String toString() {
-    return String.format("SubAlarm [alarmId=%s, id=%s, expression=%s, state=%s]", alarmId, id,
+    return String.format("SubAlarm [id=%s, alarmId=%s, expression=%s, state=%s]", id, alarmId,
         expression, state);
   }
 }

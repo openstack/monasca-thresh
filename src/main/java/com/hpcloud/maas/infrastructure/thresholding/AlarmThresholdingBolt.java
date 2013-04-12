@@ -99,11 +99,10 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
 
     AlarmState initialState = alarm.getState();
     if (alarm.evaluate()) {
-      alarmDAO.updateState(alarm.getState());
+      alarmDAO.updateState(alarm.getId(), alarm.getState());
 
       if (AlarmState.ALARM.equals(alarm.getState())) {
         LOG.debug("{} ALARM triggered for {}", context.getThisTaskId(), alarm);
-        alarmDAO.updateState(alarm.getState());
         AlarmStateTransitionEvent event = new AlarmStateTransitionEvent(alarm.getTenantId(),
             alarm.getId(), alarm.getName(), initialState, alarm.getState(),
             alarm.getStateChangeReason(), System.currentTimeMillis());

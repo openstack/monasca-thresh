@@ -71,9 +71,9 @@ public class ThresholdingEngineTest extends TopologyTestCase {
       public List<SubAlarm> answer(InvocationOnMock invocation) throws Throwable {
         MetricDefinition metricDef = (MetricDefinition) invocation.getArguments()[0];
         if (metricDef.equals(cpuMetricDef))
-          return Arrays.asList(new SubAlarm("1", "123", expression.getSubExpressions().get(0)));
+          return Arrays.asList(new SubAlarm("123", "1", expression.getSubExpressions().get(0)));
         else if (metricDef.equals(memMetricDef))
-          return Arrays.asList(new SubAlarm("1", "456", expression.getSubExpressions().get(1)));
+          return Arrays.asList(new SubAlarm("456", "1", expression.getSubExpressions().get(1)));
         return Collections.emptyList();
       }
     });
@@ -103,8 +103,8 @@ public class ThresholdingEngineTest extends TopologyTestCase {
   }
 
   private List<SubAlarm> subAlarmsFor(AlarmExpression expression) {
-    SubAlarm subAlarm1 = new SubAlarm("1", "123", expression.getSubExpressions().get(0));
-    SubAlarm subAlarm2 = new SubAlarm("1", "456", expression.getSubExpressions().get(1));
+    SubAlarm subAlarm1 = new SubAlarm("123", "1", expression.getSubExpressions().get(0));
+    SubAlarm subAlarm2 = new SubAlarm("456", "1", expression.getSubExpressions().get(1));
     return Arrays.asList(subAlarm1, subAlarm2);
   }
 

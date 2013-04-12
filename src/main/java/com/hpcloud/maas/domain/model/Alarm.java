@@ -24,15 +24,16 @@ public class Alarm extends AbstractEntity {
   private AlarmState state;
   private String stateChangeReason;
 
+  public Alarm() {
+  }
+
   public Alarm(String id, String tenantId, String name, AlarmExpression expression,
       List<SubAlarm> subAlarms, AlarmState state) {
     this.id = id;
     this.tenantId = tenantId;
     this.name = name;
     this.expression = expression;
-    this.subAlarms = new HashMap<String, SubAlarm>();
-    for (SubAlarm subAlarm : subAlarms)
-      this.subAlarms.put(subAlarm.getId(), subAlarm);
+    setSubAlarms(subAlarms);
     this.state = state;
   }
 
@@ -96,7 +97,7 @@ public class Alarm extends AbstractEntity {
     return true;
   }
 
-  public AlarmExpression getExpression() {
+  public AlarmExpression getAlarmExpression() {
     return expression;
   }
 
@@ -124,8 +125,12 @@ public class Alarm extends AbstractEntity {
     return tenantId;
   }
 
-  public void setExpression(AlarmExpression expression) {
-    this.expression = expression;
+  public void setExpression(String expression) {
+    this.expression = AlarmExpression.of(expression);
+  }
+
+  public void setId(String id) {
+    this.id = id;
   }
 
   public void setName(String name) {
@@ -136,8 +141,10 @@ public class Alarm extends AbstractEntity {
     this.state = state;
   }
 
-  public void setSubAlarms(Map<String, SubAlarm> subAlarms) {
-    this.subAlarms = subAlarms;
+  public void setSubAlarms(List<SubAlarm> subAlarms) {
+    this.subAlarms = new HashMap<String, SubAlarm>();
+    for (SubAlarm subAlarm : subAlarms)
+      this.subAlarms.put(subAlarm.getId(), subAlarm);
   }
 
   public void setTenantId(String tenantId) {

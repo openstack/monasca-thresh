@@ -22,7 +22,7 @@ public class SubAlarmStatsTest {
   @BeforeMethod
   protected void beforeMethod() {
     expression = AlarmSubExpression.of("avg(compute:cpu:{id=5}, 1) > 3 times 3");
-    subAlarm = new SubAlarm("1", "123", expression);
+    subAlarm = new SubAlarm("123", "1", expression);
     subAlarmStats = new SubAlarmStats(subAlarm, 4000);
   }
 
@@ -71,7 +71,7 @@ public class SubAlarmStatsTest {
     // Slide in some values that exceed the threshold
     subAlarmStats.getStats().addValue(5, initialTime - 1000);
     assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1000));
-    subAlarmStats.getStats().addValue(5, initialTime - 1000);
+  subAlarmStats.getStats().addValue(5, initialTime - 1000);
     assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1000));
     subAlarmStats.getStats().addValue(5, initialTime - 1000);
 

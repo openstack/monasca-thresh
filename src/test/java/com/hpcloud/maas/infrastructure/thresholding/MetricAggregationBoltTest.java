@@ -55,8 +55,8 @@ public class MetricAggregationBoltTest {
   @BeforeMethod
   protected void beforeMethod() {
     // Fixtures
-    SubAlarm subAlarm1 = new SubAlarm("1", "123", subExpressions.get(0), AlarmState.OK);
-    SubAlarm subAlarm2 = new SubAlarm("1", "456", subExpressions.get(1), AlarmState.OK);
+    SubAlarm subAlarm1 = new SubAlarm("123", "1", subExpressions.get(0), AlarmState.OK);
+    SubAlarm subAlarm2 = new SubAlarm("456", "1", subExpressions.get(1), AlarmState.OK);
     subAlarms = new HashMap<MetricDefinition, SubAlarm>();
     subAlarms.put(subAlarm1.getExpression().getMetricDefinition(), subAlarm1);
     subAlarms.put(subAlarm2.getExpression().getMetricDefinition(), subAlarm2);
