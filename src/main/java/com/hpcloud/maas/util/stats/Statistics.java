@@ -97,7 +97,7 @@ public final class Statistics {
   }
 
   public static Class<? extends Statistic> statTypeFor(AggregateFunction aggregateFunction) {
-    if (AggregateFunction.AVERAGE.equals(aggregateFunction))
+    if (AggregateFunction.AVG.equals(aggregateFunction))
       return Average.class;
     if (AggregateFunction.COUNT.equals(aggregateFunction))
       return Count.class;

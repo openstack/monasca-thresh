@@ -52,7 +52,7 @@ public class AlarmDAOImplTest {
     handle.execute("insert into alarm (id, tenant_id, name, expression, state, created_at, updated_at) "
         + "values ('123', 'bob', '90% CPU', 'avg(compute:cpu:{flavor_id=777, image_id=888}) > 10', 'UNDETERMINED', NOW(), NOW())");
     handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, metric_type, metric_subject, operator, threshold, period, periods, created_at, updated_at) "
-        + "values ('111', '123', 'avg', 'compute', 'cpu', null, 'GT', 10, 60, 1, NOW(), NOW())");
+        + "values ('111', '123', 'AVG', 'compute', 'cpu', null, 'GT', 10, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('111', 'flavor_id', '777')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'image_id', '888')");
     handle.execute("insert into alarm_action values ('123', '29387234')");

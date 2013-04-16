@@ -12,6 +12,7 @@ import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 
+import com.hpcloud.maas.ThresholdingConfiguration;
 import com.hpcloud.maas.common.event.AlarmDeletedEvent;
 import com.hpcloud.maas.common.model.alarm.AlarmState;
 import com.hpcloud.maas.domain.model.Alarm;
@@ -40,10 +41,10 @@ import com.hpcloud.util.Serialization;
 public class AlarmThresholdingBolt extends BaseRichBolt {
   private static final Logger LOG = LoggerFactory.getLogger(AlarmThresholdingBolt.class);
   private static final long serialVersionUID = -4126465124017857754L;
-  private static final String ALERT_EXCHANGE = "alerts";
-  private static final String ALERT_ADDRESS = "alert";
 
   private final Map<String, Alarm> alarms = new HashMap<String, Alarm>();
+  private String alertExchange;
+  private String alertRoutingKey;
   private transient AlarmDAO alarmDAO;
   private transient RabbitMQService rabbitService;
   private TopologyContext context;
@@ -81,6 +82,8 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   @Override
   @SuppressWarnings("rawtypes")
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
+    alertExchange = (String) stormConf.get(ThresholdingConfiguration.ALERTS_EXCHANGE);
+    alertRoutingKey = (String) stormConf.get(ThresholdingConfiguration.ALERTS_ROUTING_KEY);
     this.context = context;
     this.collector = collector;
     alarmDAO = Injector.getInstance(AlarmDAO.class);
@@ -106,7 +109,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
         AlarmStateTransitionEvent event = new AlarmStateTransitionEvent(alarm.getTenantId(),
             alarm.getId(), alarm.getName(), initialState, alarm.getState(),
             alarm.getStateChangeReason(), System.currentTimeMillis());
-        rabbitService.send(ALERT_EXCHANGE, ALERT_ADDRESS, Serialization.toJson(event));
+        rabbitService.send(alertExchange, alertRoutingKey, Serialization.toJson(event));
       } else
         LOG.debug("{} State changed for {}", context.getThisTaskId(), alarm);
     }

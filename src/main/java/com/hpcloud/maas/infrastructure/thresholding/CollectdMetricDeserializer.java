@@ -7,12 +7,12 @@ import java.util.List;
 
 import backtype.storm.tuple.Fields;
 
-import com.hpcloud.maas.common.model.metric.InternalMetrics;
+import com.hpcloud.maas.common.model.metric.CollectdMetrics;
 import com.hpcloud.maas.common.model.metric.Metric;
 import com.hpcloud.maas.infrastructure.storm.TupleDeserializer;
 
 /**
- * Deserializes tuples to metrics.
+ * Deserializes collectd metrics.
  * 
  * <ul>
  * <li>Output: Metric metric
@@ -20,13 +20,13 @@ import com.hpcloud.maas.infrastructure.storm.TupleDeserializer;
  * 
  * @author Jonathan Halterman
  */
-public class MetricTupleDeserializer implements TupleDeserializer, Serializable {
+public class CollectdMetricDeserializer implements TupleDeserializer, Serializable {
   private static final long serialVersionUID = -2340475568691974086L;
   private static final Fields FIELDS = new Fields("metricDefinition", "metric");
 
   @Override
   public List<List<?>> deserialize(byte[] tuple) {
-    List<Metric> metrics = InternalMetrics.metricsFor(tuple);
+    List<Metric> metrics = CollectdMetrics.toMetrics(tuple);
     List<List<?>> results = new ArrayList<List<?>>(metrics.size());
     for (Metric metric : metrics)
       results.add(Arrays.asList(metric.definition, metric));

@@ -10,7 +10,7 @@ import com.hpcloud.maas.infrastructure.storm.TupleDeserializer;
 import com.hpcloud.util.Serialization;
 
 /**
- * Deserializes api events using registered serialization types.
+ * Deserializes MaaS events using registered serialization types.
  * 
  * <ul>
  * <li>Output: Object event
@@ -18,7 +18,7 @@ import com.hpcloud.util.Serialization;
  * 
  * @author Jonathan Halterman
  */
-public class EventTupleDeserializer implements TupleDeserializer, Serializable {
+public class MaasEventDeserializer implements TupleDeserializer, Serializable {
   private static final long serialVersionUID = -1306620481933667305L;
   private static final Fields FIELDS = new Fields("event");
 

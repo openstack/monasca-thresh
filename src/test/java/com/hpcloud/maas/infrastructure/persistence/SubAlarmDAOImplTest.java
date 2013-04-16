@@ -50,17 +50,17 @@ public class SubAlarmDAOImplTest {
     handle.execute("truncate table sub_alarm_dimension");
 
     handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, metric_type, metric_subject, operator, threshold, period, periods, created_at, updated_at) "
-        + "values ('111', '123', 'avg', 'compute', 'cpu', '1', 'GT', 10, 60, 1, NOW(), NOW())");
+        + "values ('111', '123', 'AVG', 'compute', 'cpu', '1', 'GT', 10, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('111', 'flavor_id', '777')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'image_id', '888')");
 
     handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, metric_type, metric_subject, operator, threshold, period, periods, created_at, updated_at) "
-        + "values ('222', '456', 'avg', 'compute', 'cpu', '1', 'GTE', 20, 60, 1, NOW(), NOW())");
+        + "values ('222', '456', 'AVG', 'compute', 'cpu', '1', 'GTE', 20, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('222', 'flavor_id', '777')");
     handle.execute("insert into sub_alarm_dimension values ('222', 'image_id', '888')");
 
     handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, metric_type, metric_subject, operator, threshold, period, periods, created_at, updated_at) "
-        + "values ('333', '456', 'avg', 'compute', 'cpu', '1', 'LT', 10, 60, 1, NOW(), NOW())");
+        + "values ('333', '456', 'AVG', 'compute', 'cpu', '1', 'LT', 10, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('333', 'flavor_id', '777')");
     handle.execute("insert into sub_alarm_dimension values ('333', 'image_id', '999999')");
   }

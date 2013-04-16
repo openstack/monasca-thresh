@@ -85,10 +85,10 @@ public class MetricAggregationBoltTest {
   public void shouldAggregateValues() {
     long t1 = System.currentTimeMillis();
 
-    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), 100, t1));
-    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), 80, t1));
-    bolt.aggregateValues(new Metric(subExpressions.get(1).getMetricDefinition(), 50, t1));
-    bolt.aggregateValues(new Metric(subExpressions.get(1).getMetricDefinition(), 40, t1));
+    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), t1, 100));
+    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), t1, 80));
+    bolt.aggregateValues(new Metric(subExpressions.get(1).getMetricDefinition(), t1, 50));
+    bolt.aggregateValues(new Metric(subExpressions.get(1).getMetricDefinition(), t1, 40));
 
     SubAlarmStats alarmData = bolt.getOrCreateSubAlarmStatsRepo(
         subExpressions.get(0).getMetricDefinition()).get("123");
@@ -103,14 +103,14 @@ public class MetricAggregationBoltTest {
   public void shouldEvaluateAlarms() {
     // Given
     long t1 = System.currentTimeMillis();
-    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), 100, t1));
-    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), 95, t1 -= 60000));
-    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), 88, t1 -= 60000));
+    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), t1, 100));
+    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), t1 -= 60000, 95));
+    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), t1 -= 60000, 88));
 
     bolt.evaluateAlarmsAndSlideWindows();
     verify(collector, never()).emit(any(List.class));
 
-    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), 99, t1));
+    bolt.aggregateValues(new Metric(subExpressions.get(0).getMetricDefinition(), t1, 99));
 
     bolt.evaluateAlarmsAndSlideWindows();
     verify(collector, times(1)).emit(any(List.class));

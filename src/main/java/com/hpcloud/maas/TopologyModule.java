@@ -12,10 +12,10 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import com.hpcloud.maas.infrastructure.storm.amqp.AMQPSpout;
 import com.hpcloud.maas.infrastructure.thresholding.AlarmThresholdingBolt;
+import com.hpcloud.maas.infrastructure.thresholding.CollectdMetricDeserializer;
 import com.hpcloud.maas.infrastructure.thresholding.EventProcessingBolt;
-import com.hpcloud.maas.infrastructure.thresholding.EventTupleDeserializer;
+import com.hpcloud.maas.infrastructure.thresholding.MaasEventDeserializer;
 import com.hpcloud.maas.infrastructure.thresholding.MetricAggregationBolt;
-import com.hpcloud.maas.infrastructure.thresholding.MetricTupleDeserializer;
 import com.hpcloud.util.Injector;
 
 /**
@@ -47,54 +47,77 @@ public class TopologyModule extends AbstractModule {
 
   @Provides
   Config stormConfig() {
-    if (stormConfig != null)
-      return stormConfig;
-    return new Config();
+    if (stormConfig == null) {
+      stormConfig = new Config();
+      stormConfig.setNumWorkers(config.numWorkerProcesses);
+      stormConfig.setNumAckers(config.numAckerThreads);
+      stormConfig.put(ThresholdingConfiguration.ALERTS_EXCHANGE, config.alertsExchange);
+      stormConfig.put(ThresholdingConfiguration.ALERTS_ROUTING_KEY, config.alertsRoutingKey);
+    }
+
+    return stormConfig;
   }
 
   @Provides
-  @Named("event-spout")
+  @Named("event")
   IRichSpout eventSpout() {
-    return eventSpout == null ? new AMQPSpout(config.eventSpout, new EventTupleDeserializer())
+    return eventSpout == null ? new AMQPSpout(config.eventSpout, new MaasEventDeserializer())
         : eventSpout;
   }
 
   @Provides
-  @Named("metrics")
-  IRichSpout metricsSpout() {
-    return metricSpout == null ? new AMQPSpout(config.metricSpout, new MetricTupleDeserializer())
-        : metricSpout;
+  @Named("collectd-metrics")
+  IRichSpout collectdMetricsSpout() {
+    return metricSpout == null ? new AMQPSpout(config.collectdMetricSpout,
+        new CollectdMetricDeserializer()) : metricSpout;
+  }
+
+  @Provides
+  @Named("maas-metrics")
+  IRichSpout maasMetricsSpout() {
+    return metricSpout == null ? new AMQPSpout(config.maasMetricSpout,
+        new CollectdMetricDeserializer()) : metricSpout;
   }
 
   @Provides
   StormTopology topology() {
     TopologyBuilder builder = new TopologyBuilder();
 
-    // Receives Metrics
-    builder.setSpout("metrics", Injector.getInstance(IRichSpout.class, "metrics"),
-        config.metricSpoutParallelism);
+    // Receives CollectD Metrics
+    builder.setSpout("collectd-metrics-spout",
+        Injector.getInstance(IRichSpout.class, "collectd-metrics"),
+        config.collectdMetricSpoutThreads).setNumTasks(config.collectdMetricSpoutTasks);
+
+    // Receives MaaS Metrics
+    builder.setSpout("maas-metrics-spout", Injector.getInstance(IRichSpout.class, "maas-metrics"),
+        config.maasMetricSpoutThreads).setNumTasks(config.maasMetricSpoutTasks);
 
     // Receives MaaS events
-    builder.setSpout("event-spout", Injector.getInstance(IRichSpout.class, "event-spout"),
-        config.eventSpoutParallelism);
+    builder.setSpout("event-spout", Injector.getInstance(IRichSpout.class, "event"),
+        config.eventSpoutThreads).setNumTasks(config.eventSpoutTasks);
 
-    // Event -> Event Demultiplexing
-    builder.setBolt("event-bolt", new EventProcessingBolt(), config.eventBoltParallelism)
-        .shuffleGrouping("event-spout");
+    // MaaS Event -> Events
+    builder.setBolt("event-bolt", new EventProcessingBolt(), config.eventBoltThreads)
+        .shuffleGrouping("event-spout")
+        .setNumTasks(config.eventBoltTasks);
 
     // Metrics / Event -> Aggregation
-    builder.setBolt("aggregation", new MetricAggregationBolt(), config.aggregationParallelism)
-        .fieldsGrouping("metrics", new Fields("metricDefinition"))
+    builder.setBolt("aggregation-bolt", new MetricAggregationBolt(), config.aggregationBoltThreads)
+        .fieldsGrouping("collectd-metrics-spout", new Fields("metricDefinition"))
+        .fieldsGrouping("maas-metrics-spout", new Fields("metricDefinition"))
         .fieldsGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID,
             new Fields("metricDefinition"))
         .fieldsGrouping("event-bolt", EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID,
-            new Fields("metricDefinition"));
+            new Fields("metricDefinition"))
+        .setNumTasks(config.aggregationBoltTasks);
 
     // Aggregation / Event -> Thresholding
-    builder.setBolt("thresholding", new AlarmThresholdingBolt(), config.thresholdingParallelism)
-        .fieldsGrouping("aggregation", new Fields("alarmId"))
+    builder.setBolt("thresholding-bolt", new AlarmThresholdingBolt(),
+        config.thresholdingBoltThreads)
+        .fieldsGrouping("aggregation-bolt", new Fields("alarmId"))
         .fieldsGrouping("event-bolt", EventProcessingBolt.ALARM_EVENT_STREAM_ID,
-            new Fields("alarmId"));
+            new Fields("alarmId"))
+        .setNumTasks(config.thresholdingBoltTasks);
 
     return builder.createTopology();
   }

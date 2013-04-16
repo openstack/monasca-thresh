@@ -15,7 +15,6 @@ import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.maas.common.model.metric.MetricDefinition;
 import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.service.SubAlarmDAO;
-import com.hpcloud.persistence.SqlQueries;
 import com.hpcloud.persistence.SqlStatements;
 
 /**
@@ -41,34 +40,6 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
     this.db = db;
   }
 
-  /**
-   * Returns a list of SubAlarms for the complete (select *) set of {@code subAlarmRows}.
-   */
-  public static List<SubAlarm> subAlarmsForRows(Handle handle,
-      List<Map<String, Object>> subAlarmRows) {
-    List<SubAlarm> subAlarms = new ArrayList<SubAlarm>(subAlarmRows.size());
-
-    for (Map<String, Object> row : subAlarmRows) {
-      String subAlarmId = (String) row.get("id");
-      Map<String, String> dimensions = findDimensionsById(handle, subAlarmId);
-      AggregateFunction function = AggregateFunction.of((String) row.get("function"));
-      MetricDefinition metricDef = new MetricDefinition((String) row.get("namespace"),
-          (String) row.get("metric_type"), (String) row.get("metric_subject"), dimensions);
-      AlarmOperator operator = AlarmOperator.valueOf((String) row.get("operator"));
-      AlarmSubExpression subExpression = new AlarmSubExpression(function, metricDef, operator,
-          (Double) row.get("threshold"), (Integer) row.get("period"), (Integer) row.get("periods"));
-      SubAlarm subAlarm = new SubAlarm(subAlarmId, (String) row.get("alarm_id"), subExpression);
-      subAlarms.add(subAlarm);
-    }
-
-    return subAlarms;
-  }
-
-  private static Map<String, String> findDimensionsById(Handle handle, String subAlarmId) {
-    return SqlQueries.keyValuesFor(handle,
-        "select dimension_name, value from sub_alarm_dimension where sub_alarm_id = ?", subAlarmId);
-  }
-
   @Override
   public List<SubAlarm> find(MetricDefinition metricDefinition) {
     Handle h = db.open();
@@ -78,11 +49,25 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
           "dimension_name", "value");
       String sql = String.format(FIND_BY_METRIC_DEF_SQL, unionAllStatement);
 
-      return subAlarmsForRows(h, h.createQuery(sql)
+      List<Map<String, Object>> rows = h.createQuery(sql)
           .bind("namespace", metricDefinition.namespace)
           .bind("metricType", metricDefinition.type)
           .bind("metricSubject", metricDefinition.subject)
-          .list());
+          .list();
+
+      List<SubAlarm> subAlarms = new ArrayList<SubAlarm>(rows.size());
+      for (Map<String, Object> row : rows) {
+        String subAlarmId = (String) row.get("id");
+        AggregateFunction function = AggregateFunction.valueOf((String) row.get("function"));
+        AlarmOperator operator = AlarmOperator.valueOf((String) row.get("operator"));
+        AlarmSubExpression subExpression = new AlarmSubExpression(function, metricDefinition,
+            operator, (Double) row.get("threshold"), (Integer) row.get("period"),
+            (Integer) row.get("periods"));
+        SubAlarm subAlarm = new SubAlarm(subAlarmId, (String) row.get("alarm_id"), subExpression);
+        subAlarms.add(subAlarm);
+      }
+
+      return subAlarms;
     } finally {
       h.close();
     }
