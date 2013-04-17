@@ -23,23 +23,23 @@ public class ThresholdingConfiguration {
   /** Total number of acker threads across the cluster. */
   @NotNull public Integer numAckerThreads = 12;
 
-  @NotNull public Integer maasMetricSpoutThreads = 3;
-  @NotNull public Integer maasMetricSpoutTasks = 3;
+  @NotNull public Integer maasMetricSpoutThreads = 6;
+  @NotNull public Integer maasMetricSpoutTasks = 6;
 
-  @NotNull public Integer collectdMetricSpoutThreads = 3;
-  @NotNull public Integer collectdMetricSpoutTasks = 3;
+  @NotNull public Integer collectdMetricSpoutThreads = 6;
+  @NotNull public Integer collectdMetricSpoutTasks = 9;
 
-  @NotNull public Integer eventSpoutThreads = 1;
-  @NotNull public Integer eventSpoutTasks = 1;
+  @NotNull public Integer eventSpoutThreads = 3;
+  @NotNull public Integer eventSpoutTasks = 3;
 
-  @NotNull public Integer eventBoltThreads = 2;
-  @NotNull public Integer eventBoltTasks = 2;
+  @NotNull public Integer eventBoltThreads = 3;
+  @NotNull public Integer eventBoltTasks = 3;
 
-  @NotNull public Integer aggregationBoltThreads = 10;
-  @NotNull public Integer aggregationBoltTasks = 10;
+  @NotNull public Integer aggregationBoltThreads = 12;
+  @NotNull public Integer aggregationBoltTasks = 30;
 
-  @NotNull public Integer thresholdingBoltThreads = 3;
-  @NotNull public Integer thresholdingBoltTasks = 3;
+  @NotNull public Integer thresholdingBoltThreads = 6;
+  @NotNull public Integer thresholdingBoltTasks = 15;
 
   /** Configuration for the spout that receives collectd metrics from the internal exchange. */
   @Valid @NotNull public AMQPSpoutConfiguration collectdMetricSpout;
