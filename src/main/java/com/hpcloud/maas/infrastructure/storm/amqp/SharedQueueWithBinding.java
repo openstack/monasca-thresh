@@ -33,7 +33,7 @@ public class SharedQueueWithBinding implements QueueDeclarator {
 
   private final String queueName;
   private final String exchange;
-  private final String routingKey;
+  private final String[] routingKeys;
   private HAPolicy haPolicy;
 
   public static class HAPolicy implements Serializable {
@@ -72,11 +72,11 @@ public class SharedQueueWithBinding implements QueueDeclarator {
    * 
    * @param queueName name of the queue to be declared.
    * @param exchange exchange to bind the queue to.
-   * @param routingKey routing key for the exchange binding. Use "#" to receive all messages
+   * @param routingKeys routing keys for the exchange binding. Use "#" to receive all messages
    *          published to the exchange.
    */
-  public SharedQueueWithBinding(String queueName, String exchange, String routingKey) {
-    this(queueName, exchange, routingKey, null);
+  public SharedQueueWithBinding(String queueName, String exchange, String[] routingKeys) {
+    this(queueName, exchange, routingKeys, null);
   }
 
   /**
@@ -84,15 +84,15 @@ public class SharedQueueWithBinding implements QueueDeclarator {
    * 
    * @param queueName name of the queue to be declared.
    * @param exchange exchange to bind the queue to.
-   * @param routingKey routing key for the exchange binding. Use "#" to receive all messages
+   * @param routingKeys routing keys for the exchange binding. Use "#" to receive all messages
    *          published to the exchange.
    * @param policy high-availability policy to use
    */
-  public SharedQueueWithBinding(String queueName, String exchange, String routingKey,
+  public SharedQueueWithBinding(String queueName, String exchange, String[] routingKeys,
       HAPolicy policy) {
     this.queueName = queueName;
     this.exchange = exchange;
-    this.routingKey = routingKey;
+    this.routingKeys = routingKeys;
     this.haPolicy = policy;
   }
 
@@ -114,7 +114,8 @@ public class SharedQueueWithBinding implements QueueDeclarator {
     /* non-auto-delete */false,
         haPolicy == null ? null /* no arguments */: haPolicy.asQueueProperies());
 
-    channel.queueBind(queue.getQueue(), exchange, routingKey);
+    for (String routingKey : routingKeys)
+      channel.queueBind(queue.getQueue(), exchange, routingKey);
     return queue;
   }
 

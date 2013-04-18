@@ -1,5 +1,7 @@
 package com.hpcloud.maas;
 
+import java.io.File;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,10 +12,9 @@ import backtype.storm.generated.StormTopology;
 import com.hpcloud.maas.common.event.AlarmCreatedEvent;
 import com.hpcloud.maas.common.event.AlarmDeletedEvent;
 import com.hpcloud.maas.common.event.EndpointDeletedEvent;
+import com.hpcloud.maas.util.config.ConfigurationFactory;
 import com.hpcloud.util.Injector;
 import com.hpcloud.util.Serialization;
-import com.yammer.dropwizard.config.ConfigurationFactory;
-import com.yammer.dropwizard.validation.Validator;
 
 /**
  * Alarm thresholding engine.
@@ -30,10 +31,11 @@ public class ThresholdingEngine {
   }
 
   public static final ThresholdingConfiguration configFor(String configFileName) throws Exception {
-    return ConfigurationFactory.forClass(ThresholdingConfiguration.class, new Validator()).build();
+    return ConfigurationFactory.<ThresholdingConfiguration>forClass(ThresholdingConfiguration.class)
+        .build(new File(configFileName));
   }
 
-  public static void main(String[] args) throws Exception {
+  public static void main(String... args) throws Exception {
     if (args.length != 1) {
       LOG.error("Expected a configuration file name argument");
       System.exit(1);

@@ -15,8 +15,8 @@
   <properties>
     <versionNumber>1.0.0</versionNumber>
     <computedVersion>${versionNumber}-SNAPSHOT</computedVersion>
-    <ps.common.version>1.0.0.229</ps.common.version>
-    <maas.commons.version>1.0.0.46</maas.commons.version>
+    <ps.common.version>1.0.0.230</ps.common.version>
+    <maas.commons.version>1.0.0.48</maas.commons.version>
     <dropwizard.version>0.6.1</dropwizard.version>
 
     <skipITs>true</skipITs>
@@ -182,18 +182,29 @@
         </executions>
       </plugin>
       <plugin>
-        <artifactId>maven-assembly-plugin</artifactId>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
         <configuration>
-          <descriptorRefs>
-            <descriptorRef>jar-with-dependencies</descriptorRef>
-            <finalName>thresholding</finalName>
-          </descriptorRefs>
-          <archive>
-            <manifest>
-              <mainClass>com.hpcloud.maas.ThresholdingEngine</mainClass>
-            </manifest>
-          </archive>
+          <finalName>maas-thresh</finalName>
+          <createDependencyReducedPom>true</createDependencyReducedPom>
         </configuration>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <transformers>
+                <transformer
+                  implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <mainClass>com.hpcloud.maas.ThresholdingEngine</mainClass>
+                </transformer>
+              </transformers>
+              <shadedArtifactAttached>true</shadedArtifactAttached>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

@@ -35,18 +35,18 @@ public class ExclusiveQueueWithBinding implements QueueDeclarator {
   private static final long serialVersionUID = 7923072289071634425L;
 
   private final String exchange;
-  private final String routingKey;
+  private final String[] routingKeys;
 
   /**
    * Create a declaration of an exclusive server-named queue bound to the specified exchange.
    * 
    * @param exchange exchange to bind the queue to.
-   * @param routingKey routing key for the exchange binding. Use "#" to receive all messages
+   * @param routingKeys routing keys for the exchange binding. Use "#" to receive all messages
    *          published to the exchange.
    */
-  public ExclusiveQueueWithBinding(String exchange, String routingKey) {
+  public ExclusiveQueueWithBinding(String exchange, String[] routingKeys) {
     this.exchange = exchange;
-    this.routingKey = routingKey;
+    this.routingKeys = routingKeys;
   }
 
   /**
@@ -62,7 +62,8 @@ public class ExclusiveQueueWithBinding implements QueueDeclarator {
   public Queue.DeclareOk declare(Channel channel) throws IOException {
     channel.exchangeDeclarePassive(exchange);
     final Queue.DeclareOk queue = channel.queueDeclare();
-    channel.queueBind(queue.getQueue(), exchange, routingKey);
+    for (String routingKey : routingKeys)
+      channel.queueBind(queue.getQueue(), exchange, routingKey);
     return queue;
   }
 

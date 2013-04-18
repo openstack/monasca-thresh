@@ -90,8 +90,8 @@ public class AMQPSpout implements IRichSpout {
     this.deserializer = deserializer;
     this.waitForNextMessageMillis = config.waitForNextMessage.toMillis();
     this.queueDeclarator = config.queueName == null ? new ExclusiveQueueWithBinding(
-        config.exchange, config.routingKey) : new SharedQueueWithBinding(config.queueName,
-        config.exchange, config.routingKey);
+        config.exchange, config.routingKeys) : new SharedQueueWithBinding(config.queueName,
+        config.exchange, config.routingKeys);
   }
 
   /**

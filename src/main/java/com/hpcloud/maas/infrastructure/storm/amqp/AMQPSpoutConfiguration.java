@@ -1,8 +1,11 @@
 package com.hpcloud.maas.infrastructure.storm.amqp;
 
+import java.io.Serializable;
+
 import javax.annotation.Nullable;
 import javax.validation.Valid;
 import javax.validation.constraints.Min;
+import javax.validation.constraints.NotNull;
 
 import org.hibernate.validator.constraints.NotEmpty;
 
@@ -16,15 +19,17 @@ import com.hpcloud.util.Duration;
  * 
  * @author Jonathan Halterman
  */
-public class AMQPSpoutConfiguration {
-  @Valid @NotEmpty public RabbitMQConfiguration rabbit;
+public class AMQPSpoutConfiguration implements Serializable {
+  private static final long serialVersionUID = 6386682494713707182L;
+
+  @Valid @NotNull public RabbitMQConfiguration rabbit;
 
   /** Exchange to consume messages from. */
   @NotEmpty public String exchange;
   /** Queue name to consume messages from. If null a random queue will be created. */
   @Nullable public String queueName;
-  /** Routing key to bind to queue. */
-  @NotEmpty public String routingKey;
+  /** Routing keys to bind to queue. */
+  @NotEmpty public String[] routingKeys;
 
   /**
    * Indicates whether rejected messages should be re-queued. Note: This can lead to infinite loops
@@ -32,7 +37,7 @@ public class AMQPSpoutConfiguration {
    * 
    * Default: false;
    */
-  @NotEmpty public Boolean requeueOnFail = false;
+  @NotNull public Boolean requeueOnFail = false;
 
   /**
    * Time in milliseconds to wait to read the next message from the queue after all messages have
@@ -40,7 +45,7 @@ public class AMQPSpoutConfiguration {
    * 
    * Default: 1 millis
    */
-  @NotEmpty public Duration waitForNextMessage = Duration.millis(1);
+  @NotNull public Duration waitForNextMessage = Duration.millis(1);
 
   /**
    * Defaults to 100.
