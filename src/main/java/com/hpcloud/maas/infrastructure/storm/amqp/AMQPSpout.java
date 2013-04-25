@@ -103,9 +103,6 @@ public class AMQPSpout implements IRichSpout {
   public void ack(Object msgId) {
     if (msgId instanceof Long) {
       final long deliveryTag = (Long) msgId;
-      if (deliveryTag == 0)
-        return;
-
       if (channel != null) {
         try {
           channel.basicAck(deliveryTag, false /* not multiple */);
@@ -178,9 +175,6 @@ public class AMQPSpout implements IRichSpout {
   public void fail(Object msgId) {
     if (msgId instanceof Long) {
       final long deliveryTag = (Long) msgId;
-      if (deliveryTag == 0)
-        return;
-
       if (channel != null) {
         try {
           channel.basicReject(deliveryTag, config.requeueOnFail);
@@ -234,7 +228,10 @@ public class AMQPSpout implements IRichSpout {
           for (int i = 0; i < tuples.size(); i++) {
             List<Object> tuple = (List<Object>) tuples.get(0);
             LOG.trace("{} Emitting {}", context.getThisTaskId(), tuple);
-            collector.emit(tuple, i == 0 ? deliveryTag : 0);
+            if (i == 0)
+              collector.emit(tuple, deliveryTag);
+            else
+              collector.emit(tuple);
           }
         } catch (Exception e) {
           LOG.error("Error while deserializing and emitting message", e);
