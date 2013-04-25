@@ -20,6 +20,7 @@ CREATE TABLE `sub_alarm` (
   `threshold` double NOT NULL,
   `period` int(11) NOT NULL,
   `periods` int(11) NOT NULL,
+  `state` varchar(20) NOT NULL,
   `created_at` datetime NOT NULL,
   `updated_at` datetime NOT NULL,
   PRIMARY KEY (`id`)
