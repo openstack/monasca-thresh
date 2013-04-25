@@ -23,9 +23,8 @@ public class MaasEventDeserializer implements TupleDeserializer, Serializable {
   private static final Fields FIELDS = new Fields("event");
 
   @Override
-  public List<List<?>> deserialize(byte[] tuple) {
-    return Collections.<List<?>>singletonList(Collections.singletonList(Serialization.fromJson(new String(
-        tuple))));
+  public List<List<?>> deserialize(String tuple) {
+    return Collections.<List<?>>singletonList(Collections.singletonList(Serialization.fromJson(tuple)));
   }
 
   @Override

@@ -216,7 +216,7 @@ public class AMQPSpout implements IRichSpout {
           return;
 
         final long deliveryTag = delivery.getEnvelope().getDeliveryTag();
-        final byte[] message = delivery.getBody();
+        final String message = new String(delivery.getBody());
 
         try {
           List<List<?>> tuples = deserializer.deserialize(message);
@@ -226,8 +226,8 @@ public class AMQPSpout implements IRichSpout {
           }
 
           for (int i = 0; i < tuples.size(); i++) {
-            List<Object> tuple = (List<Object>) tuples.get(0);
-            LOG.trace("{} Emitting {}", context.getThisTaskId(), tuple);
+            List<Object> tuple = (List<Object>) tuples.get(i);
+            // LOG.trace("{} Emitting {} for {}", context.getThisTaskId(), tuple, message);
             if (i == 0)
               collector.emit(tuple, deliveryTag);
             else
@@ -287,8 +287,7 @@ public class AMQPSpout implements IRichSpout {
    * @param deliveryTag AMQP delivery tag
    * @param message bytes of the bad message
    */
-  private void handleUnprocessableDelivery(long deliveryTag, byte[] message) {
-    LOG.debug("{} Unprocessable message {}", context.getThisTaskId(), deliveryTag);
+  private void handleUnprocessableDelivery(long deliveryTag, String message) {
     ack(deliveryTag);
     collector.emit(config.errorStream, new Values(deliveryTag, message));
   }

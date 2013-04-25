@@ -24,8 +24,8 @@ public class MaasMetricDeserializer implements TupleDeserializer, Serializable {
   private static final Fields FIELDS = new Fields("metricDefinition", "metric");
 
   @Override
-  public List<List<?>> deserialize(byte[] tuple) {
-    FlatMetric flatMetric = Serialization.fromJson(new String(tuple), FlatMetric.class);
+  public List<List<?>> deserialize(String tuple) {
+    FlatMetric flatMetric = Serialization.fromJson(tuple, FlatMetric.class);
     return Collections.<List<?>>singletonList(Collections.singletonList(flatMetric.toMetric()));
   }
 
