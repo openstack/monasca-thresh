@@ -1,7 +1,7 @@
 package com.hpcloud.maas.infrastructure.storm.amqp;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -18,6 +18,7 @@ import backtype.storm.tuple.Values;
 import com.google.inject.assistedinject.Assisted;
 import com.hpcloud.maas.infrastructure.storm.TupleDeserializer;
 import com.hpcloud.messaging.rabbitmq.RabbitMQConnection;
+import com.hpcloud.messaging.rabbitmq.RabbitMQConnection.RabbitMQConnectionOptions;
 import com.hpcloud.util.Exceptions;
 import com.rabbitmq.client.AMQP.Queue;
 import com.rabbitmq.client.Channel;
@@ -79,6 +80,7 @@ public class AMQPSpout implements IRichSpout {
   private transient QueueingConsumer consumer;
   private transient String consumerTag;
 
+  private TopologyContext context;
   private SpoutOutputCollector collector;
 
   public interface AMQPSpoutFactory {
@@ -101,6 +103,9 @@ public class AMQPSpout implements IRichSpout {
   public void ack(Object msgId) {
     if (msgId instanceof Long) {
       final long deliveryTag = (Long) msgId;
+      if (deliveryTag == 0)
+        return;
+
       if (channel != null) {
         try {
           channel.basicAck(deliveryTag, false /* not multiple */);
@@ -119,7 +124,7 @@ public class AMQPSpout implements IRichSpout {
    * Resumes a paused spout
    */
   public void activate() {
-    LOG.info("Unpausing spout");
+    LOG.info("{} Activating spout", context.getThisTaskId());
     spoutActive = true;
   }
 
@@ -128,7 +133,7 @@ public class AMQPSpout implements IRichSpout {
    */
   @Override
   public void close() {
-    LOG.info("Closing AMQP spout");
+    LOG.info("{} Closing AMQP spout", context.getThisTaskId());
     if (consumerTag != null) {
       try {
         channel.basicCancel(consumerTag);
@@ -145,7 +150,7 @@ public class AMQPSpout implements IRichSpout {
    * Pauses the spout
    */
   public void deactivate() {
-    LOG.info("Pausing AMQP spout");
+    LOG.info("{} Deactivating AMQP spout", context.getThisTaskId());
     spoutActive = false;
   }
 
@@ -173,6 +178,9 @@ public class AMQPSpout implements IRichSpout {
   public void fail(Object msgId) {
     if (msgId instanceof Long) {
       final long deliveryTag = (Long) msgId;
+      if (deliveryTag == 0)
+        return;
+
       if (channel != null) {
         try {
           channel.basicReject(deliveryTag, config.requeueOnFail);
@@ -203,6 +211,7 @@ public class AMQPSpout implements IRichSpout {
    * </p>
    */
   @Override
+  @SuppressWarnings("unchecked")
   public void nextTuple() {
     if (spoutActive && consumer != null) {
       QueueingConsumer.Delivery delivery = null;
@@ -216,13 +225,23 @@ public class AMQPSpout implements IRichSpout {
         final byte[] message = delivery.getBody();
 
         try {
-          for (Object tuple : deserializer.deserialize(message))
-            collector.emit(Collections.singletonList(tuple), deliveryTag);
+          List<List<?>> tuples = deserializer.deserialize(message);
+          if (tuples == null) {
+            handleUnprocessableDelivery(deliveryTag, message);
+            return;
+          }
+
+          for (int i = 0; i < tuples.size(); i++) {
+            List<Object> tuple = (List<Object>) tuples.get(0);
+            LOG.trace("{} Emitting {}", context.getThisTaskId(), tuple);
+            collector.emit(tuple, i == 0 ? deliveryTag : 0);
+          }
         } catch (Exception e) {
-          handleMalformedDelivery(deliveryTag, message);
+          LOG.error("Error while deserializing and emitting message", e);
+          handleUnprocessableDelivery(deliveryTag, message);
         }
       } catch (ShutdownSignalException e) {
-        LOG.warn("AMQP connection dropped, will attempt to reconnect...");
+        LOG.warn("{} AMQP connection dropped. Attempting to reconnect...", context.getThisTaskId());
         if (!e.isInitiatedByApplication())
           connection.reopen();
       } catch (InterruptedException e) {
@@ -237,11 +256,17 @@ public class AMQPSpout implements IRichSpout {
   @Override
   public void open(@SuppressWarnings("rawtypes") Map config, TopologyContext context,
       SpoutOutputCollector collector) {
+    LOG.info("{} Opening AMQP Spout", context.getThisTaskId());
+    this.context = context;
     this.collector = collector;
     createConnection();
   }
 
   private void createConnection() {
+    if (connection == null)
+      connection = new RabbitMQConnection(new RabbitMQConnectionOptions("amqp-spout-"
+          + context.getThisTaskId()).withPrefetchCount(config.prefetchCount), config.rabbit);
+
     try {
       connection.open();
       channel = connection.channelFor("spout");
@@ -253,7 +278,8 @@ public class AMQPSpout implements IRichSpout {
       consumer = new QueueingConsumer(channel);
       consumerTag = channel.basicConsume(queueName, false /* no auto-ack */, consumer);
     } catch (Exception e) {
-      Exceptions.uncheck(e, "Failed to open AMQP connection");
+      LOG.error("Error while opening connection", e);
+      Exceptions.uncheck(e, "{} Failed to open AMQP connection", context.getThisTaskId());
     }
   }
 
@@ -264,8 +290,8 @@ public class AMQPSpout implements IRichSpout {
    * @param deliveryTag AMQP delivery tag
    * @param message bytes of the bad message
    */
-  private void handleMalformedDelivery(long deliveryTag, byte[] message) {
-    LOG.debug("Malformed deserialized message, null or zero-length. " + deliveryTag);
+  private void handleUnprocessableDelivery(long deliveryTag, byte[] message) {
+    LOG.debug("{} Unprocessable message {}", context.getThisTaskId(), deliveryTag);
     ack(deliveryTag);
     collector.emit(config.errorStream, new Values(deliveryTag, message));
   }

@@ -6,6 +6,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.rabbitmq.client.AMQP.Queue;
 import com.rabbitmq.client.Channel;
 
@@ -29,6 +32,7 @@ import com.rabbitmq.client.Channel;
  * </p>
  */
 public class SharedQueueWithBinding implements QueueDeclarator {
+  private static final Logger LOG = LoggerFactory.getLogger(SharedQueueWithBinding.class);
   private static final long serialVersionUID = 2364833412534518859L;
 
   private final String queueName;
@@ -109,13 +113,15 @@ public class SharedQueueWithBinding implements QueueDeclarator {
   public Queue.DeclareOk declare(Channel channel) throws IOException {
     channel.exchangeDeclarePassive(exchange);
     Queue.DeclareOk queue = channel.queueDeclare(queueName,
-    /* durable */true,
-    /* non-exclusive */false,
-    /* non-auto-delete */false,
-        haPolicy == null ? null /* no arguments */: haPolicy.asQueueProperies());
+    /* durable */false,
+    /* exclusive */false,
+    /* auto-delete */true, haPolicy == null ? null /* no arguments */: haPolicy.asQueueProperies());
 
-    for (String routingKey : routingKeys)
-      channel.queueBind(queue.getQueue(), exchange, routingKey);
+    for (String routingKey : routingKeys) {
+      String queueName = queue.getQueue();
+      LOG.debug("Binding {} to {} via {}", queueName, exchange, routingKey);
+      channel.queueBind(queueName, exchange, routingKey);
+    }
     return queue;
   }
 
