@@ -102,7 +102,8 @@ public class TopologyModule extends AbstractModule {
         .setNumTasks(config.eventBoltTasks);
 
     // Metrics / Event -> Aggregation
-    builder.setBolt("aggregation-bolt", new MetricAggregationBolt(), config.aggregationBoltThreads)
+    builder.setBolt("aggregation-bolt", new MetricAggregationBolt(config.database),
+        config.aggregationBoltThreads)
         .fieldsGrouping("collectd-metrics-spout", new Fields("metricDefinition"))
         .fieldsGrouping("maas-metrics-spout", new Fields("metricDefinition"))
         .fieldsGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID,
@@ -112,7 +113,8 @@ public class TopologyModule extends AbstractModule {
         .setNumTasks(config.aggregationBoltTasks);
 
     // Aggregation / Event -> Thresholding
-    builder.setBolt("thresholding-bolt", new AlarmThresholdingBolt(),
+    builder.setBolt("thresholding-bolt",
+        new AlarmThresholdingBolt(config.database, config.externalRabbit),
         config.thresholdingBoltThreads)
         .fieldsGrouping("aggregation-bolt", new Fields("alarmId"))
         .fieldsGrouping("event-bolt", EventProcessingBolt.ALARM_EVENT_STREAM_ID,
