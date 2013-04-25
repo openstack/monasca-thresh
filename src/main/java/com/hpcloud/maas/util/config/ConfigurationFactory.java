@@ -10,22 +10,22 @@ import com.fasterxml.jackson.databind.node.TreeTraversingParser;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.google.common.collect.ImmutableList;
 import com.hpcloud.maas.util.validation.Validator;
-import com.yammer.dropwizard.config.ConfigurationException;
-import com.yammer.dropwizard.json.ObjectMapperFactory;
 
+/**
+ * Adapted from Dropwizard.
+ */
 public class ConfigurationFactory<T> {
-  private final Class<T> klass;
+  private final Class<T> configType;
   private final ObjectMapper mapper;
 
-  private ConfigurationFactory(Class<T> klass) {
-    this.klass = klass;
-    ObjectMapperFactory objectMapperFactory = new ObjectMapperFactory();
-    objectMapperFactory.enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-    this.mapper = objectMapperFactory.build(new YAMLFactory());
+  private ConfigurationFactory(Class<T> configType) {
+    this.configType = configType;
+    this.mapper = new ObjectMapper(new YAMLFactory());
+    this.mapper.enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
   }
 
-  public static <T> ConfigurationFactory<T> forClass(Class<T> klass) {
-    return new ConfigurationFactory<T>(klass);
+  public static <T> ConfigurationFactory<T> forClass(Class<T> configType) {
+    return new ConfigurationFactory<T>(configType);
   }
 
   public T build(File file) throws IOException, ConfigurationException {
@@ -35,7 +35,7 @@ public class ConfigurationFactory<T> {
   }
 
   private T build(JsonNode node, String filename) throws IOException, ConfigurationException {
-    T config = mapper.readValue(new TreeTraversingParser(node), klass);
+    T config = mapper.readValue(new TreeTraversingParser(node), configType);
     validate(filename, config);
     return config;
   }

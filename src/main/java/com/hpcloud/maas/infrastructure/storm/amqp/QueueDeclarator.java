@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.Serializable;
 
 import com.rabbitmq.client.AMQP.Queue;
-
 import com.rabbitmq.client.Channel;
 
 /**

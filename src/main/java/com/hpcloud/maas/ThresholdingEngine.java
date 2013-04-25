@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import backtype.storm.Config;
+import backtype.storm.LocalCluster;
 import backtype.storm.StormSubmitter;
 import backtype.storm.generated.StormTopology;
 
@@ -24,10 +25,12 @@ import com.hpcloud.util.Serialization;
 public class ThresholdingEngine {
   private static final Logger LOG = LoggerFactory.getLogger(ThresholdingEngine.class);
 
-  protected final ThresholdingConfiguration config;
+  protected final ThresholdingConfiguration threshConfig;
+  private final boolean local;
 
-  public ThresholdingEngine(ThresholdingConfiguration config) {
-    this.config = config;
+  public ThresholdingEngine(ThresholdingConfiguration threshConfig, boolean local) {
+    this.threshConfig = threshConfig;
+    this.local = local;
   }
 
   public static final ThresholdingConfiguration configFor(String configFileName) throws Exception {
@@ -36,18 +39,19 @@ public class ThresholdingEngine {
   }
 
   public static void main(String... args) throws Exception {
-    if (args.length != 1) {
+    if (args.length < 1) {
       LOG.error("Expected a configuration file name argument");
       System.exit(1);
     }
 
-    ThresholdingEngine engine = new ThresholdingEngine(configFor(args[0]));
+    ThresholdingEngine engine = new ThresholdingEngine(configFor(args[0]), args.length > 1 ? true
+        : false);
     engine.configure();
     engine.run();
   }
 
   protected void configure() {
-    Injector.registerModules(new TopologyModule(config));
+    Injector.registerModules(new TopologyModule(threshConfig));
 
     // Register event types
     Serialization.registerTarget(AlarmCreatedEvent.class);
@@ -56,7 +60,12 @@ public class ThresholdingEngine {
   }
 
   protected void run() throws Exception {
-    StormSubmitter.submitTopology("maas-alarming", Injector.getInstance(Config.class),
-        Injector.getInstance(StormTopology.class));
+    Config config = Injector.getInstance(Config.class);
+    StormTopology topology = Injector.getInstance(StormTopology.class);
+
+    if (local)
+      new LocalCluster().submitTopology("maas-alarming", config, topology);
+    else
+      StormSubmitter.submitTopology("maas-alarming", config, topology);
   }
 }

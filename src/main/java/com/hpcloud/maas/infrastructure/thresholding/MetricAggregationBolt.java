@@ -18,6 +18,8 @@ import backtype.storm.tuple.Values;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
 import com.hpcloud.maas.common.event.AlarmCreatedEvent;
 import com.hpcloud.maas.common.event.AlarmDeletedEvent;
 import com.hpcloud.maas.common.model.metric.Metric;
@@ -26,9 +28,10 @@ import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.model.SubAlarmStats;
 import com.hpcloud.maas.domain.service.SubAlarmDAO;
 import com.hpcloud.maas.domain.service.SubAlarmStatsRepository;
+import com.hpcloud.maas.infrastructure.persistence.PersistenceModule;
 import com.hpcloud.maas.infrastructure.storm.Streams;
 import com.hpcloud.maas.infrastructure.storm.Tuples;
-import com.hpcloud.util.Injector;
+import com.hpcloud.persistence.DatabaseConfiguration;
 
 /**
  * Aggregates metrics for individual alarms. Receives metric/alarm tuples and tick tuples, and
@@ -56,10 +59,20 @@ public class MetricAggregationBolt extends BaseRichBolt {
 
   private final Map<MetricDefinition, SubAlarmStatsRepository> subAlarmStatsRepos = new HashMap<MetricDefinition, SubAlarmStatsRepository>();
   private final Multimap<String, String> alarmSubAlarms = ArrayListMultimap.create();
+
+  private DatabaseConfiguration dbConfig;
   private transient SubAlarmDAO subAlarmDAO;
   private TopologyContext context;
   private OutputCollector collector;
   private int evaluationTimeOffset;
+
+  public MetricAggregationBolt(SubAlarmDAO subAlarmDAO) {
+    this.subAlarmDAO = subAlarmDAO;
+  }
+
+  public MetricAggregationBolt(DatabaseConfiguration dbConfig) {
+    this.dbConfig = dbConfig;
+  }
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
@@ -114,7 +127,10 @@ public class MetricAggregationBolt extends BaseRichBolt {
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
     this.context = context;
     this.collector = collector;
-    subAlarmDAO = Injector.getInstance(SubAlarmDAO.class);
+    if (subAlarmDAO == null) {
+      Injector injector = Guice.createInjector(new PersistenceModule(dbConfig));
+      subAlarmDAO = injector.getInstance(SubAlarmDAO.class);
+    }
     evaluationTimeOffset = Integer.valueOf(System.getProperty(TICK_TUPLE_SECONDS_KEY, "60"))
         .intValue() * 1000;
   }

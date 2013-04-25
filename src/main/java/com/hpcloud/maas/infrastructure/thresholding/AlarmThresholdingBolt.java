@@ -12,6 +12,8 @@ import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 
+import com.google.inject.Guice;
+import com.google.inject.Injector;
 import com.hpcloud.maas.ThresholdingConfiguration;
 import com.hpcloud.maas.common.event.AlarmDeletedEvent;
 import com.hpcloud.maas.common.model.alarm.AlarmState;
@@ -19,10 +21,12 @@ import com.hpcloud.maas.domain.model.Alarm;
 import com.hpcloud.maas.domain.model.AlarmStateTransitionEvent;
 import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.service.AlarmDAO;
+import com.hpcloud.maas.infrastructure.persistence.PersistenceModule;
 import com.hpcloud.maas.infrastructure.storm.Streams;
+import com.hpcloud.messaging.rabbitmq.RabbitMQConfiguration;
 import com.hpcloud.messaging.rabbitmq.RabbitMQService;
+import com.hpcloud.persistence.DatabaseConfiguration;
 import com.hpcloud.util.Exceptions;
-import com.hpcloud.util.Injector;
 import com.hpcloud.util.Serialization;
 
 /**
@@ -42,13 +46,22 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   private static final Logger LOG = LoggerFactory.getLogger(AlarmThresholdingBolt.class);
   private static final long serialVersionUID = -4126465124017857754L;
 
+  private final DatabaseConfiguration dbConfig;
+  private final RabbitMQConfiguration rabbitConfig;
   private final Map<String, Alarm> alarms = new HashMap<String, Alarm>();
   private String alertExchange;
   private String alertRoutingKey;
+
   private transient AlarmDAO alarmDAO;
+
   private transient RabbitMQService rabbitService;
   private TopologyContext context;
   private OutputCollector collector;
+
+  public AlarmThresholdingBolt(DatabaseConfiguration dbConfig, RabbitMQConfiguration rabbitConfig) {
+    this.dbConfig = dbConfig;
+    this.rabbitConfig = rabbitConfig;
+  }
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
@@ -81,13 +94,15 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
 
   @Override
   @SuppressWarnings("rawtypes")
-  public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
-    alertExchange = (String) stormConf.get(ThresholdingConfiguration.ALERTS_EXCHANGE);
-    alertRoutingKey = (String) stormConf.get(ThresholdingConfiguration.ALERTS_ROUTING_KEY);
+  public void prepare(Map config, TopologyContext context, OutputCollector collector) {
     this.context = context;
     this.collector = collector;
-    alarmDAO = Injector.getInstance(AlarmDAO.class);
-    rabbitService = Injector.getInstance(RabbitMQService.class);
+    alertExchange = (String) config.get(ThresholdingConfiguration.ALERTS_EXCHANGE);
+    alertRoutingKey = (String) config.get(ThresholdingConfiguration.ALERTS_ROUTING_KEY);
+
+    Injector injector = Guice.createInjector(new PersistenceModule(dbConfig));
+    alarmDAO = injector.getInstance(AlarmDAO.class);
+    rabbitService = new RabbitMQService(rabbitConfig);
 
     try {
       rabbitService.start();

@@ -1,6 +1,7 @@
 package com.hpcloud.maas;
 
-import static org.testng.Assert.*;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.fail;
 
 public class Assert {
   public static void assertArraysEqual(final double[] actual, final double[] expected) {

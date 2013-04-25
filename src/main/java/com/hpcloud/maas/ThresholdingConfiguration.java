@@ -7,7 +7,7 @@ import org.hibernate.validator.constraints.NotEmpty;
 
 import com.hpcloud.maas.infrastructure.storm.amqp.AMQPSpoutConfiguration;
 import com.hpcloud.messaging.rabbitmq.RabbitMQConfiguration;
-import com.yammer.dropwizard.db.DatabaseConfiguration;
+import com.hpcloud.persistence.DatabaseConfiguration;
 
 /**
  * Thresholding configuration.

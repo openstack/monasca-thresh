@@ -23,7 +23,6 @@ import org.testng.annotations.Test;
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;
 
-import com.google.inject.AbstractModule;
 import com.hpcloud.maas.common.model.alarm.AlarmState;
 import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.maas.common.model.metric.Metric;
@@ -32,7 +31,6 @@ import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.model.SubAlarmStats;
 import com.hpcloud.maas.domain.service.SubAlarmDAO;
 import com.hpcloud.maas.domain.service.SubAlarmStatsRepository;
-import com.hpcloud.util.Injector;
 
 /**
  * @author Jonathan Halterman
@@ -69,14 +67,7 @@ public class MetricAggregationBoltTest {
       }
     });
 
-    Injector.reset();
-    Injector.registerModules(new AbstractModule() {
-      protected void configure() {
-        bind(SubAlarmDAO.class).toInstance(dao);
-      }
-    });
-
-    bolt = new MetricAggregationBolt();
+    bolt = new MetricAggregationBolt(dao);
     context = mock(TopologyContext.class);
     collector = mock(OutputCollector.class);
     bolt.prepare(null, context, collector);
@@ -117,11 +108,9 @@ public class MetricAggregationBoltTest {
   }
 
   public void shouldHandleAlarmCreated() {
-
   }
 
   public void shouldHandleAlarmDeleted() {
-
   }
 
   public void shouldGetOrCreateSameMetricData() {

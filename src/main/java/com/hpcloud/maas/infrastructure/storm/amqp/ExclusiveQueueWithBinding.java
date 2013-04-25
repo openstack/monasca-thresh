@@ -3,7 +3,6 @@ package com.hpcloud.maas.infrastructure.storm.amqp;
 import java.io.IOException;
 
 import com.rabbitmq.client.AMQP.Queue;
-
 import com.rabbitmq.client.Channel;
 
 /**
