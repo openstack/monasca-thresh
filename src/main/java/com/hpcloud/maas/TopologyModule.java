@@ -15,6 +15,7 @@ import com.hpcloud.maas.infrastructure.thresholding.AlarmThresholdingBolt;
 import com.hpcloud.maas.infrastructure.thresholding.CollectdMetricDeserializer;
 import com.hpcloud.maas.infrastructure.thresholding.EventProcessingBolt;
 import com.hpcloud.maas.infrastructure.thresholding.MaasEventDeserializer;
+import com.hpcloud.maas.infrastructure.thresholding.MaasMetricDeserializer;
 import com.hpcloud.maas.infrastructure.thresholding.MetricAggregationBolt;
 import com.hpcloud.util.Injector;
 
@@ -26,7 +27,7 @@ import com.hpcloud.util.Injector;
 public class TopologyModule extends AbstractModule {
   private final ThresholdingConfiguration config;
   private Config stormConfig;
-  private IRichSpout metricSpout;
+  private IRichSpout collectdMetricSpout;
   private IRichSpout eventSpout;
 
   public TopologyModule(ThresholdingConfiguration config) {
@@ -34,10 +35,10 @@ public class TopologyModule extends AbstractModule {
   }
 
   public TopologyModule(ThresholdingConfiguration threshConfig, Config stormConfig,
-      IRichSpout metricSpout, IRichSpout eventSpout) {
+      IRichSpout collectdMetricSpout, IRichSpout eventSpout) {
     this(threshConfig);
     this.stormConfig = stormConfig;
-    this.metricSpout = metricSpout;
+    this.collectdMetricSpout = collectdMetricSpout;
     this.eventSpout = eventSpout;
   }
 
@@ -68,15 +69,14 @@ public class TopologyModule extends AbstractModule {
   @Provides
   @Named("collectd-metrics")
   IRichSpout collectdMetricsSpout() {
-    return metricSpout == null ? new AMQPSpout(config.collectdMetricSpout,
-        new CollectdMetricDeserializer()) : metricSpout;
+    return collectdMetricSpout == null ? new AMQPSpout(config.collectdMetricSpout,
+        new CollectdMetricDeserializer()) : collectdMetricSpout;
   }
 
   @Provides
   @Named("maas-metrics")
   IRichSpout maasMetricsSpout() {
-    return metricSpout == null ? new AMQPSpout(config.maasMetricSpout,
-        new CollectdMetricDeserializer()) : metricSpout;
+    return new AMQPSpout(config.maasMetricSpout, new MaasMetricDeserializer());
   }
 
   @Provides

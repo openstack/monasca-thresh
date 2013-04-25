@@ -12,8 +12,6 @@ import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 
-import com.google.inject.Guice;
-import com.google.inject.Injector;
 import com.hpcloud.maas.ThresholdingConfiguration;
 import com.hpcloud.maas.common.event.AlarmDeletedEvent;
 import com.hpcloud.maas.common.model.alarm.AlarmState;
@@ -21,12 +19,13 @@ import com.hpcloud.maas.domain.model.Alarm;
 import com.hpcloud.maas.domain.model.AlarmStateTransitionEvent;
 import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.service.AlarmDAO;
+import com.hpcloud.maas.infrastructure.messaging.MessagingModule;
 import com.hpcloud.maas.infrastructure.persistence.PersistenceModule;
 import com.hpcloud.maas.infrastructure.storm.Streams;
 import com.hpcloud.messaging.rabbitmq.RabbitMQConfiguration;
 import com.hpcloud.messaging.rabbitmq.RabbitMQService;
 import com.hpcloud.persistence.DatabaseConfiguration;
-import com.hpcloud.util.Exceptions;
+import com.hpcloud.util.Injector;
 import com.hpcloud.util.Serialization;
 
 /**
@@ -100,15 +99,11 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     alertExchange = (String) config.get(ThresholdingConfiguration.ALERTS_EXCHANGE);
     alertRoutingKey = (String) config.get(ThresholdingConfiguration.ALERTS_ROUTING_KEY);
 
-    Injector injector = Guice.createInjector(new PersistenceModule(dbConfig));
-    alarmDAO = injector.getInstance(AlarmDAO.class);
-    rabbitService = new RabbitMQService(rabbitConfig);
+    Injector.registerIfNotBound(AlarmDAO.class, new PersistenceModule(dbConfig));
+    Injector.registerIfNotBound(RabbitMQService.class, new MessagingModule(rabbitConfig));
 
-    try {
-      rabbitService.start();
-    } catch (Exception e) {
-      throw Exceptions.uncheck(e);
-    }
+    alarmDAO = Injector.getInstance(AlarmDAO.class);
+    rabbitService = Injector.getInstance(RabbitMQService.class);
   }
 
   void evaluateThreshold(Alarm alarm, SubAlarm subAlarm) {

@@ -18,8 +18,6 @@ import backtype.storm.tuple.Values;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
-import com.google.inject.Guice;
-import com.google.inject.Injector;
 import com.hpcloud.maas.common.event.AlarmCreatedEvent;
 import com.hpcloud.maas.common.event.AlarmDeletedEvent;
 import com.hpcloud.maas.common.model.metric.Metric;
@@ -32,6 +30,7 @@ import com.hpcloud.maas.infrastructure.persistence.PersistenceModule;
 import com.hpcloud.maas.infrastructure.storm.Streams;
 import com.hpcloud.maas.infrastructure.storm.Tuples;
 import com.hpcloud.persistence.DatabaseConfiguration;
+import com.hpcloud.util.Injector;
 
 /**
  * Aggregates metrics for individual alarms. Receives metric/alarm tuples and tick tuples, and
@@ -127,12 +126,13 @@ public class MetricAggregationBolt extends BaseRichBolt {
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
     this.context = context;
     this.collector = collector;
-    if (subAlarmDAO == null) {
-      Injector injector = Guice.createInjector(new PersistenceModule(dbConfig));
-      subAlarmDAO = injector.getInstance(SubAlarmDAO.class);
-    }
     evaluationTimeOffset = Integer.valueOf(System.getProperty(TICK_TUPLE_SECONDS_KEY, "60"))
         .intValue() * 1000;
+
+    if (subAlarmDAO == null) {
+      Injector.registerIfNotBound(SubAlarmDAO.class, new PersistenceModule(dbConfig));
+      subAlarmDAO = Injector.getInstance(SubAlarmDAO.class);
+    }
   }
 
   /**
