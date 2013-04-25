@@ -15,7 +15,7 @@
   <properties>
     <versionNumber>1.0.0</versionNumber>
     <computedVersion>${versionNumber}-SNAPSHOT</computedVersion>
-    <ps.common.version>1.0.0-SNAPSHOT</ps.common.version>
+    <ps.common.version>1.0.0.236</ps.common.version>
     <maas.commons.version>1.0.0.48</maas.commons.version>
     <dropwizard.version>0.6.1</dropwizard.version>
 
