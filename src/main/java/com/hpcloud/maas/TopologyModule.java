@@ -28,6 +28,7 @@ public class TopologyModule extends AbstractModule {
   private final ThresholdingConfiguration config;
   private Config stormConfig;
   private IRichSpout collectdMetricSpout;
+  private IRichSpout maasMetricSpout;
   private IRichSpout eventSpout;
 
   public TopologyModule(ThresholdingConfiguration config) {
@@ -35,10 +36,11 @@ public class TopologyModule extends AbstractModule {
   }
 
   public TopologyModule(ThresholdingConfiguration threshConfig, Config stormConfig,
-      IRichSpout collectdMetricSpout, IRichSpout eventSpout) {
+      IRichSpout collectdMetricSpout, IRichSpout maasMetricSpout, IRichSpout eventSpout) {
     this(threshConfig);
     this.stormConfig = stormConfig;
     this.collectdMetricSpout = collectdMetricSpout;
+    this.maasMetricSpout = maasMetricSpout;
     this.eventSpout = eventSpout;
   }
 
@@ -60,23 +62,24 @@ public class TopologyModule extends AbstractModule {
   }
 
   @Provides
-  @Named("event")
-  IRichSpout eventSpout() {
-    return eventSpout == null ? new AMQPSpout(config.eventSpout, new MaasEventDeserializer())
-        : eventSpout;
-  }
-
-  @Provides
   @Named("collectd-metrics")
-  IRichSpout collectdMetricsSpout() {
+  IRichSpout collectdMetricSpout() {
     return collectdMetricSpout == null ? new AMQPSpout(config.collectdMetricSpout,
         new CollectdMetricDeserializer()) : collectdMetricSpout;
   }
 
   @Provides
   @Named("maas-metrics")
-  IRichSpout maasMetricsSpout() {
-    return new AMQPSpout(config.maasMetricSpout, new MaasMetricDeserializer());
+  IRichSpout maasMetricSpout() {
+    return maasMetricSpout == null ? new AMQPSpout(config.maasMetricSpout,
+        new MaasMetricDeserializer()) : maasMetricSpout;
+  }
+
+  @Provides
+  @Named("event")
+  IRichSpout eventSpout() {
+    return eventSpout == null ? new AMQPSpout(config.eventSpout, new MaasEventDeserializer())
+        : eventSpout;
   }
 
   @Provides

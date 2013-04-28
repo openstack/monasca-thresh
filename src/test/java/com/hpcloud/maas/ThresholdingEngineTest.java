@@ -15,6 +15,7 @@ import org.testng.annotations.Test;
 
 import backtype.storm.Config;
 import backtype.storm.testing.FeederSpout;
+import backtype.storm.topology.IRichSpout;
 import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Values;
 
@@ -27,6 +28,7 @@ import com.hpcloud.maas.domain.model.Alarm;
 import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.service.AlarmDAO;
 import com.hpcloud.maas.domain.service.SubAlarmDAO;
+import com.hpcloud.maas.infrastructure.storm.NoopSpout;
 import com.hpcloud.maas.infrastructure.storm.TopologyTestCase;
 import com.hpcloud.maas.infrastructure.thresholding.MetricAggregationBolt;
 import com.hpcloud.messaging.rabbitmq.RabbitMQService;
@@ -40,7 +42,8 @@ import com.hpcloud.util.Injector;
  */
 @Test(groups = "integration")
 public class ThresholdingEngineTest extends TopologyTestCase {
-  private FeederSpout metricSpout;
+  private FeederSpout collectdMetricSpout;
+  private IRichSpout maasMetricSpout;
   private FeederSpout eventSpout;
   private AlarmDAO alarmDAO;
   private SubAlarmDAO subAlarmDAO;
@@ -94,9 +97,11 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     ThresholdingConfiguration threshConfig = new ThresholdingConfiguration();
     Config stormConfig = new Config();
     stormConfig.setMaxTaskParallelism(1);
-    metricSpout = new FeederSpout(new Fields("metricDefinition", "metric"));
+    collectdMetricSpout = new FeederSpout(new Fields("metricDefinition", "metric"));
+    maasMetricSpout = new NoopSpout(new Fields("metricDefinition", "metric"));
     eventSpout = new FeederSpout(new Fields("event"));
-    Injector.registerModules(new TopologyModule(threshConfig, stormConfig, metricSpout, eventSpout));
+    Injector.registerModules(new TopologyModule(threshConfig, stormConfig, collectdMetricSpout,
+        maasMetricSpout, eventSpout));
 
     // Evaluate alarm stats every 1 seconds
     System.setProperty(MetricAggregationBolt.TICK_TUPLE_SECONDS_KEY, "1");
@@ -117,9 +122,9 @@ public class ThresholdingEngineTest extends TopologyTestCase {
         System.out.println("Feeding metrics...");
 
         long time = System.currentTimeMillis();
-        metricSpout.feed(new Values(cpuMetricDef, new Metric(cpuMetricDef, time,
+        collectdMetricSpout.feed(new Values(cpuMetricDef, new Metric(cpuMetricDef, time,
             ++goodValueCount == 15 ? 1 : 555)));
-        metricSpout.feed(new Values(memMetricDef, new Metric(memMetricDef, time,
+        collectdMetricSpout.feed(new Values(memMetricDef, new Metric(memMetricDef, time,
             goodValueCount == 15 ? 1 : 555)));
 
         if (--feedCount == 0)
