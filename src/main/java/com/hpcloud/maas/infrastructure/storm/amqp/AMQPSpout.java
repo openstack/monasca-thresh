@@ -101,6 +101,8 @@ public class AMQPSpout implements IRichSpout {
    */
   @Override
   public void ack(Object msgId) {
+    LOG.trace("{} Acked message {}", context.getThisTaskId(), msgId);
+    
     if (msgId instanceof Long) {
       final long deliveryTag = (Long) msgId;
       if (channel != null) {
@@ -108,8 +110,6 @@ public class AMQPSpout implements IRichSpout {
           channel.basicAck(deliveryTag, false /* not multiple */);
         } catch (IOException e) {
           LOG.warn("Failed to ack delivery-tag {}", deliveryTag, e);
-        } catch (ShutdownSignalException e) {
-          LOG.warn("AMQP connection failed. Failed to ack delivery-tag {}", deliveryTag, e);
         }
       }
     } else {
@@ -121,7 +121,7 @@ public class AMQPSpout implements IRichSpout {
    * Resumes a paused spout
    */
   public void activate() {
-    LOG.info("{} Activating spout", context.getThisTaskId());
+    LOG.info("{} Activating spout {}", context.getThisTaskId(), context.getThisComponentId());
     spoutActive = true;
   }
 
@@ -130,7 +130,7 @@ public class AMQPSpout implements IRichSpout {
    */
   @Override
   public void close() {
-    LOG.info("{} Closing AMQP spout", context.getThisTaskId());
+    LOG.info("{} Closing AMQP spout {}", context.getThisTaskId(), context.getThisComponentId());
     if (consumerTag != null) {
       try {
         channel.basicCancel(consumerTag);
@@ -147,7 +147,7 @@ public class AMQPSpout implements IRichSpout {
    * Pauses the spout
    */
   public void deactivate() {
-    LOG.info("{} Deactivating AMQP spout", context.getThisTaskId());
+    LOG.info("{} Deactivating AMQP spout {}", context.getThisTaskId(), context.getThisComponentId());
     spoutActive = false;
   }
 
@@ -169,10 +169,11 @@ public class AMQPSpout implements IRichSpout {
    * <p>
    * <strong>Note:</strong> There's a potential for infinite re-delivery in the event of
    * non-transient failures (e.g. malformed messages).
-   * 
    */
   @Override
   public void fail(Object msgId) {
+    LOG.trace("{} Failed message {}", context.getThisTaskId(), msgId);
+
     if (msgId instanceof Long) {
       final long deliveryTag = (Long) msgId;
       if (channel != null) {
@@ -221,24 +222,27 @@ public class AMQPSpout implements IRichSpout {
         try {
           List<List<?>> tuples = deserializer.deserialize(message);
           if (tuples == null) {
-            handleUnprocessableDelivery(deliveryTag, message);
+            if (!config.autoAck)
+              ack(deliveryTag);
             return;
           }
 
           for (int i = 0; i < tuples.size(); i++) {
             List<Object> tuple = (List<Object>) tuples.get(i);
-            // LOG.trace("{} Emitting {} for {}", context.getThisTaskId(), tuple, message);
-            if (i == 0)
-              collector.emit(tuple, deliveryTag);
-            else
+            // LOG.trace("{} {} Emitting {} for {}", deliveryTag, context.getThisTaskId(), tuple,
+            // message);
+
+            if (i > 0 || config.autoAck)
               collector.emit(tuple);
+            else
+              collector.emit(tuple, deliveryTag);
           }
         } catch (Exception e) {
           LOG.error("Error while deserializing and emitting message", e);
           handleUnprocessableDelivery(deliveryTag, message);
         }
       } catch (ShutdownSignalException e) {
-        LOG.warn("{} AMQP connection dropped. Attempting to reconnect...", context.getThisTaskId());
+        LOG.error("{} AMQP connection dropped.", context.getThisTaskId(), e);
         if (!e.isInitiatedByApplication())
           connection.reopen();
       } catch (InterruptedException e) {
@@ -253,7 +257,7 @@ public class AMQPSpout implements IRichSpout {
   @Override
   public void open(@SuppressWarnings("rawtypes") Map config, TopologyContext context,
       SpoutOutputCollector collector) {
-    LOG.info("{} Opening AMQP Spout", context.getThisTaskId());
+    LOG.info("{} Opening AMQP Spout {}", context.getThisTaskId(), context.getThisComponentId());
     this.context = context;
     this.collector = collector;
     createConnection();
@@ -267,13 +271,14 @@ public class AMQPSpout implements IRichSpout {
     try {
       connection.open();
       channel = connection.channelFor("spout");
-      channel.basicQos(config.prefetchCount);
+      if (config.prefetchCount > 0)
+        channel.basicQos(config.prefetchCount);
       final Queue.DeclareOk queue = queueDeclarator.declare(channel);
       final String queueName = queue.getQueue();
 
       LOG.info("Consuming from queue {}", queueName);
       consumer = new QueueingConsumer(channel);
-      consumerTag = channel.basicConsume(queueName, false /* no auto-ack */, consumer);
+      consumerTag = channel.basicConsume(queueName, config.autoAck, consumer);
     } catch (Exception e) {
       LOG.error("Error while opening connection", e);
       Exceptions.uncheck(e, "{} Failed to open AMQP connection", context.getThisTaskId());

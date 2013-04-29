@@ -75,6 +75,7 @@ public class EventProcessingBolt extends BaseRichBolt {
   @Override
   @SuppressWarnings("rawtypes")
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
+    LOG.info("{} Preparing {}", context.getThisTaskId(), context.getThisComponentId());
     this.context = context;
     this.collector = collector;
   }

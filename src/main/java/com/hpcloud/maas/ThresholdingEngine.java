@@ -25,11 +25,14 @@ import com.hpcloud.util.Serialization;
 public class ThresholdingEngine {
   private static final Logger LOG = LoggerFactory.getLogger(ThresholdingEngine.class);
 
-  protected final ThresholdingConfiguration threshConfig;
+  private final ThresholdingConfiguration threshConfig;
+  private final String topologyName;
   private final boolean local;
 
-  public ThresholdingEngine(ThresholdingConfiguration threshConfig, boolean local) {
+  public ThresholdingEngine(ThresholdingConfiguration threshConfig, String topologyName,
+      boolean local) {
     this.threshConfig = threshConfig;
+    this.topologyName = topologyName;
     this.local = local;
   }
 
@@ -39,13 +42,13 @@ public class ThresholdingEngine {
   }
 
   public static void main(String... args) throws Exception {
-    if (args.length < 1) {
-      LOG.error("Expected a configuration file name argument");
+    if (args.length < 2) {
+      LOG.error("Expected configuration file name and topology name arguments");
       System.exit(1);
     }
 
-    ThresholdingEngine engine = new ThresholdingEngine(configFor(args[0]), args.length > 1 ? true
-        : false);
+    ThresholdingEngine engine = new ThresholdingEngine(configFor(args[0]), args[1],
+        args.length > 2 ? true : false);
     engine.configure();
     engine.run();
   }
@@ -64,8 +67,8 @@ public class ThresholdingEngine {
     StormTopology topology = Injector.getInstance(StormTopology.class);
 
     if (local)
-      new LocalCluster().submitTopology("maas-alarming", config, topology);
+      new LocalCluster().submitTopology(topologyName, config, topology);
     else
-      StormSubmitter.submitTopology("maas-alarming", config, topology);
+      StormSubmitter.submitTopology(topologyName, config, topology);
   }
 }

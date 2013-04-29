@@ -33,12 +33,7 @@ import com.hpcloud.persistence.DatabaseConfiguration;
 import com.hpcloud.util.Injector;
 
 /**
- * Aggregates metrics for individual alarms. Receives metric/alarm tuples and tick tuples, and
- * outputs alarm information whenever an alarm's state changes. Concerned with alarms that relate to
- * a specific metric.
- * 
- * The TICK_TUPLE_SECONDS_KEY value should be no greater than the smallest possible window width.
- * This ensures that the window slides in time with the expected metrics.
+ * Filters metrics for which there is no associated alarm.
  * 
  * <ul>
  * <li>Input: MetricDefinition metricDefinition, Metric metric
@@ -46,13 +41,13 @@ import com.hpcloud.util.Injector;
  * alarmId
  * <li>Input metric-sub-alarm-events: String eventType, MetricDefinition metricDefinition, SubAlarm
  * subAlarm
- * <li>Output: String alarmId, SubAlarm subAlarm
+ * <li>Output: MetricDefinition metricDefinition, Metric metric
  * </ul>
  * 
  * @author Jonathan Halterman
  */
-public class MetricAggregationBolt extends BaseRichBolt {
-  private static final Logger LOG = LoggerFactory.getLogger(MetricAggregationBolt.class);
+public class MetricFilteringBolt extends BaseRichBolt {
+  private static final Logger LOG = LoggerFactory.getLogger(MetricFilteringBolt.class);
   private static final long serialVersionUID = 5624314196838090726L;
   public static final String TICK_TUPLE_SECONDS_KEY = "maas.aggregation.tick.seconds";
 
@@ -65,11 +60,11 @@ public class MetricAggregationBolt extends BaseRichBolt {
   private OutputCollector collector;
   private int evaluationTimeOffset;
 
-  public MetricAggregationBolt(SubAlarmDAO subAlarmDAO) {
+  public MetricFilteringBolt(SubAlarmDAO subAlarmDAO) {
     this.subAlarmDAO = subAlarmDAO;
   }
 
-  public MetricAggregationBolt(DatabaseConfiguration dbConfig) {
+  public MetricFilteringBolt(DatabaseConfiguration dbConfig) {
     this.dbConfig = dbConfig;
   }
 

@@ -48,23 +48,24 @@ public class AMQPSpoutConfiguration implements Serializable {
   @NotNull public Duration waitForNextMessage = Duration.millis(1);
 
   /**
-   * Defaults to 100.
-   * 
-   * <p>
    * This caps the number of messages outstanding (i.e. unacked) at a time that will be sent to each
    * spout worker. Increasing this will improve throughput if the network roundtrip time to the AMQP
    * broker is significant compared to the time for the topology to process each message; this will
-   * also increase the RAM requirements as the internal message buffer grows.
-   * </p>
+   * also increase the RAM requirements as the internal message buffer grows. </p>
    * 
    * <p>
-   * AMQP allows a prefetch-count of zero, indicating unlimited delivery, but that is not allowed
-   * here to avoid unbounded buffer growth.
+   * AMQP allows a prefetch-count of 0, indicating unlimited delivery
    * </p>
    * 
-   * Default: 100.
+   * Default: 0.
    */
-  @Min(1) public int prefetchCount = 100;
+  @Min(0) public int prefetchCount = 0;
+
+  /**
+   * Whether acknowledgements should be performed automatically (true) or whether storm should track
+   * acks and fails for each messages (false).
+   */
+  public boolean autoAck = false;
 
   /**
    * Name of the stream where malformed deserialized messages are sent for special handling.

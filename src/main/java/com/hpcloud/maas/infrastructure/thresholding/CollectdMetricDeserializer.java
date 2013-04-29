@@ -5,8 +5,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.mortbay.log.Log;
-
 import backtype.storm.tuple.Fields;
 
 import com.hpcloud.maas.common.model.metric.CollectdMetrics;
@@ -29,10 +27,8 @@ public class CollectdMetricDeserializer implements TupleDeserializer, Serializab
   @Override
   public List<List<?>> deserialize(String tuple) {
     List<Metric> metrics = CollectdMetrics.toMetrics(tuple);
-    if (metrics == null) {
-      Log.warn("Failed to deserialize collectd metric: {}", tuple);
+    if (metrics == null)
       return null;
-    }
 
     List<List<?>> results = new ArrayList<List<?>>(metrics.size());
     for (Metric metric : metrics)

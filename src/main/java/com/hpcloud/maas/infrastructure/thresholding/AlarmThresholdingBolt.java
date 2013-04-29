@@ -84,16 +84,17 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
         if (AlarmDeletedEvent.class.getSimpleName().equals(eventType))
           handleAlarmDeleted(alarmId);
       }
-
-      collector.ack(tuple);
     } catch (Exception e) {
       LOG.error("{} Error processing tuple {}", context.getThisTaskId(), tuple, e);
+    } finally {
+      collector.ack(tuple);
     }
   }
 
   @Override
   @SuppressWarnings("rawtypes")
   public void prepare(Map config, TopologyContext context, OutputCollector collector) {
+    LOG.info("{} Preparing {}", context.getThisTaskId(), context.getThisComponentId());
     this.context = context;
     this.collector = collector;
     alertExchange = (String) config.get(ThresholdingConfiguration.ALERTS_EXCHANGE);
