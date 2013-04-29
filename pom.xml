@@ -15,7 +15,7 @@
   <properties>
     <versionNumber>1.0.0</versionNumber>
     <computedVersion>${versionNumber}-SNAPSHOT</computedVersion>
-    <ps.common.version>1.0.0.238</ps.common.version>
+    <ps.common.version>1.0.0.239</ps.common.version>
     <maas.commons.version>1.0.0.57</maas.commons.version>
     <dropwizard.version>0.6.1</dropwizard.version>
 
@@ -72,9 +72,9 @@
         <version>1.7.2</version>
       </dependency>
       <dependency>
-        <groupId>ch.qos.logback</groupId>
-        <artifactId>logback-classic</artifactId>
-        <version>1.0.7</version>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-log4j12</artifactId>
+        <version>1.7.2</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -105,12 +105,6 @@
       <artifactId>storm</artifactId>
       <version>0.8.2</version>
       <scope>provided</scope>
-      <exclusions>
-        <exclusion>
-          <groupId>org.slf4j</groupId>
-          <artifactId>slf4j-log4j12</artifactId>
-        </exclusion>
-      </exclusions>
     </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.dataformat</groupId>
@@ -132,11 +126,6 @@
       <artifactId>mysql-connector-java</artifactId>
       <version>5.1.18</version>
     </dependency>
-    <dependency>
-      <groupId>ch.qos.logback</groupId>
-      <artifactId>logback-classic</artifactId>
-      <version>1.0.11</version>
-    </dependency>
 
     <!-- Test dependencies -->
     <dependency>
@@ -152,9 +141,6 @@
       <type>test-jar</type>
       <scope>test</scope>
     </dependency>
-
-
-
   </dependencies>
 
   <build>
