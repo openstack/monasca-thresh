@@ -17,6 +17,7 @@ import com.hpcloud.maas.infrastructure.thresholding.EventProcessingBolt;
 import com.hpcloud.maas.infrastructure.thresholding.MaasEventDeserializer;
 import com.hpcloud.maas.infrastructure.thresholding.MaasMetricDeserializer;
 import com.hpcloud.maas.infrastructure.thresholding.MetricAggregationBolt;
+import com.hpcloud.maas.infrastructure.thresholding.MetricFilteringBolt;
 import com.hpcloud.util.Injector;
 
 /**
@@ -104,11 +105,19 @@ public class TopologyModule extends AbstractModule {
         .shuffleGrouping("event-spout")
         .setNumTasks(config.eventBoltTasks);
 
-    // Metrics / Event -> Aggregation
+    // Metrics / Event -> Filtering
+    builder.setBolt("filtering-bolt", new MetricFilteringBolt(config.database),
+        config.filteringBoltThreads)
+        .shuffleGrouping("collectd-metrics-spout")
+        .shuffleGrouping("maas-metrics-spout")
+        .allGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID)
+        .allGrouping("event-bolt", EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID)
+        .setNumTasks(config.filteringBoltTasks);
+
+    // Filtering / Event -> Aggregation
     builder.setBolt("aggregation-bolt", new MetricAggregationBolt(config.database),
         config.aggregationBoltThreads)
-        .fieldsGrouping("collectd-metrics-spout", new Fields("metricDefinition"))
-        .fieldsGrouping("maas-metrics-spout", new Fields("metricDefinition"))
+        .fieldsGrouping("filtering-bolt", new Fields("metricDefinition"))
         .fieldsGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID,
             new Fields("metricDefinition"))
         .fieldsGrouping("event-bolt", EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID,

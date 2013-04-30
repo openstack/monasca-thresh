@@ -8,6 +8,7 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import com.google.inject.Scopes;
 import com.hpcloud.maas.domain.service.AlarmDAO;
+import com.hpcloud.maas.domain.service.MetricDefinitionDAO;
 import com.hpcloud.maas.domain.service.SubAlarmDAO;
 import com.hpcloud.persistence.DatabaseConfiguration;
 
@@ -27,6 +28,7 @@ public class PersistenceModule extends AbstractModule {
   protected void configure() {
     bind(AlarmDAO.class).to(AlarmDAOImpl.class).in(Scopes.SINGLETON);
     bind(SubAlarmDAO.class).to(SubAlarmDAOImpl.class).in(Scopes.SINGLETON);
+    bind(MetricDefinitionDAO.class).to(MetricDefinitionDAOImpl.class).in(Scopes.SINGLETON);
   }
 
   @Provides

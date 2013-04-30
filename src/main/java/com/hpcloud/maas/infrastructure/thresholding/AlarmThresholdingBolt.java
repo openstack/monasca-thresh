@@ -50,9 +50,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   private final Map<String, Alarm> alarms = new HashMap<String, Alarm>();
   private String alertExchange;
   private String alertRoutingKey;
-
   private transient AlarmDAO alarmDAO;
-
   private transient RabbitMQService rabbitService;
   private TopologyContext context;
   private OutputCollector collector;

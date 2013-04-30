@@ -23,17 +23,20 @@ public class ThresholdingConfiguration {
   /** Total number of acker threads across the cluster. */
   @NotNull public Integer numAckerThreads = 12;
 
-  @NotNull public Integer maasMetricSpoutThreads = 6;
-  @NotNull public Integer maasMetricSpoutTasks = 6;
-
   @NotNull public Integer collectdMetricSpoutThreads = 6;
   @NotNull public Integer collectdMetricSpoutTasks = 9;
+
+  @NotNull public Integer maasMetricSpoutThreads = 6;
+  @NotNull public Integer maasMetricSpoutTasks = 6;
 
   @NotNull public Integer eventSpoutThreads = 3;
   @NotNull public Integer eventSpoutTasks = 3;
 
   @NotNull public Integer eventBoltThreads = 3;
   @NotNull public Integer eventBoltTasks = 3;
+
+  @NotNull public Integer filteringBoltThreads = 6;
+  @NotNull public Integer filteringBoltTasks = 15;
 
   @NotNull public Integer aggregationBoltThreads = 12;
   @NotNull public Integer aggregationBoltTasks = 30;

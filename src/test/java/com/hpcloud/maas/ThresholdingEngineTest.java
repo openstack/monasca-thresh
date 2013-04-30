@@ -27,6 +27,7 @@ import com.hpcloud.maas.common.model.metric.MetricDefinition;
 import com.hpcloud.maas.domain.model.Alarm;
 import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.service.AlarmDAO;
+import com.hpcloud.maas.domain.service.MetricDefinitionDAO;
 import com.hpcloud.maas.domain.service.SubAlarmDAO;
 import com.hpcloud.maas.infrastructure.storm.NoopSpout;
 import com.hpcloud.maas.infrastructure.storm.TopologyTestCase;
@@ -49,6 +50,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
   private SubAlarmDAO subAlarmDAO;
   private MetricDefinition cpuMetricDef;
   private MetricDefinition memMetricDef;
+  private MetricDefinitionDAO metricDefinitionDAO;
 
   public ThresholdingEngineTest() {
     // Fixtures
@@ -81,6 +83,10 @@ public class ThresholdingEngineTest extends TopologyTestCase {
       }
     });
 
+    metricDefinitionDAO = mock(MetricDefinitionDAO.class);
+    List<MetricDefinition> metricDefs = Arrays.asList(cpuMetricDef, memMetricDef);
+    when(metricDefinitionDAO.findForAlarms()).thenReturn(metricDefs);
+
     final RabbitMQService rabbitMQService = mock(RabbitMQService.class);
 
     // Bindings
@@ -89,6 +95,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
       protected void configure() {
         bind(AlarmDAO.class).toInstance(alarmDAO);
         bind(SubAlarmDAO.class).toInstance(subAlarmDAO);
+        bind(MetricDefinitionDAO.class).toInstance(metricDefinitionDAO);
         bind(RabbitMQService.class).toInstance(rabbitMQService);
       }
     });

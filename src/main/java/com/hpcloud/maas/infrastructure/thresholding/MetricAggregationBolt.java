@@ -140,11 +140,11 @@ public class MetricAggregationBolt extends BaseRichBolt {
    * Aggregates values for the {@code metric} that are within the periods defined for the alarm.
    */
   void aggregateValues(Metric metric) {
-    SubAlarmStatsRepository subAlarmStatsRepo = subAlarmStatsRepos.get(metric.definition);
+    LOG.trace("{} Aggregating values for {}", context.getThisTaskId(), metric);
+    SubAlarmStatsRepository subAlarmStatsRepo = getOrCreateSubAlarmStatsRepo(metric.definition);
     if (subAlarmStatsRepo == null)
       return;
 
-    LOG.debug("{} Aggregating values for {}", context.getThisTaskId(), metric);
     for (SubAlarmStats stats : subAlarmStatsRepo.get())
       stats.getStats().addValue(metric.value, metric.timestamp);
   }
