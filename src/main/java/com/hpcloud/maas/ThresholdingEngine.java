@@ -10,12 +10,8 @@ import backtype.storm.LocalCluster;
 import backtype.storm.StormSubmitter;
 import backtype.storm.generated.StormTopology;
 
-import com.hpcloud.maas.common.event.AlarmCreatedEvent;
-import com.hpcloud.maas.common.event.AlarmDeletedEvent;
-import com.hpcloud.maas.common.event.EndpointDeletedEvent;
 import com.hpcloud.maas.util.config.ConfigurationFactory;
 import com.hpcloud.util.Injector;
-import com.hpcloud.util.Serialization;
 
 /**
  * Alarm thresholding engine.
@@ -55,11 +51,6 @@ public class ThresholdingEngine {
 
   protected void configure() {
     Injector.registerModules(new TopologyModule(threshConfig));
-
-    // Register event types
-    Serialization.registerTarget(AlarmCreatedEvent.class);
-    Serialization.registerTarget(AlarmDeletedEvent.class);
-    Serialization.registerTarget(EndpointDeletedEvent.class);
   }
 
   protected void run() throws Exception {
