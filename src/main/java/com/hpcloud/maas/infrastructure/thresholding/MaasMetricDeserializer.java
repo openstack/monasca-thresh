@@ -1,14 +1,16 @@
 package com.hpcloud.maas.infrastructure.thresholding;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import backtype.storm.tuple.Fields;
 
 import com.hpcloud.maas.common.model.metric.FlatMetric;
+import com.hpcloud.maas.common.model.metric.FlatMetrics;
+import com.hpcloud.maas.common.model.metric.Metric;
 import com.hpcloud.maas.infrastructure.storm.TupleDeserializer;
-import com.hpcloud.util.Serialization;
 
 /**
  * Deserializes MaaS metrics.
@@ -25,8 +27,9 @@ public class MaasMetricDeserializer implements TupleDeserializer, Serializable {
 
   @Override
   public List<List<?>> deserialize(String tuple) {
-    FlatMetric flatMetric = Serialization.fromJson(tuple, FlatMetric.class);
-    return Collections.<List<?>>singletonList(Collections.singletonList(flatMetric.toMetric()));
+    FlatMetric flatMetric = FlatMetrics.fromJson(tuple);
+    Metric metric = flatMetric.toMetric();
+    return Collections.<List<?>>singletonList(Arrays.asList(metric.definition, metric));
   }
 
   @Override
