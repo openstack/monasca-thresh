@@ -71,11 +71,17 @@ public class MetricFilteringBolt extends BaseRichBolt {
         MetricDefinition metricDefinition = (MetricDefinition) tuple.getValue(1);
 
         if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-          if (AlarmDeletedEvent.class.getSimpleName().equals(eventType))
+          if (AlarmDeletedEvent.class.getSimpleName().equals(eventType)) {
+            LOG.debug("{} Received AlarmDeletedEvent for {}", context.getThisTaskId(),
+                metricDefinition);
             METRIC_DEFS.remove(metricDefinition);
+          }
         } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-          if (AlarmCreatedEvent.class.getSimpleName().equals(eventType))
+          if (AlarmCreatedEvent.class.getSimpleName().equals(eventType)) {
+            LOG.debug("{} Received AlarmCreatedEvent for {}", context.getThisTaskId(),
+                metricDefinition);
             METRIC_DEFS.put(metricDefinition, SENTINAL);
+          }
         }
       }
     } catch (Exception e) {
