@@ -30,7 +30,8 @@ public class SubAlarmStatsRepository {
    * adds it to the repository.
    */
   public void add(SubAlarm subAlarm, long viewEndTimestamp) {
-    subAlarmStats.put(subAlarm.getId(), new SubAlarmStats(subAlarm, viewEndTimestamp));
+    if (!subAlarmStats.containsKey(subAlarm.getId()))
+      subAlarmStats.put(subAlarm.getId(), new SubAlarmStats(subAlarm, viewEndTimestamp));
   }
 
   public Collection<SubAlarmStats> get() {
@@ -39,6 +40,10 @@ public class SubAlarmStatsRepository {
 
   public SubAlarmStats get(String subAlarmId) {
     return subAlarmStats.get(subAlarmId);
+  }
+
+  public boolean isEmpty() {
+    return subAlarmStats.isEmpty();
   }
 
   public void remove(String subAlarmId) {

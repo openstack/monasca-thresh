@@ -26,7 +26,7 @@ import com.hpcloud.maas.domain.model.SubAlarm;
  * <li>Input: Object event
  * <li>Output alarm-events: String eventType, String alarmId
  * <li>Output metric-alarm-events: String eventType, MetricDefinition metricDefinition, String
- * alarmId
+ * alarmId, String subAlarmId
  * <li>Output metric-sub-alarm-events: String eventType, MetricDefinition metricDefinition, SubAlarm
  * subAlarm
  * </ul>
@@ -50,7 +50,7 @@ public class EventProcessingBolt extends BaseRichBolt {
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
     declarer.declareStream(ALARM_EVENT_STREAM_ID, new Fields("eventType", "alarmId"));
     declarer.declareStream(METRIC_ALARM_EVENT_STREAM_ID, new Fields("eventType",
-        "metricDefinition", "alarmId"));
+        "metricDefinition", "subAlarmId"));
     declarer.declareStream(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Fields("eventType",
         "metricDefinition", "subAlarm"));
   }
@@ -59,16 +59,15 @@ public class EventProcessingBolt extends BaseRichBolt {
   public void execute(Tuple tuple) {
     try {
       Object event = tuple.getValue(0);
-
       LOG.trace("{} Received event for processing {}", context.getThisTaskId(), event);
       if (event instanceof AlarmCreatedEvent)
         handle((AlarmCreatedEvent) event);
       else if (event instanceof AlarmDeletedEvent)
         handle((AlarmDeletedEvent) event);
-
-      collector.ack(tuple);
     } catch (Exception e) {
-      LOG.error("Error processing tuple {}", tuple, e);
+      LOG.error("{} Error processing tuple {}", context.getThisTaskId(), tuple, e);
+    } finally {
+      collector.ack(tuple);
     }
   }
 
@@ -90,8 +89,9 @@ public class EventProcessingBolt extends BaseRichBolt {
 
   void handle(AlarmDeletedEvent event) {
     String eventType = event.getClass().getSimpleName();
-    for (MetricDefinition metricDef : event.metricDefinitions)
-      collector.emit(METRIC_ALARM_EVENT_STREAM_ID, new Values(eventType, metricDef, event.alarmId));
+    for (Map.Entry<String, MetricDefinition> entry : event.subAlarmMetricDefinitions.entrySet())
+      collector.emit(METRIC_ALARM_EVENT_STREAM_ID,
+          new Values(eventType, entry.getValue(), entry.getKey()));
     collector.emit(ALARM_EVENT_STREAM_ID, new Values(eventType, event.alarmId));
   }
 }
