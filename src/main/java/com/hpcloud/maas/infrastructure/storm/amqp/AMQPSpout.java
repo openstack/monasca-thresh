@@ -102,7 +102,7 @@ public class AMQPSpout implements IRichSpout {
   @Override
   public void ack(Object msgId) {
     LOG.trace("{} Acked message {}", context.getThisTaskId(), msgId);
-    
+
     if (msgId instanceof Long) {
       final long deliveryTag = (Long) msgId;
       if (channel != null) {
