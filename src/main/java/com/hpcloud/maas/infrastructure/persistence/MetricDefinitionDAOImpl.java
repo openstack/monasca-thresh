@@ -49,7 +49,8 @@ public class MetricDefinitionDAOImpl implements MetricDefinitionDAO {
           dimensions = new HashMap<String, String>();
           for (String kvStr : dimensionSet.split(",")) {
             String[] kv = kvStr.split("=");
-            dimensions.put(kv[0], kv[1]);
+            if (kv.length > 1)
+              dimensions.put(kv[0], kv[1]);
           }
         }
 
