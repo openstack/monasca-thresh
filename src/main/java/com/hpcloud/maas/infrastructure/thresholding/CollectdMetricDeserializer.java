@@ -25,7 +25,7 @@ public class CollectdMetricDeserializer implements TupleDeserializer, Serializab
   private static final Fields FIELDS = new Fields("metricDefinition", "metric");
 
   @Override
-  public List<List<?>> deserialize(String tuple) {
+  public List<List<?>> deserialize(byte[] tuple) {
     List<Metric> metrics = CollectdMetrics.toMetrics(tuple);
     if (metrics == null)
       return null;

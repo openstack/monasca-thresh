@@ -20,13 +20,13 @@ public class MaasEventDeserializerTest {
   public void shouldDeserialize() {
     Object event = new AlarmDeletedEvent("abc", "123", null);
     String serialized = Serialization.toJson(event);
-    Object deserialized = deserializer.deserialize(serialized);
+    Object deserialized = deserializer.deserialize(serialized.getBytes());
     Object expected = Collections.singletonList(Collections.singletonList(event));
     assertEquals(deserialized, expected);
   }
   
   public void shouldReturnNullOnDeserializeUnknownEvent() {
     String unknownEventJson = "{\"alarm-foo-deleted\":{\"tenantId\":\"abc\",\"alarmId\":\"123\"}}";
-    assertNull(deserializer.deserialize(unknownEventJson));
+    assertNull(deserializer.deserialize(unknownEventJson.getBytes()));
   }
 }

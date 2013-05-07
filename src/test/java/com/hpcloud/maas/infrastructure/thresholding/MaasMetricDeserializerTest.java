@@ -21,7 +21,7 @@ public class MaasMetricDeserializerTest {
 
   public void shouldDeserialize() {
     FlatMetric initial = new FlatMetric("bob", "test", "1", null, 123, 5.0);
-    List<List<?>> metrics = deserializer.deserialize(FlatMetrics.toJson(initial));
+    List<List<?>> metrics = deserializer.deserialize(FlatMetrics.toJson(initial).getBytes());
     Metric expected = initial.toMetric();
     assertEquals(metrics, Collections.singletonList(Arrays.asList(expected.definition, expected)));
   }

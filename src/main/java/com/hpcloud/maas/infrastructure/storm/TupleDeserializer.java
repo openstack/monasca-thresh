@@ -15,7 +15,7 @@ public interface TupleDeserializer {
    * Returns a list of deserialized tuples, consisting of a list of tuples each with a list of
    * fields, for the {@code tuple}, else null if the {@code tuple} cannot be deserialized.
    */
-  List<List<?>> deserialize(String tuple);
+  List<List<?>> deserialize(byte[] tuple);
 
   /**
    * Returns the output fields.
