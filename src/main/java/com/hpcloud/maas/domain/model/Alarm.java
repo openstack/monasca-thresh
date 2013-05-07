@@ -17,6 +17,8 @@ import com.hpcloud.maas.domain.common.AbstractEntity;
  * @author Jonathan Halterman
  */
 public class Alarm extends AbstractEntity {
+  private static final long serialVersionUID = -8882458476630030926L;
+  
   private String tenantId;
   private String name;
   private AlarmExpression expression;
