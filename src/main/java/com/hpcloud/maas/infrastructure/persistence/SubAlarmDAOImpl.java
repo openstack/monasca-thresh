@@ -8,6 +8,7 @@ import javax.inject.Inject;
 
 import org.skife.jdbi.v2.DBI;
 import org.skife.jdbi.v2.Handle;
+import org.skife.jdbi.v2.Query;
 
 import com.hpcloud.maas.common.model.alarm.AggregateFunction;
 import com.hpcloud.maas.common.model.alarm.AlarmOperator;
@@ -30,7 +31,7 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
    */
   private static final String FIND_BY_METRIC_DEF_SQL = "select sa.* from sub_alarm sa, sub_alarm_dimension d "
       + "join (%s) v on d.dimension_name = v.dimension_name and d.value = v.value "
-      + "where sa.id = d.sub_alarm_id and sa.namespace = :namespace and sa.metric_type = :metricType and sa.metric_subject = :metricSubject "
+      + "where sa.id = d.sub_alarm_id and sa.namespace = :namespace and sa.metric_type = :metricType and sa.metric_subject %s "
       + "group by d.sub_alarm_id having count(d.sub_alarm_id) = (select count(*) from sub_alarm_dimension where sub_alarm_id = d.sub_alarm_id)";
 
   private final DBI db;
@@ -47,13 +48,15 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
     try {
       String unionAllStatement = SqlStatements.unionAllStatementFor(metricDefinition.dimensions,
           "dimension_name", "value");
-      String sql = String.format(FIND_BY_METRIC_DEF_SQL, unionAllStatement);
+      String sql = String.format(FIND_BY_METRIC_DEF_SQL, unionAllStatement,
+          metricDefinition.subject == null ? "is null" : "= :metricSubject");
 
-      List<Map<String, Object>> rows = h.createQuery(sql)
+      Query<Map<String, Object>> query = h.createQuery(sql)
           .bind("namespace", metricDefinition.namespace)
-          .bind("metricType", metricDefinition.type)
-          .bind("metricSubject", metricDefinition.subject)
-          .list();
+          .bind("metricType", metricDefinition.type);
+      if (metricDefinition.subject != null)
+        query.bind("metricSubject", metricDefinition.subject);
+      List<Map<String, Object>> rows = query.list();
 
       List<SubAlarm> subAlarms = new ArrayList<SubAlarm>(rows.size());
       for (Map<String, Object> row : rows) {
