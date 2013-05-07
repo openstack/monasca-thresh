@@ -15,6 +15,7 @@ import backtype.storm.tuple.Tuple;
 
 import com.hpcloud.maas.common.event.AlarmCreatedEvent;
 import com.hpcloud.maas.common.event.AlarmDeletedEvent;
+import com.hpcloud.maas.common.model.Namespaces;
 import com.hpcloud.maas.common.model.metric.MetricDefinition;
 import com.hpcloud.maas.domain.service.MetricDefinitionDAO;
 import com.hpcloud.maas.domain.service.SubAlarmDAO;
@@ -107,8 +108,19 @@ public class MetricFilteringBolt extends BaseRichBolt {
     if (METRIC_DEFS.isEmpty()) {
       synchronized (SENTINAL) {
         if (METRIC_DEFS.isEmpty()) {
-          for (MetricDefinition metricDef : metricDefDAO.findForAlarms())
+          // TODO remove this once we populate all dimensions for collectd metrics
+          for (MetricDefinition metricDef : metricDefDAO.findForAlarms()) {
+            if (Namespaces.isReserved(metricDef.namespace)) {
+              if (metricDef.dimensions != null) {
+                String instanceId = metricDef.dimensions.get("instance_id");
+                metricDef.dimensions.clear();
+                if (instanceId != null)
+                  metricDef.dimensions.put("instance_id", instanceId);
+              }
+            }
+
             METRIC_DEFS.put(metricDef, SENTINAL);
+          }
         }
       }
     }
