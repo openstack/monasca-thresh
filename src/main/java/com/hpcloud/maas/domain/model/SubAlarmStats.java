@@ -96,7 +96,6 @@ public class SubAlarmStats {
       return false;
     }
 
-    LOG.debug("Evaluating {} at timestamp {} for values {}", this, timestamp, values);
     AlarmState initialState = subAlarm.getState();
     boolean thresholdExceeded = false;
     for (double value : values) {

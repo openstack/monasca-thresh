@@ -154,6 +154,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
         evaluationTimestamp);
     for (SubAlarmStatsRepository subAlarmStatsRepo : subAlarmStatsRepos.values())
       for (SubAlarmStats subAlarmStats : subAlarmStatsRepo.get()) {
+        LOG.debug("{} Evaluating {} at timestamp {}", context.getThisTaskId(),
+            subAlarmStats.getSubAlarm(), evaluationTimestamp);
         if (subAlarmStats.evaluateAndSlideWindow(evaluationTimestamp, newWindowTimestamp)) {
           LOG.debug("{} Alarm state changed for {}", context.getThisTaskId(), subAlarmStats);
           collector.emit(new Values(subAlarmStats.getSubAlarm().getAlarmId(),
