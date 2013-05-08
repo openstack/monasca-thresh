@@ -61,7 +61,7 @@ public class SubAlarmDAOImplTest {
 
     handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, metric_type, metric_subject, operator, threshold, period, periods, created_at, updated_at) "
         + "values ('333', '456', 'AVG', 'compute', 'cpu', '1', 'LT', 10, 60, 1, NOW(), NOW())");
-    handle.execute("insert into sub_alarm_dimension values ('333', 'flavor_id', '777')");
+    handle.execute("insert into sub_alarm_dimension values ('333', 'flavor_id', '333')");
     handle.execute("insert into sub_alarm_dimension values ('333', 'image_id', '999999')");
   }
 
