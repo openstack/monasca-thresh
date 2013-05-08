@@ -147,9 +147,10 @@ public class MetricAggregationBolt extends BaseRichBolt {
    * ago, then sliding the window to the current time.
    */
   void evaluateAlarmsAndSlideWindows() {
-    LOG.debug("{} Evaluating alarms and advancing windows", context.getThisTaskId());
     long newWindowTimestamp = System.currentTimeMillis() / 1000;
     long evaluationTimestamp = newWindowTimestamp - evaluationTimeOffset;
+    LOG.debug("{} Evaluating alarms and advancing windows at {}", context.getThisTaskId(),
+        evaluationTimestamp);
     for (SubAlarmStatsRepository subAlarmStatsRepo : subAlarmStatsRepos.values())
       for (SubAlarmStats subAlarmStats : subAlarmStatsRepo.get()) {
         LOG.debug("{} Evaluating {} for timestamp {}", context.getThisTaskId(), subAlarmStats,
