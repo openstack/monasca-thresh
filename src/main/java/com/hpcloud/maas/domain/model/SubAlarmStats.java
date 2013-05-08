@@ -24,7 +24,7 @@ public class SubAlarmStats {
   private final SubAlarm subAlarm;
   private final SlidingWindowStats stats;
   /** The number of times we can observe an empty window before transitioning to UNDETERMINED state. */
-  private final int emptyWindowObservationThreshold;
+  final int emptyWindowObservationThreshold;
   private int emptyWindowObservations;
 
   public SubAlarmStats(SubAlarm subAlarm, long viewEndTimestamp) {
@@ -37,8 +37,10 @@ public class SubAlarmStats {
     this.stats = new SlidingWindowStats(Statistics.statTypeFor(subAlarm.getExpression()
         .getFunction()), timeResolution, slotWidth, subAlarm.getExpression().getPeriods(),
         FUTURE_SLOTS + 1, viewEndTimestamp);
-    emptyWindowObservationThreshold = (subAlarm.getExpression().getPeriod() == 0 ? 1
-        : subAlarm.getExpression().getPeriod() * subAlarm.getExpression().getPeriods())
+    int period = subAlarm.getExpression().getPeriod();
+    int periodMinutes = period < 60 ? 1 : period / 60; // Assumes the period is in seconds so we
+                                                       // convert to minutes
+    emptyWindowObservationThreshold = periodMinutes * subAlarm.getExpression().getPeriods()
         * UNDETERMINED_COEFFICIENT;
     emptyWindowObservations = emptyWindowObservationThreshold;
   }

@@ -94,4 +94,11 @@ public class SubAlarmStatsTest {
     assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
   }
+
+  public void testEmptyWindowObservationThreshold() {
+    expression = AlarmSubExpression.of("avg(compute:cpu:{id=5}) > 3 times 3");
+    subAlarm = new SubAlarm("123", "1", expression);
+    SubAlarmStats saStats = new SubAlarmStats(subAlarm, (System.currentTimeMillis() / 1000) + 60);
+    assertEquals(saStats.emptyWindowObservationThreshold, 6);
+  }
 }
