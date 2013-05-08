@@ -31,8 +31,11 @@ public class CollectdMetricDeserializer implements TupleDeserializer, Serializab
       return null;
 
     List<List<?>> results = new ArrayList<List<?>>(metrics.size());
-    for (Metric metric : metrics)
+    for (Metric metric : metrics) {
+      // TODO remove in the future
+      CollectdMetrics.removeUnsupportedDimensions(metric.definition);
       results.add(Arrays.asList(metric.definition, metric));
+    }
     return results;
   }
 

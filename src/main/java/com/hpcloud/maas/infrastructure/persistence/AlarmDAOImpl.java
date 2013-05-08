@@ -13,6 +13,7 @@ import com.hpcloud.maas.common.model.alarm.AggregateFunction;
 import com.hpcloud.maas.common.model.alarm.AlarmOperator;
 import com.hpcloud.maas.common.model.alarm.AlarmState;
 import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
+import com.hpcloud.maas.common.model.metric.CollectdMetrics;
 import com.hpcloud.maas.common.model.metric.MetricDefinition;
 import com.hpcloud.maas.domain.model.Alarm;
 import com.hpcloud.maas.domain.model.SubAlarm;
@@ -33,10 +34,15 @@ public class AlarmDAOImpl implements AlarmDAO {
     this.db = db;
   }
 
+  private static Map<String, String> findDimensionsById(Handle handle, String subAlarmId) {
+    return SqlQueries.keyValuesFor(handle,
+        "select dimension_name, value from sub_alarm_dimension where sub_alarm_id = ?", subAlarmId);
+  }
+
   /**
    * Returns a list of SubAlarms for the complete (select *) set of {@code subAlarmRows}.
    */
-  public static List<SubAlarm> subAlarmsForRows(Handle handle,
+  private static List<SubAlarm> subAlarmsForRows(Handle handle,
       List<Map<String, Object>> subAlarmRows) {
     List<SubAlarm> subAlarms = new ArrayList<SubAlarm>(subAlarmRows.size());
 
@@ -46,6 +52,8 @@ public class AlarmDAOImpl implements AlarmDAO {
       AggregateFunction function = AggregateFunction.valueOf((String) row.get("function"));
       MetricDefinition metricDef = new MetricDefinition((String) row.get("namespace"),
           (String) row.get("metric_type"), (String) row.get("metric_subject"), dimensions);
+      // TODO remove later when collectd supports all dimensions
+      CollectdMetrics.removeUnsupportedDimensions(metricDef);
       AlarmOperator operator = AlarmOperator.valueOf((String) row.get("operator"));
       AlarmSubExpression subExpression = new AlarmSubExpression(function, metricDef, operator,
           (Double) row.get("threshold"), (Integer) row.get("period"), (Integer) row.get("periods"));
@@ -54,11 +62,6 @@ public class AlarmDAOImpl implements AlarmDAO {
     }
 
     return subAlarms;
-  }
-
-  private static Map<String, String> findDimensionsById(Handle handle, String subAlarmId) {
-    return SqlQueries.keyValuesFor(handle,
-        "select dimension_name, value from sub_alarm_dimension where sub_alarm_id = ?", subAlarmId);
   }
 
   @Override

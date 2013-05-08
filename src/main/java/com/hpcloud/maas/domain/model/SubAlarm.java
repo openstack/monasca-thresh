@@ -19,10 +19,7 @@ public class SubAlarm extends AbstractEntity implements Serializable {
   private AlarmState state;
 
   public SubAlarm(String id, String alarmId, AlarmSubExpression expression) {
-    this.id = id;
-    this.alarmId = alarmId;
-    this.expression = expression;
-    this.state = AlarmState.UNDETERMINED;
+    this(id, alarmId, expression, AlarmState.UNDETERMINED);
   }
 
   public SubAlarm(String id, String alarmId, AlarmSubExpression expression, AlarmState state) {
