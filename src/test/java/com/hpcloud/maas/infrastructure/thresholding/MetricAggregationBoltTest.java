@@ -83,7 +83,7 @@ public class MetricAggregationBoltTest {
   }
 
   public void shouldAggregateValues() {
-    long t1 = System.currentTimeMillis();
+    long t1 = System.currentTimeMillis() / 1000;
 
     bolt.aggregateValues(new Metric(subExpr1.getMetricDefinition(), t1, 100));
     bolt.aggregateValues(new Metric(subExpr1.getMetricDefinition(), t1, 80));
@@ -104,10 +104,10 @@ public class MetricAggregationBoltTest {
       bolt.getOrCreateSubAlarmStatsRepo(subExp.getMetricDefinition());
 
     // Given
-    long t1 = System.currentTimeMillis();
+    long t1 = System.currentTimeMillis() / 1000;
     bolt.aggregateValues(new Metric(subExpr1.getMetricDefinition(), t1, 100));
-    bolt.aggregateValues(new Metric(subExpr1.getMetricDefinition(), t1 -= 60000, 95));
-    bolt.aggregateValues(new Metric(subExpr1.getMetricDefinition(), t1 -= 60000, 88));
+    bolt.aggregateValues(new Metric(subExpr1.getMetricDefinition(), t1 -= 60, 95));
+    bolt.aggregateValues(new Metric(subExpr1.getMetricDefinition(), t1 -= 60, 88));
 
     bolt.evaluateAlarmsAndSlideWindows();
     assertEquals(subAlarm2.getState(), AlarmState.UNDETERMINED);

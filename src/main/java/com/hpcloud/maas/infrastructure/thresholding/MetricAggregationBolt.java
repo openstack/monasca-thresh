@@ -121,7 +121,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
     this.context = context;
     this.collector = collector;
     evaluationTimeOffset = Integer.valueOf(System.getProperty(TICK_TUPLE_SECONDS_KEY, "60"))
-        .intValue() * 1000;
+        .intValue();
 
     if (subAlarmDAO == null) {
       Injector.registerIfNotBound(SubAlarmDAO.class, new PersistenceModule(dbConfig));
@@ -148,7 +148,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
    */
   void evaluateAlarmsAndSlideWindows() {
     LOG.debug("{} Evaluating alarms and advancing windows", context.getThisTaskId());
-    long newWindowTimestamp = System.currentTimeMillis();
+    long newWindowTimestamp = System.currentTimeMillis() / 1000;
     long evaluationTimestamp = newWindowTimestamp - evaluationTimeOffset;
     for (SubAlarmStatsRepository subAlarmStatsRepo : subAlarmStatsRepos.values())
       for (SubAlarmStats subAlarmStats : subAlarmStatsRepo.get()) {
@@ -174,7 +174,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
       if (subAlarms.isEmpty())
         LOG.warn("{} Failed to find sub alarms for {}", context.getThisTaskId(), metricDefinition);
       else {
-        long viewEndTimestamp = System.currentTimeMillis() + evaluationTimeOffset;
+        long viewEndTimestamp = (System.currentTimeMillis() / 1000) + evaluationTimeOffset;
         LOG.debug("Creating SubAlarmStats with viewEndTimestamp {} for {}", viewEndTimestamp,
             subAlarms);
         subAlarmStatsRepo = new SubAlarmStatsRepository(subAlarms, viewEndTimestamp);
@@ -194,7 +194,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
     if (subAlarmStatsRepo == null)
       return;
 
-    long viewEndTimestamp = System.currentTimeMillis() + evaluationTimeOffset;
+    long viewEndTimestamp = (System.currentTimeMillis() / 1000) + evaluationTimeOffset;
     subAlarmStatsRepo.add(subAlarm, viewEndTimestamp);
   }
 

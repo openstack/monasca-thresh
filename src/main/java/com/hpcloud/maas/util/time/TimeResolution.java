@@ -12,10 +12,16 @@ public enum TimeResolution {
       return timestamp;
     }
   },
-  MILLISECONDS {
+  SECONDS {
     @Override
     public long adjust(long timestamp) {
       return Times.roundDownToNearestSecond(timestamp);
+    }
+  },
+  MINUTES {
+    @Override
+    public long adjust(long timestamp) {
+      return Times.roundDownToNearestMinute(timestamp);
     }
   };
 

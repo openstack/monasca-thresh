@@ -10,11 +10,11 @@ public final class Times {
   }
 
   /**
-   * Returns a timestamp in milliseconds for the given {@code milliseconds} which is rounded down to
-   * the nearest minute.
+   * Returns a timestamp in seconds for the given {@code seconds} which is rounded down to the
+   * nearest minute.
    */
-  public static long roundDownToNearestMinute(long milliseconds) {
-    return milliseconds / 60000 * 60000;
+  public static long roundDownToNearestMinute(long seconds) {
+    return seconds / 60 * 60;
   }
 
   /**

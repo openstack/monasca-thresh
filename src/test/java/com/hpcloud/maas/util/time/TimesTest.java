@@ -11,10 +11,10 @@ import org.testng.annotations.Test;
 @Test
 public class TimesTest {
   public void shouldRoundDownToNearestMinute() {
-    long t = 1363982335257L;
+    long t = 1367971679L; // Unix time
     long rounded = Times.roundDownToNearestMinute(t);
-    DateTime dt = new DateTime(t);
-    DateTime dt1 = new DateTime(rounded);
+    DateTime dt = new DateTime(t * 1000);
+    DateTime dt1 = new DateTime(rounded * 1000);
 
     assertEquals(dt.getYear(), dt1.getYear());
     assertEquals(dt.getMonthOfYear(), dt1.getMonthOfYear());
@@ -26,7 +26,7 @@ public class TimesTest {
   }
 
   public void shouldRoundDownToNearestSecond() {
-    long t = 1363982335257L;
+    long t = 1363982335257L; // Java time
     long rounded = Times.roundDownToNearestSecond(t);
     DateTime dt = new DateTime(t);
     DateTime dt1 = new DateTime(rounded);
