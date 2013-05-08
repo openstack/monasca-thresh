@@ -12,6 +12,7 @@ import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
+import backtype.storm.tuple.Values;
 
 import com.hpcloud.maas.common.event.AlarmCreatedEvent;
 import com.hpcloud.maas.common.event.AlarmDeletedEvent;
@@ -107,8 +108,10 @@ public class MetricFilteringBolt extends BaseRichBolt {
     if (METRIC_DEFS.isEmpty()) {
       synchronized (SENTINAL) {
         if (METRIC_DEFS.isEmpty()) {
-          for (MetricDefinition metricDef : metricDefDAO.findForAlarms())
+          for (MetricDefinition metricDef : metricDefDAO.findForAlarms()) {
             METRIC_DEFS.put(metricDef, SENTINAL);
+            collector.emit(new Values(metricDef, null));
+          }
         }
       }
     }

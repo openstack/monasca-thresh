@@ -82,8 +82,9 @@ public class MetricAggregationBolt extends BaseRichBolt {
         evaluateAlarmsAndSlideWindows();
       } else {
         if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
+          MetricDefinition metricDefinition = (MetricDefinition) tuple.getValue(0);
           Metric metric = (Metric) tuple.getValueByField("metric");
-          aggregateValues(metric);
+          aggregateValues(metricDefinition, metric);
         } else {
           String eventType = tuple.getString(0);
           MetricDefinition metricDefinition = (MetricDefinition) tuple.getValue(1);
@@ -132,12 +133,12 @@ public class MetricAggregationBolt extends BaseRichBolt {
   /**
    * Aggregates values for the {@code metric} that are within the periods defined for the alarm.
    */
-  void aggregateValues(Metric metric) {
-    LOG.trace("{} Aggregating values for {}", context.getThisTaskId(), metric);
-    SubAlarmStatsRepository subAlarmStatsRepo = getOrCreateSubAlarmStatsRepo(metric.definition);
-    if (subAlarmStatsRepo == null)
+  void aggregateValues(MetricDefinition metricDefinition, Metric metric) {
+    SubAlarmStatsRepository subAlarmStatsRepo = getOrCreateSubAlarmStatsRepo(metricDefinition);
+    if (subAlarmStatsRepo == null || metric == null)
       return;
 
+    LOG.trace("{} Aggregating values for {}", context.getThisTaskId(), metric);
     for (SubAlarmStats stats : subAlarmStatsRepo.get())
       stats.getStats().addValue(metric.value, metric.timestamp);
   }
@@ -174,8 +175,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
         LOG.warn("{} Failed to find sub alarms for {}", context.getThisTaskId(), metricDefinition);
       else {
         long viewEndTimestamp = (System.currentTimeMillis() / 1000) + evaluationTimeOffset;
-        LOG.debug("Creating SubAlarmStats with viewEndTimestamp {} for {}", viewEndTimestamp,
-            subAlarms);
+        LOG.debug("{} Creating SubAlarmStats with viewEndTimestamp {} for {}",
+            context.getThisTaskId(), viewEndTimestamp, subAlarms);
         subAlarmStatsRepo = new SubAlarmStatsRepository(subAlarms, viewEndTimestamp);
         subAlarmStatsRepos.put(metricDefinition, subAlarmStatsRepo);
       }
