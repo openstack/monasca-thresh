@@ -52,7 +52,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   private String alertRoutingKey;
   private transient AlarmDAO alarmDAO;
   private transient RabbitMQService rabbitService;
-  private TopologyContext context;
+  private TopologyContext ctx;
   private OutputCollector collector;
 
   public AlarmThresholdingBolt(DatabaseConfiguration dbConfig, RabbitMQConfiguration rabbitConfig) {
@@ -83,7 +83,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
           handleAlarmDeleted(alarmId);
       }
     } catch (Exception e) {
-      LOG.error("{} Error processing tuple {}", context.getThisTaskId(), tuple, e);
+      LOG.error("{} Error processing tuple {}", ctx.getThisTaskId(), tuple, e);
     } finally {
       collector.ack(tuple);
     }
@@ -93,7 +93,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   @SuppressWarnings("rawtypes")
   public void prepare(Map config, TopologyContext context, OutputCollector collector) {
     LOG.info("{} Preparing {}", context.getThisTaskId(), context.getThisComponentId());
-    this.context = context;
+    this.ctx = context;
     this.collector = collector;
     alertExchange = (String) config.get(ThresholdingConfiguration.ALERTS_EXCHANGE);
     alertRoutingKey = (String) config.get(ThresholdingConfiguration.ALERTS_ROUTING_KEY);
@@ -106,7 +106,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   }
 
   void evaluateThreshold(Alarm alarm, SubAlarm subAlarm) {
-    LOG.debug("{} Received state change for {}", context.getThisTaskId(), subAlarm);
+    LOG.debug("{} Received state change for {}", ctx.getThisTaskId(), subAlarm);
     alarm.updateSubAlarm(subAlarm);
 
     AlarmState initialState = alarm.getState();
@@ -114,18 +114,18 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
       alarmDAO.updateState(alarm.getId(), alarm.getState());
 
       if (AlarmState.ALARM.equals(alarm.getState())) {
-        LOG.debug("{} ALARM triggered for {}", context.getThisTaskId(), alarm);
+        LOG.debug("{} ALARM triggered for {}", ctx.getThisTaskId(), alarm);
         AlarmStateTransitionEvent event = new AlarmStateTransitionEvent(alarm.getTenantId(),
             alarm.getId(), alarm.getName(), initialState, alarm.getState(),
             alarm.getStateChangeReason(), System.currentTimeMillis() / 1000);
         rabbitService.send(alertExchange, alertRoutingKey, Serialization.toJson(event));
       } else
-        LOG.debug("{} State changed for {}", context.getThisTaskId(), alarm);
+        LOG.debug("{} State changed for {}", ctx.getThisTaskId(), alarm);
     }
   }
 
   void handleAlarmDeleted(String alarmId) {
-    LOG.debug("{} Received AlarmDeletedEvent for alarm id {}", context.getThisTaskId(), alarmId);
+    LOG.debug("{} Received AlarmDeletedEvent for alarm id {}", ctx.getThisTaskId(), alarmId);
     alarms.remove(alarmId);
   }
 
@@ -138,7 +138,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     if (alarm == null) {
       alarm = alarmDAO.findById(alarmId);
       if (alarm == null)
-        LOG.error("{} Failed to locate alarm for id {}", context.getThisTaskId(), alarmId);
+        LOG.error("{} Failed to locate alarm for id {}", ctx.getThisTaskId(), alarmId);
       else {
         alarms.put(alarmId, alarm);
       }

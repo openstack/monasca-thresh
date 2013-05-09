@@ -44,7 +44,7 @@ public class EventProcessingBolt extends BaseRichBolt {
   /** Stream for metric and sub-alarm specific events. */
   public static final String METRIC_SUB_ALARM_EVENT_STREAM_ID = "metric-sub-alarm-events";
 
-  private TopologyContext context;
+  private TopologyContext ctx;
   private OutputCollector collector;
 
   @Override
@@ -60,13 +60,13 @@ public class EventProcessingBolt extends BaseRichBolt {
   public void execute(Tuple tuple) {
     try {
       Object event = tuple.getValue(0);
-      LOG.trace("{} Received event for processing {}", context.getThisTaskId(), event);
+      LOG.trace("{} Received event for processing {}", ctx.getThisTaskId(), event);
       if (event instanceof AlarmCreatedEvent)
         handle((AlarmCreatedEvent) event);
       else if (event instanceof AlarmDeletedEvent)
         handle((AlarmDeletedEvent) event);
     } catch (Exception e) {
-      LOG.error("{} Error processing tuple {}", context.getThisTaskId(), tuple, e);
+      LOG.error("{} Error processing tuple {}", ctx.getThisTaskId(), tuple, e);
     } finally {
       collector.ack(tuple);
     }
@@ -76,7 +76,7 @@ public class EventProcessingBolt extends BaseRichBolt {
   @SuppressWarnings("rawtypes")
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
     LOG.info("{} Preparing {}", context.getThisTaskId(), context.getThisComponentId());
-    this.context = context;
+    this.ctx = context;
     this.collector = collector;
   }
 

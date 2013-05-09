@@ -47,7 +47,7 @@ public class MetricFilteringBolt extends BaseRichBolt {
 
   private final DatabaseConfiguration dbConfig;
   private transient MetricDefinitionDAO metricDefDAO;
-  private TopologyContext context;
+  private TopologyContext ctx;
   private OutputCollector collector;
 
   public MetricFilteringBolt(DatabaseConfiguration dbConfig) {
@@ -73,20 +73,18 @@ public class MetricFilteringBolt extends BaseRichBolt {
 
         if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
           if (AlarmDeletedEvent.class.getSimpleName().equals(eventType)) {
-            LOG.debug("{} Received AlarmDeletedEvent for {}", context.getThisTaskId(),
-                metricDefinition);
+            LOG.debug("{} Received AlarmDeletedEvent for {}", ctx.getThisTaskId(), metricDefinition);
             METRIC_DEFS.remove(metricDefinition);
           }
         } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
           if (AlarmCreatedEvent.class.getSimpleName().equals(eventType)) {
-            LOG.debug("{} Received AlarmCreatedEvent for {}", context.getThisTaskId(),
-                metricDefinition);
+            LOG.debug("{} Received AlarmCreatedEvent for {}", ctx.getThisTaskId(), metricDefinition);
             METRIC_DEFS.put(metricDefinition, SENTINAL);
           }
         }
       }
     } catch (Exception e) {
-      LOG.error("{} Error processing tuple {}", context.getThisTaskId(), tuple, e);
+      LOG.error("{} Error processing tuple {}", ctx.getThisTaskId(), tuple, e);
     } finally {
       collector.ack(tuple);
     }
@@ -96,7 +94,7 @@ public class MetricFilteringBolt extends BaseRichBolt {
   @SuppressWarnings("rawtypes")
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
     LOG.info("{} Preparing {}", context.getThisTaskId(), context.getThisComponentId());
-    this.context = context;
+    this.ctx = context;
     this.collector = collector;
 
     if (metricDefDAO == null) {
