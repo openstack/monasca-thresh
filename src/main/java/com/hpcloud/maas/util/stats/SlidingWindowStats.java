@@ -2,10 +2,8 @@ package com.hpcloud.maas.util.stats;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.hpcloud.maas.util.time.TimeResolution;
+import com.hpcloud.util.Exceptions;
 
 /**
  * A time based sliding window containing statistics for a fixed number of slots of a fixed length.
@@ -15,8 +13,6 @@ import com.hpcloud.maas.util.time.TimeResolution;
  */
 @NotThreadSafe
 public class SlidingWindowStats {
-  private static final Logger LOG = LoggerFactory.getLogger(SlidingWindowStats.class);
-
   private final TimeResolution timescale;
   private final long slotWidth;
   private final int numViewSlots;
@@ -83,27 +79,26 @@ public class SlidingWindowStats {
     try {
       return new Slot(timestamp, statType.newInstance());
     } catch (Exception e) {
-      LOG.error("Failed to initialize slot", e);
-      return null;
+      throw Exceptions.uncheck(e, "Failed to initialize slot");
     }
   }
 
   /**
-   * Adds the {@code value} to the statistics for the slot associated with the {@code timestamp},
-   * else <b>does nothing</b> if the {@code timestamp} is outside of the window.
+   * Adds the {@code value} to the statistics for the slot associated with the {@code timestamp} and
+   * returns true, else returns false if the {@code timestamp} is outside of the window.
    * 
    * @param value to add
    * @param timestamp to add value for
+   * @return true if the value was added else false if it the {@code timestamp} was outside the
+   *         window
    */
-  public void addValue(double value, long timestamp) {
+  public boolean addValue(double value, long timestamp) {
     timestamp = timescale.adjust(timestamp);
     int index = indexOfTime(timestamp);
     if (index == -1)
-      LOG.warn("Timestamp {} is outside of window {}", timestamp, toString());
-    else {
-      slots[index].stat.addValue(value);
-      LOG.trace("Added value for {}. New window {}", timestamp, toString());
-    }
+      return false;
+    slots[index].stat.addValue(value);
+    return true;
   }
 
   /** Returns the number of slots in the window. */

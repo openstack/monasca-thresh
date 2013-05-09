@@ -139,8 +139,14 @@ public class MetricAggregationBolt extends BaseRichBolt {
       return;
 
     LOG.trace("{} Aggregating values for {}", context.getThisTaskId(), metric);
-    for (SubAlarmStats stats : subAlarmStatsRepo.get())
-      stats.getStats().addValue(metric.value, metric.timestamp);
+    for (SubAlarmStats stats : subAlarmStatsRepo.get()) {
+      if (stats.getStats().addValue(metric.value, metric.timestamp))
+        LOG.trace("{} Added value {} for {}. Updated {}", context.getThisTaskId(), metric.value,
+            metric.timestamp, stats.getStats());
+      else
+        LOG.warn("{} Metric timestamp {} is outside of {}", context.getThisTaskId(),
+            metric.timestamp, stats.getStats());
+    }
   }
 
   /**
