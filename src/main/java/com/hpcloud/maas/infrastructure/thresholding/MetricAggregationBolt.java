@@ -183,8 +183,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
         LOG.warn("{} Failed to find sub alarms for {}", context.getThisTaskId(), metricDefinition);
       else {
         long viewEndTimestamp = (System.currentTimeMillis() / 1000) + evaluationTimeOffset;
-        LOG.debug("{} Creating SubAlarmStats with viewEndTimestamp {} for {}",
-            context.getThisTaskId(), viewEndTimestamp, subAlarms);
+        LOG.debug("{} Creating SubAlarmStats for {}", context.getThisTaskId(), subAlarms);
         subAlarmStatsRepo = new SubAlarmStatsRepository(subAlarms, viewEndTimestamp);
         subAlarmStatsRepos.put(metricDefinition, subAlarmStatsRepo);
       }
