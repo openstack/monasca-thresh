@@ -265,8 +265,8 @@ public class SlidingWindowStatsTest {
         "SlidingWindowStats [[5=NaN, 10=NaN, 15=NaN], 20=NaN, 25=NaN]");
 
     SlidingWindowStats bigWindow = new SlidingWindowStats(Statistics.Sum.class,
-        TimeResolution.ABSOLUTE, 1, 10, 2, 20);
+        TimeResolution.ABSOLUTE, 10, 10, 2, 50);
     assertEquals(bigWindow.toString(),
-        "SlidingWindowStats [[... 17=NaN, 18=NaN, 19=NaN], 20=NaN, 21=NaN]");
+        "SlidingWindowStats [[... 20=NaN, 30=NaN, 40=NaN], 50=NaN, 60=NaN]");
   }
 }
