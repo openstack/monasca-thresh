@@ -36,7 +36,7 @@ public class SubAlarmStats {
     this.subAlarm = subAlarm;
     this.stats = new SlidingWindowStats(Statistics.statTypeFor(subAlarm.getExpression()
         .getFunction()), timeResolution, slotWidth, subAlarm.getExpression().getPeriods(),
-        FUTURE_SLOTS + 1, viewEndTimestamp);
+        FUTURE_SLOTS, viewEndTimestamp);
     int period = subAlarm.getExpression().getPeriod();
     int periodMinutes = period < 60 ? 1 : period / 60; // Assumes the period is in seconds so we
                                                        // convert to minutes
