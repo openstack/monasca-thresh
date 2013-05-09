@@ -19,11 +19,10 @@ public class SlidingWindowStats {
   private final long windowLength;
   private final Slot[] slots;
 
+  private int windowBeginIndex;
   private long viewEndTimestamp;
   private long slotEndTimestamp;
   private long windowEndTimestamp;
-  private int lastViewIndex;
-  private int windowBeginIndex;
 
   private static class Slot {
     private long timestamp;
@@ -66,7 +65,6 @@ public class SlidingWindowStats {
     this.viewEndTimestamp = timeResolution.adjust(viewEndTimestamp);
     slotEndTimestamp = this.viewEndTimestamp;
     windowEndTimestamp = this.viewEndTimestamp + (numFutureSlots * slotWidth);
-    lastViewIndex = numViewSlots - 1;
 
     slots = new Slot[numViewSlots + numFutureSlots];
     long timestamp = windowEndTimestamp - slotWidth;
@@ -200,7 +198,6 @@ public class SlidingWindowStats {
 
       slotEndTimestamp += slotWidth;
       windowEndTimestamp += slotWidth;
-      lastViewIndex = indexAfter(lastViewIndex);
     }
 
     viewEndTimestamp = timestamp;
@@ -211,12 +208,18 @@ public class SlidingWindowStats {
    */
   @Override
   public String toString() {
+    final int viewSlotsToDisplay = 3;
+    
     StringBuilder b = new StringBuilder();
     b.append("SlidingWindowStats [[");
-    for (int i = 0, index = windowBeginIndex; i < slots.length; i++, index = indexAfter(index)) {
+    int startIndex = numViewSlots > viewSlotsToDisplay ? numViewSlots - viewSlotsToDisplay : 0;
+    if (startIndex != 0)
+      b.append("... ");
+    int index = indexOf(startIndex);
+    for (int i = startIndex; i < slots.length; i++, index = indexAfter(index)) {
       if (i == numViewSlots)
         b.append("], ");
-      else if (i != 0)
+      else if (i != startIndex)
         b.append(", ");
       b.append(slots[index]);
     }
