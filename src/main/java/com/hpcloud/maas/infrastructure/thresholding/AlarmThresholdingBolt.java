@@ -117,7 +117,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
         LOG.debug("{} ALARM triggered for {}", context.getThisTaskId(), alarm);
         AlarmStateTransitionEvent event = new AlarmStateTransitionEvent(alarm.getTenantId(),
             alarm.getId(), alarm.getName(), initialState, alarm.getState(),
-            alarm.getStateChangeReason(), System.currentTimeMillis());
+            alarm.getStateChangeReason(), System.currentTimeMillis() / 1000);
         rabbitService.send(alertExchange, alertRoutingKey, Serialization.toJson(event));
       } else
         LOG.debug("{} State changed for {}", context.getThisTaskId(), alarm);
