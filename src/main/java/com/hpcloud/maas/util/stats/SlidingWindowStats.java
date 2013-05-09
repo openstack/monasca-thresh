@@ -40,20 +40,20 @@ public class SlidingWindowStats {
   }
 
   /**
-   * Creates a time based SlidingWindowStats containing a fixed {@code numSlots} representing a view
-   * up to the {@code initialViewTimestamp}, and an additional {@code numFutureSlots} for timestamps
-   * beyond the current window view.
+   * Creates a time based SlidingWindowStats containing a fixed {@code numViewSlots} representing a
+   * view up to the {@code viewEndTimestamp} (non-inclusive), and an additional
+   * {@code numFutureSlots} for timestamps beyond the window view.
    * 
-   * It is recommended to make the {@code viewEndTimestamp} one time unit less than the current
-   * time, so that as the window slides to the right any added values will slide all the way across
-   * the view.
+   * It is recommended to make the {@code viewEndTimestamp} one time unit more than the current time
+   * intended for the last view slot, so that as the window slides to the right any added values
+   * will slide all the way across the view.
    * 
    * @param statType to calculate values for
    * @param timeResolution to adjust timestamps with
    * @param slotWidth time-based width of the slot
    * @param numViewSlots the number of viewable slots
    * @param numFutureSlots the number of future slots to allow values for
-   * @param viewEndTimestamp timestamp to end view at
+   * @param viewEndTimestamp timestamp to end view at, non-inclusive
    */
   public SlidingWindowStats(Class<? extends Statistic> statType, TimeResolution timeResolution,
       long slotWidth, int numViewSlots, int numFutureSlots, long viewEndTimestamp) {
@@ -209,7 +209,7 @@ public class SlidingWindowStats {
   @Override
   public String toString() {
     final int viewSlotsToDisplay = 3;
-    
+
     StringBuilder b = new StringBuilder();
     b.append("SlidingWindowStats [[");
     int startIndex = numViewSlots > viewSlotsToDisplay ? numViewSlots - viewSlotsToDisplay : 0;
