@@ -46,17 +46,16 @@ public class SubAlarmStats {
   }
 
   /**
-   * Evaluates the {@link #subAlarm} for stats up to and including the {@code evaluationTimestamp},
-   * updating the sub-alarm's state if necessary and sliding the window to the
-   * {@code slideToTimestamp}.
+   * Evaluates the {@link #subAlarm} for the current stats window, updating the sub-alarm's state if
+   * necessary and sliding the window to the {@code slideToTimestamp}.
    * 
    * @return true if the alarm's state changed, else false.
    */
-  public boolean evaluateAndSlideWindow(long evaluateTimestamp, long slideToTimestamp) {
+  public boolean evaluateAndSlideWindow(long slideToTimestamp) {
     try {
-      return evaluate(evaluateTimestamp);
+      return evaluate();
     } catch (Exception e) {
-      LOG.error("Failed to evaluate {} for timestamp {}", this, evaluateTimestamp, e);
+      LOG.error("Failed to evaluate {}", this, e);
       return false;
     } finally {
       stats.slideViewTo(slideToTimestamp);
@@ -87,15 +86,8 @@ public class SubAlarmStats {
   /**
    * @throws IllegalStateException if the {@code timestamp} is outside of the {@link #stats} window
    */
-  boolean evaluate(long timestamp) {
-    double[] values = null;
-
-    try {
-      values = stats.getValuesUpTo(timestamp);
-    } catch (IllegalStateException ignore) {
-      return false;
-    }
-
+  boolean evaluate() {
+    double[] values = stats.getViewValues();
     AlarmState initialState = subAlarm.getState();
     boolean thresholdExceeded = false;
     for (double value : values) {
