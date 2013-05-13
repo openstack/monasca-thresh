@@ -51,12 +51,16 @@ public class MetricAggregationBoltTest {
   private SubAlarm subAlarm2;
   private AlarmSubExpression subExpr1;
   private AlarmSubExpression subExpr2;
+  private MetricDefinition metricDef1;
+  private MetricDefinition metricDef2;
 
   @BeforeClass
   protected void beforeClass() {
     subExpr1 = AlarmSubExpression.of("avg(hpcs.compute:cpu:{id=5}, 60) >= 90 times 3");
     subExpr2 = AlarmSubExpression.of("avg(hpcs.compute:mem:{id=5}, 60) >= 90 times 3");
     subExpressions = Arrays.asList(subExpr1, subExpr2);
+    metricDef1 = subExpr1.getMetricDefinition();
+    metricDef2 = subExpr2.getMetricDefinition();
   }
 
   @BeforeMethod
@@ -85,16 +89,15 @@ public class MetricAggregationBoltTest {
   public void shouldAggregateValues() {
     long t1 = System.currentTimeMillis() / 1000;
 
-    bolt.aggregateValues(new Metric(subExpr1.getMetricDefinition(), t1, 100));
-    bolt.aggregateValues(new Metric(subExpr1.getMetricDefinition(), t1, 80));
-    bolt.aggregateValues(new Metric(subExpr2.getMetricDefinition(), t1, 50));
-    bolt.aggregateValues(new Metric(subExpr2.getMetricDefinition(), t1, 40));
+    bolt.aggregateValues(metricDef1, new Metric(metricDef1, t1, 100));
+    bolt.aggregateValues(metricDef1, new Metric(metricDef1, t1, 80));
+    bolt.aggregateValues(metricDef2, new Metric(metricDef2, t1, 50));
+    bolt.aggregateValues(metricDef2, new Metric(metricDef2, t1, 40));
 
-    SubAlarmStats alarmData = bolt.getOrCreateSubAlarmStatsRepo(subExpr1.getMetricDefinition())
-        .get("123");
+    SubAlarmStats alarmData = bolt.getOrCreateSubAlarmStatsRepo(metricDef1).get("123");
     assertEquals(alarmData.getStats().getValue(t1), 90.0);
 
-    alarmData = bolt.getOrCreateSubAlarmStatsRepo(subExpr2.getMetricDefinition()).get("456");
+    alarmData = bolt.getOrCreateSubAlarmStatsRepo(metricDef2).get("456");
     assertEquals(alarmData.getStats().getValue(t1), 45.0);
   }
 
@@ -105,14 +108,14 @@ public class MetricAggregationBoltTest {
 
     // Given
     long t1 = System.currentTimeMillis() / 1000;
-    bolt.aggregateValues(new Metric(subExpr1.getMetricDefinition(), t1, 100));
-    bolt.aggregateValues(new Metric(subExpr1.getMetricDefinition(), t1 -= 60, 95));
-    bolt.aggregateValues(new Metric(subExpr1.getMetricDefinition(), t1 -= 60, 88));
+    bolt.aggregateValues(metricDef1, new Metric(metricDef1, t1, 100));
+    bolt.aggregateValues(metricDef1, new Metric(metricDef1, t1 -= 60, 95));
+    bolt.aggregateValues(metricDef1, new Metric(metricDef1, t1 -= 60, 88));
 
     bolt.evaluateAlarmsAndSlideWindows();
     assertEquals(subAlarm2.getState(), AlarmState.UNDETERMINED);
 
-    bolt.aggregateValues(new Metric(subExpr1.getMetricDefinition(), t1, 99));
+    bolt.aggregateValues(metricDef1, new Metric(metricDef1, t1, 99));
 
     bolt.evaluateAlarmsAndSlideWindows();
     assertEquals(subAlarm1.getState(), AlarmState.ALARM);
@@ -124,32 +127,31 @@ public class MetricAggregationBoltTest {
     tupleParam.setFields("eventType", "metricDefinition", "subAlarm");
     tupleParam.setStream(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID);
 
-    assertNull(bolt.subAlarmStatsRepos.get(subExpr1.getMetricDefinition()));
+    assertNull(bolt.subAlarmStatsRepos.get(metricDef1));
 
     bolt.execute(Testing.testTuple(Arrays.asList(AlarmCreatedEvent.class.getSimpleName(),
-        subExpr1.getMetricDefinition(), new SubAlarm("123", "1", subExpr1)), tupleParam));
+        metricDef1, new SubAlarm("123", "1", subExpr1)), tupleParam));
 
-    assertNotNull(bolt.subAlarmStatsRepos.get(subExpr1.getMetricDefinition()).get("123"));
+    assertNotNull(bolt.subAlarmStatsRepos.get(metricDef1).get("123"));
   }
 
   public void shouldHandleAlarmDeleted() {
     MkTupleParam tupleParam = new MkTupleParam();
     tupleParam.setFields("eventType", "metricDefinition", "alarmId");
     tupleParam.setStream(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID);
-    bolt.getOrCreateSubAlarmStatsRepo(subExpr1.getMetricDefinition());
+    bolt.getOrCreateSubAlarmStatsRepo(metricDef1);
 
-    assertNotNull(bolt.subAlarmStatsRepos.get(subExpr1.getMetricDefinition()).get("123"));
+    assertNotNull(bolt.subAlarmStatsRepos.get(metricDef1).get("123"));
 
     bolt.execute(Testing.testTuple(
-        Arrays.asList(AlarmDeletedEvent.class.getSimpleName(), subExpr1.getMetricDefinition(), "123"),
-        tupleParam));
+        Arrays.asList(AlarmDeletedEvent.class.getSimpleName(), metricDef1, "123"), tupleParam));
 
-    assertNull(bolt.subAlarmStatsRepos.get(subExpr1.getMetricDefinition()));
+    assertNull(bolt.subAlarmStatsRepos.get(metricDef1));
   }
 
   public void shouldGetOrCreateSameMetricData() {
-    SubAlarmStatsRepository data = bolt.getOrCreateSubAlarmStatsRepo(subExpr1.getMetricDefinition());
+    SubAlarmStatsRepository data = bolt.getOrCreateSubAlarmStatsRepo(metricDef1);
     assertNotNull(data);
-    assertEquals(bolt.getOrCreateSubAlarmStatsRepo(subExpr1.getMetricDefinition()), data);
+    assertEquals(bolt.getOrCreateSubAlarmStatsRepo(metricDef1), data);
   }
 }

@@ -2,10 +2,8 @@ package com.hpcloud.maas.util.stats;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.hpcloud.maas.util.time.TimeResolution;
+import com.hpcloud.util.Exceptions;
 
 /**
  * A time based sliding window containing statistics for a fixed number of slots of a fixed length.
@@ -15,19 +13,16 @@ import com.hpcloud.maas.util.time.TimeResolution;
  */
 @NotThreadSafe
 public class SlidingWindowStats {
-  private static final Logger LOG = LoggerFactory.getLogger(SlidingWindowStats.class);
-
   private final TimeResolution timescale;
   private final long slotWidth;
   private final int numViewSlots;
   private final long windowLength;
   private final Slot[] slots;
 
+  private int windowBeginIndex;
   private long viewEndTimestamp;
   private long slotEndTimestamp;
   private long windowEndTimestamp;
-  private int lastViewIndex;
-  private int windowBeginIndex;
 
   private static class Slot {
     private long timestamp;
@@ -45,20 +40,20 @@ public class SlidingWindowStats {
   }
 
   /**
-   * Creates a time based SlidingWindowStats containing a fixed {@code numSlots} representing a view
-   * up to the {@code initialViewTimestamp}, and an additional {@code numFutureSlots} for timestamps
-   * beyond the current window view.
+   * Creates a time based SlidingWindowStats containing a fixed {@code numViewSlots} representing a
+   * view up to the {@code viewEndTimestamp} (non-inclusive), and an additional
+   * {@code numFutureSlots} for timestamps beyond the window view.
    * 
-   * It is recommended to make the {@code viewEndTimestamp} one time unit less than the current
-   * time, so that as the window slides to the right any added values will slide all the way across
-   * the view.
+   * It is recommended to make the {@code viewEndTimestamp} one time unit more than the current time
+   * intended for the last view slot, so that as the window slides to the right any added values
+   * will slide all the way across the view.
    * 
    * @param statType to calculate values for
    * @param timeResolution to adjust timestamps with
    * @param slotWidth time-based width of the slot
    * @param numViewSlots the number of viewable slots
    * @param numFutureSlots the number of future slots to allow values for
-   * @param viewEndTimestamp timestamp to end view at
+   * @param viewEndTimestamp timestamp to end view at, non-inclusive
    */
   public SlidingWindowStats(Class<? extends Statistic> statType, TimeResolution timeResolution,
       long slotWidth, int numViewSlots, int numFutureSlots, long viewEndTimestamp) {
@@ -70,7 +65,6 @@ public class SlidingWindowStats {
     this.viewEndTimestamp = timeResolution.adjust(viewEndTimestamp);
     slotEndTimestamp = this.viewEndTimestamp;
     windowEndTimestamp = this.viewEndTimestamp + (numFutureSlots * slotWidth);
-    lastViewIndex = numViewSlots - 1;
 
     slots = new Slot[numViewSlots + numFutureSlots];
     long timestamp = windowEndTimestamp - slotWidth;
@@ -83,27 +77,26 @@ public class SlidingWindowStats {
     try {
       return new Slot(timestamp, statType.newInstance());
     } catch (Exception e) {
-      LOG.error("Failed to initialize slot", e);
-      return null;
+      throw Exceptions.uncheck(e, "Failed to initialize slot");
     }
   }
 
   /**
-   * Adds the {@code value} to the statistics for the slot associated with the {@code timestamp},
-   * else <b>does nothing</b> if the {@code timestamp} is outside of the window.
+   * Adds the {@code value} to the statistics for the slot associated with the {@code timestamp} and
+   * returns true, else returns false if the {@code timestamp} is outside of the window.
    * 
    * @param value to add
    * @param timestamp to add value for
+   * @return true if the value was added else false if it the {@code timestamp} was outside the
+   *         window
    */
-  public void addValue(double value, long timestamp) {
+  public boolean addValue(double value, long timestamp) {
     timestamp = timescale.adjust(timestamp);
     int index = indexOfTime(timestamp);
     if (index == -1)
-      LOG.warn("Timestamp {} is outside of window {}", timestamp, toString());
-    else {
-      slots[index].stat.addValue(value);
-      LOG.trace("Added value for {}. New window {}", timestamp, toString());
-    }
+      return false;
+    slots[index].stat.addValue(value);
+    return true;
   }
 
   /** Returns the number of slots in the window. */
@@ -205,7 +198,6 @@ public class SlidingWindowStats {
 
       slotEndTimestamp += slotWidth;
       windowEndTimestamp += slotWidth;
-      lastViewIndex = indexAfter(lastViewIndex);
     }
 
     viewEndTimestamp = timestamp;
@@ -216,12 +208,18 @@ public class SlidingWindowStats {
    */
   @Override
   public String toString() {
+    final int viewSlotsToDisplay = 3;
+
     StringBuilder b = new StringBuilder();
     b.append("SlidingWindowStats [[");
-    for (int i = 0, index = windowBeginIndex; i < slots.length; i++, index = indexAfter(index)) {
+    int startIndex = numViewSlots > viewSlotsToDisplay ? numViewSlots - viewSlotsToDisplay : 0;
+    if (startIndex != 0)
+      b.append("... ");
+    int index = indexOf(startIndex);
+    for (int i = startIndex; i < slots.length; i++, index = indexAfter(index)) {
       if (i == numViewSlots)
         b.append("], ");
-      else if (i != 0)
+      else if (i != startIndex)
         b.append(", ");
       b.append(slots[index]);
     }

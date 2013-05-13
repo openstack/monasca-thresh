@@ -9,6 +9,4 @@
 target/
 test-output/
 logs/
-dev-config.yml
-prod-config.yml
-test-config.yml
+*config*.yml

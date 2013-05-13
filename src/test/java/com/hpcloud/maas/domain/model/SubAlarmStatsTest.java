@@ -32,7 +32,7 @@ public class SubAlarmStatsTest {
     subAlarmStats.getStats().addValue(1, 2);
     subAlarmStats.getStats().addValue(5, 3);
 
-    assertTrue(subAlarmStats.evaluate(3));
+    assertTrue(subAlarmStats.evaluate());
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.OK);
   }
 
@@ -41,14 +41,14 @@ public class SubAlarmStatsTest {
     subAlarmStats.getStats().addValue(5, 2);
     subAlarmStats.getStats().addValue(5, 3);
 
-    assertTrue(subAlarmStats.evaluate(3));
+    assertTrue(subAlarmStats.evaluate());
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.ALARM);
   }
 
   public void shouldBeAlarmedIfAllSlotsExceedThresholdOrAreUninitialized() {
     subAlarmStats.getStats().addValue(5, 1);
 
-    assertTrue(subAlarmStats.evaluate(3));
+    assertTrue(subAlarmStats.evaluate());
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.ALARM);
   }
 
@@ -60,29 +60,29 @@ public class SubAlarmStatsTest {
     subAlarmStats = new SubAlarmStats(subAlarm, TimeResolution.ABSOLUTE, initialTime);
 
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
-    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1));
-    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1));
-    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1));
+    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 1));
+    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 1));
+    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 1));
 
     // Add value and trigger OK
     subAlarmStats.getStats().addValue(1, initialTime - 1);
-    assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1));
+    assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime += 1));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.OK);
 
     // Slide in some values that exceed the threshold
     subAlarmStats.getStats().addValue(5, initialTime - 1);
-    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1));
+    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 1));
     subAlarmStats.getStats().addValue(5, initialTime - 1);
-    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1));
+    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 1));
     subAlarmStats.getStats().addValue(5, initialTime - 1);
 
     // Trigger ALARM
-    assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1));
+    assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime += 1));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.ALARM);
 
     // Add value and trigger OK
     subAlarmStats.getStats().addValue(1, initialTime - 1);
-    assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1));
+    assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime += 1));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.OK);
 
     // Must slide 9 times total from the last added value to trigger UNDETERMINED. This is
@@ -90,8 +90,8 @@ public class SubAlarmStatsTest {
     // slides to move the value outside of the window and 6 more to exceed the observation
     // threshold.
     for (int i = 0; i < 7; i++)
-      assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1));
-    assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime, initialTime += 1));
+      assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 1));
+    assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime += 1));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
   }
 
