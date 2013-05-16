@@ -62,7 +62,7 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
   public ThresholdingEngineTest1() {
     // Fixtures
     expression = new AlarmExpression(
-        "avg(compute:cpu:{id=5}, 3) >= 3 times 2 and avg(compute:mem:{id=5}, 3) >= 5 times 2");
+        "avg(hpcs.compute:cpu:{id=5}, 3) >= 3 times 2 and avg(hpcs.compute:mem:{id=5}, 3) >= 5 times 2");
     customExpression = AlarmExpression.of("avg(my:test:{id=4}, 3) > 10");
     customSubExpression = customExpression.getSubExpressions().get(0);
 

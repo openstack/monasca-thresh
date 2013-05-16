@@ -50,36 +50,36 @@ public class SubAlarmDAOImplTest {
     handle.execute("truncate table sub_alarm_dimension");
 
     handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, metric_type, metric_subject, operator, threshold, period, periods, created_at, updated_at) "
-        + "values ('111', '123', 'AVG', 'compute', 'cpu', null, 'GT', 10, 60, 1, NOW(), NOW())");
+        + "values ('111', '123', 'AVG', 'hpcs.compute', 'cpu', null, 'GT', 10, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('111', 'flavor_id', '777')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'image_id', '888')");
 
     handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, metric_type, metric_subject, operator, threshold, period, periods, created_at, updated_at) "
-        + "values ('222', '456', 'AVG', 'compute', 'cpu', '1', 'GTE', 20, 60, 1, NOW(), NOW())");
+        + "values ('222', '456', 'AVG', 'hpcs.compute', 'cpu', '1', 'GTE', 20, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('222', 'flavor_id', '777')");
     handle.execute("insert into sub_alarm_dimension values ('222', 'image_id', '888')");
 
     handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, metric_type, metric_subject, operator, threshold, period, periods, created_at, updated_at) "
-        + "values ('333', '456', 'AVG', 'compute', 'cpu', '1', 'LT', 10, 60, 1, NOW(), NOW())");
+        + "values ('333', '456', 'AVG', 'hpcs.compute', 'cpu', '1', 'LT', 10, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('333', 'flavor_id', '333')");
     handle.execute("insert into sub_alarm_dimension values ('333', 'image_id', '999999')");
   }
 
   public void shouldFind() {
     List<SubAlarm> expected = Arrays.asList(new SubAlarm("111", "123",
-        AlarmSubExpression.of("avg(compute:cpu:{flavor_id=777,image_id=888}) > 10"),
+        AlarmSubExpression.of("avg(hpcs.compute:cpu:{flavor_id=777,image_id=888}) > 10"),
         AlarmState.UNDETERMINED));
     Map<String, String> dimensions = new HashMap<String, String>();
     dimensions.put("flavor_id", "777");
     dimensions.put("image_id", "888");
 
-    List<SubAlarm> subAlarms = dao.find(new MetricDefinition("compute", "cpu", null, dimensions));
+    List<SubAlarm> subAlarms = dao.find(new MetricDefinition("hpcs.compute", "cpu", null, dimensions));
     assertEquals(subAlarms, expected);
 
     expected = Arrays.asList(new SubAlarm("222", "456",
-        AlarmSubExpression.of("avg(compute:cpu:1:{flavor_id=777,image_id=888}) >= 20"),
+        AlarmSubExpression.of("avg(hpcs.compute:cpu:1:{flavor_id=777,image_id=888}) >= 20"),
         AlarmState.UNDETERMINED));
-    subAlarms = dao.find(new MetricDefinition("compute", "cpu", "1", dimensions));
+    subAlarms = dao.find(new MetricDefinition("hpcs.compute", "cpu", "1", dimensions));
     assertEquals(subAlarms, expected);
   }
 }
