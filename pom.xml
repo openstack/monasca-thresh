@@ -90,6 +90,12 @@
       <groupId>com.hpcloud</groupId>
       <artifactId>ps-util</artifactId>
       <version>${ps.common.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>ch.qos.logback</groupId>
+          <artifactId>logback-classic</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>com.hpcloud</groupId>
