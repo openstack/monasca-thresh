@@ -25,7 +25,6 @@ import com.hpcloud.maas.infrastructure.storm.Streams;
 import com.hpcloud.messaging.rabbitmq.RabbitMQConfiguration;
 import com.hpcloud.messaging.rabbitmq.RabbitMQService;
 import com.hpcloud.persistence.DatabaseConfiguration;
-import com.hpcloud.supervision.SupervisionModule;
 import com.hpcloud.util.Injector;
 import com.hpcloud.util.Serialization;
 
@@ -100,8 +99,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     alertRoutingKey = (String) config.get(ThresholdingConfiguration.ALERTS_ROUTING_KEY);
 
     Injector.registerIfNotBound(AlarmDAO.class, new PersistenceModule(dbConfig));
-    Injector.registerIfNotBound(RabbitMQService.class, new MessagingModule(rabbitConfig),
-        new SupervisionModule());
+    Injector.registerIfNotBound(RabbitMQService.class, new MessagingModule(rabbitConfig));
 
     alarmDAO = Injector.getInstance(AlarmDAO.class);
     rabbitService = Injector.getInstance(RabbitMQService.class);
