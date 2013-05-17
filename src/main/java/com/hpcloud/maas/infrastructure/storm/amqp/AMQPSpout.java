@@ -19,8 +19,12 @@ import com.google.inject.assistedinject.Assisted;
 import com.hpcloud.maas.infrastructure.storm.TupleDeserializer;
 import com.hpcloud.messaging.rabbitmq.RabbitMQConnection;
 import com.hpcloud.messaging.rabbitmq.RabbitMQConnection.RabbitMQConnectionOptions;
+import com.hpcloud.messaging.rabbitmq.RabbitMQConnection.RabbitMQConnectionProvider;
+import com.hpcloud.messaging.rabbitmq.RabbitMQModule;
+import com.hpcloud.supervision.SupervisionModule;
 import com.hpcloud.util.Exceptions;
-import com.rabbitmq.client.AMQP.Queue;
+import com.hpcloud.util.Injector;
+import com.rabbitmq.client.AMQP.Queue.DeclareOk;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.QueueingConsumer;
 import com.rabbitmq.client.ShutdownSignalException;
@@ -83,10 +87,6 @@ public class AMQPSpout implements IRichSpout {
   private TopologyContext context;
   private SpoutOutputCollector collector;
 
-  public interface AMQPSpoutFactory {
-    AMQPSpout create(AMQPSpoutConfiguration config, TupleDeserializer deserializer);
-  };
-
   public AMQPSpout(@Assisted AMQPSpoutConfiguration config, @Assisted TupleDeserializer deserializer) {
     this.config = config;
     this.deserializer = deserializer;
@@ -118,11 +118,25 @@ public class AMQPSpout implements IRichSpout {
   }
 
   /**
-   * Resumes a paused spout
+   * Resumes a paused spout.
    */
   public void activate() {
     LOG.info("{} Activating spout {}", context.getThisTaskId(), context.getThisComponentId());
-    spoutActive = true;
+
+    try {
+      connection.open();
+      channel = connection.channelFor("spout");
+      if (config.prefetchCount > 0)
+        channel.basicQos(config.prefetchCount);
+      DeclareOk declareOk = queueDeclarator.declare(channel);
+      consumer = new QueueingConsumer(channel);
+      LOG.info("Consuming from queue {}", declareOk.getQueue());
+      consumerTag = channel.basicConsume(declareOk.getQueue(), config.autoAck, consumer);
+      spoutActive = true;
+    } catch (Exception e) {
+      LOG.error("Error while opening connection", e);
+      throw Exceptions.uncheck(e, "{} Failed to open AMQP connection", context.getThisTaskId());
+    }
   }
 
   /**
@@ -148,6 +162,8 @@ public class AMQPSpout implements IRichSpout {
    */
   public void deactivate() {
     LOG.info("{} Deactivating AMQP spout {}", context.getThisTaskId(), context.getThisComponentId());
+    if (connection != null)
+      connection.close();
     spoutActive = false;
   }
 
@@ -208,7 +224,7 @@ public class AMQPSpout implements IRichSpout {
   @Override
   @SuppressWarnings("unchecked")
   public void nextTuple() {
-    if (spoutActive && consumer != null) {
+    if (spoutActive) {
       QueueingConsumer.Delivery delivery = null;
 
       try {
@@ -255,34 +271,18 @@ public class AMQPSpout implements IRichSpout {
    * Connects to the AMQP broker, declares the queue and subscribes to incoming messages.
    */
   @Override
-  public void open(@SuppressWarnings("rawtypes") Map config, TopologyContext context,
+  public void open(@SuppressWarnings("rawtypes") Map stormConfig, TopologyContext context,
       SpoutOutputCollector collector) {
     LOG.info("{} Opening AMQP Spout {}", context.getThisTaskId(), context.getThisComponentId());
     this.context = context;
     this.collector = collector;
-    createConnection();
-  }
 
-  private void createConnection() {
-    if (connection == null)
-      connection = new RabbitMQConnection(new RabbitMQConnectionOptions("amqp-spout-"
-          + context.getThisTaskId()).withPrefetchCount(config.prefetchCount), config.rabbit);
-
-    try {
-      connection.open();
-      channel = connection.channelFor("spout");
-      if (config.prefetchCount > 0)
-        channel.basicQos(config.prefetchCount);
-      final Queue.DeclareOk queue = queueDeclarator.declare(channel);
-      final String queueName = queue.getQueue();
-
-      LOG.info("Consuming from queue {}", queueName);
-      consumer = new QueueingConsumer(channel);
-      consumerTag = channel.basicConsume(queueName, config.autoAck, consumer);
-    } catch (Exception e) {
-      LOG.error("Error while opening connection", e);
-      Exceptions.uncheck(e, "{} Failed to open AMQP connection", context.getThisTaskId());
-    }
+    Injector.registerModules(new SupervisionModule());
+    Injector.registerIfNotBound(RabbitMQConnectionProvider.class, new RabbitMQModule());
+    connection = Injector.getInstance(RabbitMQConnectionProvider.class)
+        .get(
+            new RabbitMQConnectionOptions("amqp-spout-" + context.getThisTaskId()).withPrefetchCount(config.prefetchCount),
+            config.rabbit, null);
   }
 
   /**

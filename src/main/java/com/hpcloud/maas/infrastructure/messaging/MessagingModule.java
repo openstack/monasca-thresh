@@ -5,9 +5,11 @@ import javax.inject.Singleton;
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import com.hpcloud.messaging.rabbitmq.RabbitMQConfiguration;
+import com.hpcloud.messaging.rabbitmq.RabbitMQConnection.RabbitMQConnectionProvider;
 import com.hpcloud.messaging.rabbitmq.RabbitMQModule;
 import com.hpcloud.messaging.rabbitmq.RabbitMQService;
 import com.hpcloud.supervision.SupervisionModule;
+import com.hpcloud.util.Injector;
 
 public class MessagingModule extends AbstractModule {
   private final RabbitMQConfiguration rabbitConfig;
@@ -19,7 +21,8 @@ public class MessagingModule extends AbstractModule {
   @Override
   protected void configure() {
     install(new SupervisionModule());
-    install(new RabbitMQModule());
+    if (!Injector.isBound(RabbitMQConnectionProvider.class))
+      install(new RabbitMQModule());
   }
 
   @Provides
