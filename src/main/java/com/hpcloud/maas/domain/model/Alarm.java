@@ -36,7 +36,6 @@ public class Alarm extends AbstractEntity {
     this.tenantId = tenantId;
     this.name = name;
     this.expression = expression;
-    CollectdMetrics.removeUnsupportedDimensions(this.expression);
     setSubAlarms(subAlarms);
     this.state = state;
   }
