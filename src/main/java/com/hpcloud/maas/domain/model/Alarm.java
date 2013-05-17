@@ -36,6 +36,7 @@ public class Alarm extends AbstractEntity {
     this.tenantId = tenantId;
     this.name = name;
     this.expression = expression;
+    CollectdMetrics.removeUnsupportedDimensions(this.expression);
     setSubAlarms(subAlarms);
     this.state = state;
   }
@@ -47,6 +48,40 @@ public class Alarm extends AbstractEntity {
       return String.format("Thresholds were exceeded for the sub-alarms: %s", subAlarmExpressions);
     else
       return "The alarm threshold(s) have not been exceeded";
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj)
+      return true;
+    if (!super.equals(obj))
+      return false;
+    if (getClass() != obj.getClass())
+      return false;
+    Alarm other = (Alarm) obj;
+    if (expression == null) {
+      if (other.expression != null)
+        return false;
+    } else if (!expression.equals(other.expression))
+      return false;
+    if (name == null) {
+      if (other.name != null)
+        return false;
+    } else if (!name.equals(other.name))
+      return false;
+    if (state != other.state)
+      return false;
+    if (subAlarms == null) {
+      if (other.subAlarms != null)
+        return false;
+    } else if (!subAlarms.equals(other.subAlarms))
+      return false;
+    if (tenantId == null) {
+      if (other.tenantId != null)
+        return false;
+    } else if (!tenantId.equals(other.tenantId))
+      return false;
+    return true;
   }
 
   /**
@@ -126,6 +161,18 @@ public class Alarm extends AbstractEntity {
 
   public String getTenantId() {
     return tenantId;
+  }
+
+  @Override
+  public int hashCode() {
+    final int prime = 31;
+    int result = super.hashCode();
+    result = prime * result + ((expression == null) ? 0 : expression.hashCode());
+    result = prime * result + ((name == null) ? 0 : name.hashCode());
+    result = prime * result + ((state == null) ? 0 : state.hashCode());
+    result = prime * result + ((subAlarms == null) ? 0 : subAlarms.hashCode());
+    result = prime * result + ((tenantId == null) ? 0 : tenantId.hashCode());
+    return result;
   }
 
   public void setExpression(String expression) {

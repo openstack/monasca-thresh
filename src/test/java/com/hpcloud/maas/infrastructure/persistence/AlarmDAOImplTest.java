@@ -60,7 +60,7 @@ public class AlarmDAOImplTest {
   }
 
   public void shouldFindById() {
-    String expr = "avg(hpcs.compute:cpu:{flavor_id=777, image_id=888}) > 10";
+    String expr = "avg(hpcs.compute:cpu) > 10";
     Alarm expected = new Alarm("123", "bob", "90% CPU", AlarmExpression.of(expr),
         Arrays.asList(new SubAlarm("111", "123", AlarmSubExpression.of(expr))),
         AlarmState.UNDETERMINED);
