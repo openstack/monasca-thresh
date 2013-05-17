@@ -36,6 +36,8 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
                                    // sub_alarm_dimension where sub_alarm_id = d.sub_alarm_id) //
                                    // Removed temporarily since we don't receive all of the expected
                                    // dimensions for collectd metrics
+  private static final String FIND_BY_METRIC_DEF_NO_DIMS_SQL = "select * from sub_alarm sa where sa.namespace = :namespace "
+      + "and sa.metric_type = :metricType and sa.metric_subject %s and (select count(*) from sub_alarm_dimension where sub_alarm_id = sa.id) = 0";
 
   private final DBI db;
 
@@ -49,10 +51,15 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
     Handle h = db.open();
 
     try {
-      String unionAllStatement = SqlStatements.unionAllStatementFor(metricDefinition.dimensions,
-          "dimension_name", "value");
-      String sql = String.format(FIND_BY_METRIC_DEF_SQL, unionAllStatement,
-          metricDefinition.subject == null ? "is null" : "= :metricSubject");
+      String sql = null;
+      String subjectSql = metricDefinition.subject == null ? "is null" : "= :metricSubject";
+      if (metricDefinition.dimensions == null || metricDefinition.dimensions.isEmpty())
+        sql = String.format(FIND_BY_METRIC_DEF_NO_DIMS_SQL, subjectSql);
+      else {
+        String unionAllStatement = SqlStatements.unionAllStatementFor(metricDefinition.dimensions,
+            "dimension_name", "value");
+        sql = String.format(FIND_BY_METRIC_DEF_SQL, unionAllStatement, subjectSql);
+      }
 
       Query<Map<String, Object>> query = h.createQuery(sql)
           .bind("namespace", metricDefinition.namespace)

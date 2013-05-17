@@ -63,6 +63,16 @@ public class SubAlarmDAOImplTest {
         + "values ('333', '456', 'AVG', 'hpcs.compute', 'cpu', '1', 'LT', 10, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('333', 'flavor_id', '333')");
     handle.execute("insert into sub_alarm_dimension values ('333', 'image_id', '999999')");
+
+    handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, metric_type, metric_subject, operator, threshold, period, periods, created_at, updated_at) "
+        + "values ('444', '456', 'AVG', 'hpcs.compute', 'cpu', null, 'GT', 10, 60, 1, NOW(), NOW())");
+  }
+
+  public void shouldFindForNullDimensions() {
+    List<SubAlarm> expected = Arrays.asList(new SubAlarm("444", "456",
+        AlarmSubExpression.of("avg(hpcs.compute:cpu) > 10"), AlarmState.UNDETERMINED));
+    List<SubAlarm> subAlarms = dao.find(new MetricDefinition("hpcs.compute", "cpu", null, null));
+    assertEquals(subAlarms, expected);
   }
 
   public void shouldFind() {
@@ -73,7 +83,8 @@ public class SubAlarmDAOImplTest {
     dimensions.put("flavor_id", "777");
     dimensions.put("image_id", "888");
 
-    List<SubAlarm> subAlarms = dao.find(new MetricDefinition("hpcs.compute", "cpu", null, dimensions));
+    List<SubAlarm> subAlarms = dao.find(new MetricDefinition("hpcs.compute", "cpu", null,
+        dimensions));
     assertEquals(subAlarms, expected);
 
     expected = Arrays.asList(new SubAlarm("222", "456",
