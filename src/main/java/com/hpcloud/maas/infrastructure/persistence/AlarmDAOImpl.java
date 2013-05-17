@@ -91,7 +91,7 @@ public class AlarmDAOImpl implements AlarmDAO {
     Handle h = db.open();
 
     try {
-      h.createStatement("update alarm set state = :state where id = :id")
+      h.createStatement("update alarm set state = :state, updated_at = NOW() where id = :id")
           .bind("id", id)
           .bind("state", state.toString())
           .execute();
