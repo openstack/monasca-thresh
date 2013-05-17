@@ -106,10 +106,11 @@ public class MetricFilteringBolt extends BaseRichBolt {
     if (METRIC_DEFS.isEmpty()) {
       synchronized (SENTINAL) {
         if (METRIC_DEFS.isEmpty()) {
-          for (MetricDefinition metricDef : metricDefDAO.findForAlarms()) {
+          for (MetricDefinition metricDef : metricDefDAO.findForAlarms())
             METRIC_DEFS.put(metricDef, SENTINAL);
+          // Iterate again to ensure we only emit each metricDef once
+          for (MetricDefinition metricDef : METRIC_DEFS.keySet())
             collector.emit(new Values(metricDef, null));
-          }
         }
       }
     }
