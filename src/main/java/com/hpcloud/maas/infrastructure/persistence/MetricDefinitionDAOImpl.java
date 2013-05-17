@@ -20,9 +20,8 @@ import com.hpcloud.maas.domain.service.MetricDefinitionDAO;
  * @author Jonathan Halterman
  */
 public class MetricDefinitionDAOImpl implements MetricDefinitionDAO {
-  private static final String METRIC_DEF_SQL = "select sa.namespace, sa.metric_type, sa.metric_subject, sad.dimensions from sub_alarm as sa, "
-      + "(select sub_alarm_id, group_concat(dimension_name, '=', value) as dimensions from sub_alarm_dimension group by sub_alarm_id) as sad "
-      + "where sa.id = sad.sub_alarm_id";
+  private static final String METRIC_DEF_SQL = "select sa.namespace, sa.metric_type, sa.metric_subject, sad.dimensions from sub_alarm as sa "
+      + "left join (select sub_alarm_id, group_concat(dimension_name, '=', value) as dimensions from sub_alarm_dimension group by sub_alarm_id) as sad on sa.id = sad.sub_alarm_id";
 
   private final DBI db;
 
@@ -47,12 +46,14 @@ public class MetricDefinitionDAOImpl implements MetricDefinitionDAO {
         Map<String, String> dimensions = null;
 
         if (dimensionSet != null) {
-          dimensions = new HashMap<String, String>();
           for (String kvStr : dimensionSet.split(",")) {
             String[] kv = kvStr.split("=");
             // TODO Remove second conditional in the future
-            if (kv.length > 1 && CollectdMetrics.isSupportedDimension(namespace, kv[0]))
+            if (kv.length > 1 && CollectdMetrics.isSupportedDimension(namespace, kv[0])) {
+              if (dimensions == null)
+                dimensions = new HashMap<String, String>();
               dimensions.put(kv[0], kv[1]);
+            }
           }
         }
 
