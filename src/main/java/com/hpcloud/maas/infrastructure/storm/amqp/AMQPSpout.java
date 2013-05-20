@@ -1,6 +1,5 @@
 package com.hpcloud.maas.infrastructure.storm.amqp;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -108,12 +107,13 @@ public class AMQPSpout implements IRichSpout {
       if (channel != null) {
         try {
           channel.basicAck(deliveryTag, false /* not multiple */);
-        } catch (IOException e) {
-          LOG.warn("Failed to ack delivery-tag {}", deliveryTag, e);
+        } catch (Exception e) {
+          LOG.warn("{} Failed to ack delivery tag {}", context.getThisTaskId(), deliveryTag, e);
         }
       }
     } else {
-      LOG.warn("Don't know how to ack({}: {})", msgId.getClass().getName(), msgId);
+      LOG.warn("{} Don't know how to ack({}: {})", context.getThisTaskId(), msgId.getClass()
+          .getName(), msgId);
     }
   }
 
@@ -125,13 +125,7 @@ public class AMQPSpout implements IRichSpout {
 
     try {
       connection.open();
-      channel = connection.channelFor("spout");
-      if (config.prefetchCount > 0)
-        channel.basicQos(config.prefetchCount);
-      DeclareOk declareOk = queueDeclarator.declare(channel);
-      consumer = new QueueingConsumer(channel);
-      LOG.info("Consuming from queue {}", declareOk.getQueue());
-      consumerTag = channel.basicConsume(declareOk.getQueue(), config.autoAck, consumer);
+      setupAmqp();
       spoutActive = true;
     } catch (Exception e) {
       LOG.error("Error while opening connection", e);
@@ -145,14 +139,7 @@ public class AMQPSpout implements IRichSpout {
   @Override
   public void close() {
     LOG.info("{} Closing AMQP spout {}", context.getThisTaskId(), context.getThisComponentId());
-    if (consumerTag != null) {
-      try {
-        channel.basicCancel(consumerTag);
-      } catch (IOException e) {
-        LOG.warn("Error cancelling AMQP consumer", e);
-      }
-    }
-
+    teardownAmqp();
     if (connection != null)
       connection.close();
   }
@@ -162,8 +149,7 @@ public class AMQPSpout implements IRichSpout {
    */
   public void deactivate() {
     LOG.info("{} Deactivating AMQP spout {}", context.getThisTaskId(), context.getThisComponentId());
-    if (connection != null)
-      connection.close();
+    teardownAmqp();
     spoutActive = false;
   }
 
@@ -195,13 +181,13 @@ public class AMQPSpout implements IRichSpout {
       if (channel != null) {
         try {
           channel.basicReject(deliveryTag, config.requeueOnFail);
-        } catch (IOException e) {
-          LOG.warn("Failed to reject delivery-tag " + deliveryTag, e);
+        } catch (Exception e) {
+          LOG.warn("{} Failed to reject delivery tag {}", context.getThisTaskId(), deliveryTag, e);
         }
       }
     } else {
-      LOG.warn(String.format("Cannot reject unknown delivery tag (%s: %s)", msgId.getClass()
-          .getName(), msgId));
+      LOG.warn("{} Cannot reject unknown delivery tag ({}: {})", context.getThisTaskId(),
+          msgId.getClass().getName(), msgId);
     }
   }
 
@@ -228,39 +214,42 @@ public class AMQPSpout implements IRichSpout {
       QueueingConsumer.Delivery delivery = null;
 
       try {
-        delivery = consumer.nextDelivery(waitForNextMessageMillis);
-        if (delivery == null)
-          return;
-
-        final long deliveryTag = delivery.getEnvelope().getDeliveryTag();
-        final byte[] message = delivery.getBody();
-
-        try {
-          List<List<?>> tuples = deserializer.deserialize(message);
-          if (tuples == null) {
-            if (!config.autoAck)
-              ack(deliveryTag);
+        if (consumer != null) {
+          delivery = consumer.nextDelivery(waitForNextMessageMillis);
+          if (delivery == null)
             return;
-          }
 
-          for (int i = 0; i < tuples.size(); i++) {
-            List<Object> tuple = (List<Object>) tuples.get(i);
-            // LOG.trace("{} {} Emitting {} for {}", deliveryTag, context.getThisTaskId(), tuple,
-            // message);
+          final long deliveryTag = delivery.getEnvelope().getDeliveryTag();
+          final byte[] message = delivery.getBody();
 
-            if (i > 0 || config.autoAck)
-              collector.emit(tuple);
-            else
-              collector.emit(tuple, deliveryTag);
+          try {
+            List<List<?>> tuples = deserializer.deserialize(message);
+            if (tuples == null) {
+              if (!config.autoAck)
+                ack(deliveryTag);
+              return;
+            }
+
+            for (int i = 0; i < tuples.size(); i++) {
+              List<Object> tuple = (List<Object>) tuples.get(i);
+              if (i > 0 || config.autoAck)
+                collector.emit(tuple);
+              else
+                collector.emit(tuple, deliveryTag);
+            }
+          } catch (Exception e) {
+            LOG.error("Error while deserializing and emitting message", e);
+            handleUnprocessableDelivery(deliveryTag, message);
           }
-        } catch (Exception e) {
-          LOG.error("Error while deserializing and emitting message", e);
-          handleUnprocessableDelivery(deliveryTag, message);
         }
       } catch (ShutdownSignalException e) {
         LOG.error("{} AMQP connection dropped.", context.getThisTaskId(), e);
-        if (!e.isInitiatedByApplication())
+        teardownAmqp();
+        if (!e.isInitiatedByApplication()) {
+          // Retries until success
           connection.reopen();
+          setupAmqp();
+        }
       } catch (InterruptedException e) {
         // interrupted while waiting for message, big deal
       }
@@ -277,12 +266,30 @@ public class AMQPSpout implements IRichSpout {
     this.context = context;
     this.collector = collector;
 
-    Injector.registerModules(new SupervisionModule());
-    Injector.registerIfNotBound(RabbitMQConnectionProvider.class, new RabbitMQModule());
+    synchronized (Injector.class) {
+      Injector.registerModules(new SupervisionModule());
+      Injector.registerIfNotBound(RabbitMQConnectionProvider.class, new RabbitMQModule());
+    }
+
     connection = Injector.getInstance(RabbitMQConnectionProvider.class)
         .get(
             new RabbitMQConnectionOptions("amqp-spout-" + context.getThisTaskId()).withPrefetchCount(config.prefetchCount),
             config.rabbit, null);
+    connection.open();
+  }
+
+  private void teardownAmqp() {
+    if (consumerTag != null) {
+      try {
+        if (channel.isOpen())
+          channel.basicCancel(consumerTag);
+      } catch (Exception e) {
+        LOG.warn("{} Error cancelling AMQP consumer", context.getThisTaskId(), e);
+      }
+    }
+
+    channel = null;
+    consumer = null;
   }
 
   /**
@@ -295,5 +302,21 @@ public class AMQPSpout implements IRichSpout {
   private void handleUnprocessableDelivery(long deliveryTag, byte[] message) {
     ack(deliveryTag);
     collector.emit(config.errorStream, new Values(deliveryTag, message));
+  }
+
+  private void setupAmqp() {
+    try {
+      channel = connection.channelFor("spout-"
+          + Integer.valueOf(context.getThisTaskId()).toString());
+      if (config.prefetchCount > 0)
+        channel.basicQos(config.prefetchCount);
+      DeclareOk declareOk = queueDeclarator.declare(channel);
+      consumer = new QueueingConsumer(channel);
+      LOG.info("{} Consuming from queue {}", context.getThisTaskId(), declareOk.getQueue());
+      consumerTag = channel.basicConsume(declareOk.getQueue(), config.autoAck, consumer);
+    } catch (Exception e) {
+      LOG.error("{} Error while opening connection", context.getThisTaskId(), e);
+      throw Exceptions.uncheck(e, "{} Failed to open AMQP connection", context.getThisTaskId());
+    }
   }
 }
