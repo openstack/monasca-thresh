@@ -243,7 +243,7 @@ public class AMQPSpout implements IRichSpout {
           }
         }
       } catch (ShutdownSignalException e) {
-        LOG.error("{} AMQP connection dropped.", context.getThisTaskId(), e);
+        LOG.error("{} AMQP connection dropped", context.getThisTaskId(), e);
         teardownAmqp();
         if (!e.isInitiatedByApplication()) {
           // Retries until success
@@ -290,6 +290,7 @@ public class AMQPSpout implements IRichSpout {
 
     channel = null;
     consumer = null;
+    consumerTag = null;
   }
 
   /**
@@ -312,8 +313,8 @@ public class AMQPSpout implements IRichSpout {
         channel.basicQos(config.prefetchCount);
       DeclareOk declareOk = queueDeclarator.declare(channel);
       consumer = new QueueingConsumer(channel);
-      LOG.info("{} Consuming from queue {}", context.getThisTaskId(), declareOk.getQueue());
       consumerTag = channel.basicConsume(declareOk.getQueue(), config.autoAck, consumer);
+      LOG.info("{} Consuming from queue {}", context.getThisTaskId(), declareOk.getQueue());
     } catch (Exception e) {
       LOG.error("{} Error while opening connection", context.getThisTaskId(), e);
       throw Exceptions.uncheck(e, "{} Failed to open AMQP connection", context.getThisTaskId());
