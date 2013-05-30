@@ -1,4 +1,4 @@
-package com.hpcloud.maas.infrastructure.thresholding;
+package com.hpcloud.maas.infrastructure.thresholding.deserializer;
 
 import static org.testng.Assert.assertEquals;
 
@@ -10,6 +10,7 @@ import org.testng.annotations.Test;
 import com.google.common.collect.ImmutableMap;
 import com.hpcloud.maas.common.model.metric.Metric;
 import com.hpcloud.maas.common.model.metric.MetricDefinition;
+import com.hpcloud.maas.infrastructure.thresholding.deserializer.CollectdMetricDeserializer;
 
 /**
  * @author Jonathan Halterman

@@ -1,4 +1,4 @@
-package com.hpcloud.maas.infrastructure.thresholding;
+package com.hpcloud.maas.infrastructure.thresholding.deserializer;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNull;
@@ -8,6 +8,7 @@ import java.util.Collections;
 import org.testng.annotations.Test;
 
 import com.hpcloud.maas.common.event.AlarmDeletedEvent;
+import com.hpcloud.maas.infrastructure.thresholding.deserializer.MaasEventDeserializer;
 import com.hpcloud.util.Serialization;
 
 /**

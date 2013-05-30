@@ -1,4 +1,4 @@
-package com.hpcloud.maas.infrastructure.thresholding;
+package com.hpcloud.maas.infrastructure.thresholding.deserializer;
 
 import java.io.Serializable;
 import java.util.Arrays;

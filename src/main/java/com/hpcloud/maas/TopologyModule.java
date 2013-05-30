@@ -12,12 +12,12 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import com.hpcloud.maas.infrastructure.storm.amqp.AMQPSpout;
 import com.hpcloud.maas.infrastructure.thresholding.AlarmThresholdingBolt;
-import com.hpcloud.maas.infrastructure.thresholding.CollectdMetricDeserializer;
 import com.hpcloud.maas.infrastructure.thresholding.EventProcessingBolt;
-import com.hpcloud.maas.infrastructure.thresholding.MaasEventDeserializer;
-import com.hpcloud.maas.infrastructure.thresholding.MaasMetricDeserializer;
 import com.hpcloud.maas.infrastructure.thresholding.MetricAggregationBolt;
 import com.hpcloud.maas.infrastructure.thresholding.MetricFilteringBolt;
+import com.hpcloud.maas.infrastructure.thresholding.deserializer.CollectdMetricDeserializer;
+import com.hpcloud.maas.infrastructure.thresholding.deserializer.MaasEventDeserializer;
+import com.hpcloud.maas.infrastructure.thresholding.deserializer.MaasMetricDeserializer;
 import com.hpcloud.util.Injector;
 
 /**
