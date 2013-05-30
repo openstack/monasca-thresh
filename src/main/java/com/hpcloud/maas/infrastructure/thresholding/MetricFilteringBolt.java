@@ -45,7 +45,7 @@ public class MetricFilteringBolt extends BaseRichBolt {
   private static final Map<MetricDefinition, Object> METRIC_DEFS = new ConcurrentHashMap<MetricDefinition, Object>();
   private static final Object SENTINAL = new Object();
 
-  private Logger LOG;
+  private transient Logger LOG;
   private final DatabaseConfiguration dbConfig;
   private transient MetricDefinitionDAO metricDefDAO;
   private OutputCollector collector;
@@ -93,7 +93,7 @@ public class MetricFilteringBolt extends BaseRichBolt {
   @Override
   @SuppressWarnings("rawtypes")
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
-    LOG = LoggerFactory.getLogger(Logging.categoryFor(context));
+    LOG = LoggerFactory.getLogger(Logging.categoryFor(getClass(), context));
     LOG.info("Preparing");
     this.collector = collector;
 

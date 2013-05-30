@@ -45,7 +45,7 @@ public class EventProcessingBolt extends BaseRichBolt {
   /** Stream for metric and sub-alarm specific events. */
   public static final String METRIC_SUB_ALARM_EVENT_STREAM_ID = "metric-sub-alarm-events";
 
-  private Logger LOG;
+  private transient Logger LOG;
   private OutputCollector collector;
 
   @Override
@@ -76,7 +76,7 @@ public class EventProcessingBolt extends BaseRichBolt {
   @Override
   @SuppressWarnings("rawtypes")
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
-    LOG = LoggerFactory.getLogger(Logging.categoryFor(context));
+    LOG = LoggerFactory.getLogger(Logging.categoryFor(getClass(), context));
     LOG.info("Preparing");
     this.collector = collector;
   }

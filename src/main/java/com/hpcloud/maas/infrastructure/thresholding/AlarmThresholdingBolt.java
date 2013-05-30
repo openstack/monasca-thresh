@@ -45,7 +45,7 @@ import com.hpcloud.util.Serialization;
 public class AlarmThresholdingBolt extends BaseRichBolt {
   private static final long serialVersionUID = -4126465124017857754L;
 
-  private Logger LOG;
+  private transient Logger LOG;
   private final DatabaseConfiguration dbConfig;
   private final RabbitMQConfiguration rabbitConfig;
   private final Map<String, Alarm> alarms = new HashMap<String, Alarm>();
@@ -92,7 +92,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   @Override
   @SuppressWarnings("rawtypes")
   public void prepare(Map config, TopologyContext context, OutputCollector collector) {
-    LOG = LoggerFactory.getLogger(Logging.categoryFor(context));
+    LOG = LoggerFactory.getLogger(Logging.categoryFor(getClass(), context));
     LOG.info("Preparing");
     this.collector = collector;
     alertExchange = (String) config.get(ThresholdingConfiguration.ALERTS_EXCHANGE);

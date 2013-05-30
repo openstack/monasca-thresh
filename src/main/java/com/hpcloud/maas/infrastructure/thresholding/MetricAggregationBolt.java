@@ -55,7 +55,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
   public static final String TICK_TUPLE_SECONDS_KEY = "maas.aggregation.tick.seconds";
 
   final Map<MetricDefinition, SubAlarmStatsRepository> subAlarmStatsRepos = new HashMap<MetricDefinition, SubAlarmStatsRepository>();
-  private Logger LOG;
+  private transient Logger LOG;
   private DatabaseConfiguration dbConfig;
   private transient SubAlarmDAO subAlarmDAO;
   private OutputCollector collector;
@@ -117,7 +117,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
   @Override
   @SuppressWarnings("rawtypes")
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
-    LOG = LoggerFactory.getLogger(Logging.categoryFor(context));
+    LOG = LoggerFactory.getLogger(Logging.categoryFor(getClass(), context));
     LOG.info("Preparing");
     this.collector = collector;
     evaluationTimeOffset = Integer.valueOf(System.getProperty(TICK_TUPLE_SECONDS_KEY, "60"))

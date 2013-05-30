@@ -2,11 +2,16 @@ package com.hpcloud.maas.infrastructure.storm;
 
 import backtype.storm.task.TopologyContext;
 
+/**
+ * Storm related logging utilities.
+ * 
+ * @author Jonathan Halterman
+ */
 public final class Logging {
   private Logging() {
   }
 
-  public static String categoryFor(TopologyContext ctx) {
-    return String.format("%s %s", ctx.getThisComponentId(), ctx.getThisTaskId());
+  public static String categoryFor(Class<?> type, TopologyContext ctx) {
+    return String.format("%s-%s", type.getName(), ctx.getThisTaskId());
   }
 }

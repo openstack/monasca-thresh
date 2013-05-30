@@ -72,7 +72,7 @@ import com.rabbitmq.client.ShutdownSignalException;
 public class AMQPSpout implements IRichSpout {
   private static final long serialVersionUID = 11258942292629264L;
 
-  private Logger LOG;
+  private transient Logger LOG;
   private final AMQPSpoutConfiguration config;
   private final TupleDeserializer deserializer;
   private final long waitForNextMessageMillis;
@@ -261,7 +261,7 @@ public class AMQPSpout implements IRichSpout {
   @Override
   public void open(@SuppressWarnings("rawtypes") Map stormConfig, TopologyContext context,
       SpoutOutputCollector collector) {
-    LOG = LoggerFactory.getLogger(Logging.categoryFor(context));
+    LOG = LoggerFactory.getLogger(Logging.categoryFor(getClass(), context));
     LOG.info("Opening AMQP Spout");
     this.ctx = context;
     this.collector = collector;
@@ -271,11 +271,9 @@ public class AMQPSpout implements IRichSpout {
       Injector.registerIfNotBound(RabbitMQConnectionProvider.class, new RabbitMQModule());
     }
 
-    connection = Injector.getInstance(RabbitMQConnectionProvider.class)
-        .get(
-            new RabbitMQConnectionOptions("amqp-spout-" + context.getThisTaskId()).withPrefetchCount(config.prefetchCount),
-            config.rabbit, null);
-    connection.open();
+    connection = Injector.getInstance(RabbitMQConnectionProvider.class).get(
+        new RabbitMQConnectionOptions(String.format("%s-%s", ctx.getThisComponentId(),
+            ctx.getThisTaskId())).withPrefetchCount(config.prefetchCount), config.rabbit, null);
   }
 
   private void teardownAmqp() {
@@ -307,7 +305,8 @@ public class AMQPSpout implements IRichSpout {
 
   private void setupAmqp() {
     try {
-      channel = connection.channelFor("spout-" + Integer.valueOf(ctx.getThisTaskId()).toString());
+      channel = connection.channelFor(String.format("%s-%s", ctx.getThisComponentId(),
+          ctx.getThisTaskId()));
       if (config.prefetchCount > 0)
         channel.basicQos(config.prefetchCount);
       DeclareOk declareOk = queueDeclarator.declare(channel);
