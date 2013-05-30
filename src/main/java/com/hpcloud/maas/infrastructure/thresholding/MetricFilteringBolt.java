@@ -20,6 +20,7 @@ import com.hpcloud.maas.common.model.metric.MetricDefinition;
 import com.hpcloud.maas.domain.service.MetricDefinitionDAO;
 import com.hpcloud.maas.domain.service.SubAlarmDAO;
 import com.hpcloud.maas.infrastructure.persistence.PersistenceModule;
+import com.hpcloud.maas.infrastructure.storm.Logging;
 import com.hpcloud.maas.infrastructure.storm.Streams;
 import com.hpcloud.persistence.DatabaseConfiguration;
 import com.hpcloud.util.Injector;
@@ -40,14 +41,13 @@ import com.hpcloud.util.Injector;
  * @author Jonathan Halterman
  */
 public class MetricFilteringBolt extends BaseRichBolt {
-  private static final long serialVersionUID = 1L;
-  private static final Logger LOG = LoggerFactory.getLogger(MetricFilteringBolt.class);
+  private static final long serialVersionUID = 1096706128973976599L;
   private static final Map<MetricDefinition, Object> METRIC_DEFS = new ConcurrentHashMap<MetricDefinition, Object>();
   private static final Object SENTINAL = new Object();
 
+  private Logger LOG;
   private final DatabaseConfiguration dbConfig;
   private transient MetricDefinitionDAO metricDefDAO;
-  private TopologyContext ctx;
   private OutputCollector collector;
 
   public MetricFilteringBolt(DatabaseConfiguration dbConfig) {
@@ -73,18 +73,18 @@ public class MetricFilteringBolt extends BaseRichBolt {
 
         if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
           if (AlarmDeletedEvent.class.getSimpleName().equals(eventType)) {
-            LOG.debug("{} Received AlarmDeletedEvent for {}", ctx.getThisTaskId(), metricDefinition);
+            LOG.debug("Received AlarmDeletedEvent for {}", metricDefinition);
             METRIC_DEFS.remove(metricDefinition);
           }
         } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
           if (AlarmCreatedEvent.class.getSimpleName().equals(eventType)) {
-            LOG.debug("{} Received AlarmCreatedEvent for {}", ctx.getThisTaskId(), metricDefinition);
+            LOG.debug("Received AlarmCreatedEvent for {}", metricDefinition);
             METRIC_DEFS.put(metricDefinition, SENTINAL);
           }
         }
       }
     } catch (Exception e) {
-      LOG.error("{} Error processing tuple {}", ctx.getThisTaskId(), tuple, e);
+      LOG.error("Error processing tuple {}", tuple, e);
     } finally {
       collector.ack(tuple);
     }
@@ -93,8 +93,8 @@ public class MetricFilteringBolt extends BaseRichBolt {
   @Override
   @SuppressWarnings("rawtypes")
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
-    LOG.info("{} Preparing {}", context.getThisTaskId(), context.getThisComponentId());
-    this.ctx = context;
+    LOG = LoggerFactory.getLogger(Logging.categoryFor(context));
+    LOG.info("Preparing");
     this.collector = collector;
 
     if (metricDefDAO == null) {

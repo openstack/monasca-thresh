@@ -21,6 +21,7 @@ import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.service.AlarmDAO;
 import com.hpcloud.maas.infrastructure.messaging.MessagingModule;
 import com.hpcloud.maas.infrastructure.persistence.PersistenceModule;
+import com.hpcloud.maas.infrastructure.storm.Logging;
 import com.hpcloud.maas.infrastructure.storm.Streams;
 import com.hpcloud.messaging.rabbitmq.RabbitMQConfiguration;
 import com.hpcloud.messaging.rabbitmq.RabbitMQService;
@@ -42,9 +43,9 @@ import com.hpcloud.util.Serialization;
  * @author Jonathan Halterman
  */
 public class AlarmThresholdingBolt extends BaseRichBolt {
-  private static final Logger LOG = LoggerFactory.getLogger(AlarmThresholdingBolt.class);
   private static final long serialVersionUID = -4126465124017857754L;
 
+  private Logger LOG;
   private final DatabaseConfiguration dbConfig;
   private final RabbitMQConfiguration rabbitConfig;
   private final Map<String, Alarm> alarms = new HashMap<String, Alarm>();
@@ -52,7 +53,6 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   private String alertRoutingKey;
   private transient AlarmDAO alarmDAO;
   private transient RabbitMQService rabbitService;
-  private TopologyContext ctx;
   private OutputCollector collector;
 
   public AlarmThresholdingBolt(DatabaseConfiguration dbConfig, RabbitMQConfiguration rabbitConfig) {
@@ -83,7 +83,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
           handleAlarmDeleted(alarmId);
       }
     } catch (Exception e) {
-      LOG.error("{} Error processing tuple {}", ctx.getThisTaskId(), tuple, e);
+      LOG.error("Error processing tuple {}", tuple, e);
     } finally {
       collector.ack(tuple);
     }
@@ -92,8 +92,8 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   @Override
   @SuppressWarnings("rawtypes")
   public void prepare(Map config, TopologyContext context, OutputCollector collector) {
-    LOG.info("{} Preparing {}", context.getThisTaskId(), context.getThisComponentId());
-    this.ctx = context;
+    LOG = LoggerFactory.getLogger(Logging.categoryFor(context));
+    LOG.info("Preparing");
     this.collector = collector;
     alertExchange = (String) config.get(ThresholdingConfiguration.ALERTS_EXCHANGE);
     alertRoutingKey = (String) config.get(ThresholdingConfiguration.ALERTS_ROUTING_KEY);
@@ -106,7 +106,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   }
 
   void evaluateThreshold(Alarm alarm, SubAlarm subAlarm) {
-    LOG.debug("{} Received state change for {}", ctx.getThisTaskId(), subAlarm);
+    LOG.debug("Received state change for {}", subAlarm);
     alarm.updateSubAlarm(subAlarm);
 
     AlarmState initialState = alarm.getState();
@@ -114,18 +114,18 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
       alarmDAO.updateState(alarm.getId(), alarm.getState());
 
       if (AlarmState.ALARM.equals(alarm.getState())) {
-        LOG.debug("{} ALARM triggered for {}", ctx.getThisTaskId(), alarm);
+        LOG.debug("ALARM triggered for {}", alarm);
         AlarmStateTransitionEvent event = new AlarmStateTransitionEvent(alarm.getTenantId(),
             alarm.getId(), alarm.getName(), initialState, alarm.getState(),
             alarm.getStateChangeReason(), System.currentTimeMillis() / 1000);
         rabbitService.send(alertExchange, alertRoutingKey, Serialization.toJson(event));
       } else
-        LOG.debug("{} State changed for {}", ctx.getThisTaskId(), alarm);
+        LOG.debug("State changed for {}", alarm);
     }
   }
 
   void handleAlarmDeleted(String alarmId) {
-    LOG.debug("{} Received AlarmDeletedEvent for alarm id {}", ctx.getThisTaskId(), alarmId);
+    LOG.debug("Received AlarmDeletedEvent for alarm id {}", alarmId);
     alarms.remove(alarmId);
   }
 
@@ -138,7 +138,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     if (alarm == null) {
       alarm = alarmDAO.findById(alarmId);
       if (alarm == null)
-        LOG.error("{} Failed to locate alarm for id {}", ctx.getThisTaskId(), alarmId);
+        LOG.error("Failed to locate alarm for id {}", alarmId);
       else {
         alarms.put(alarmId, alarm);
       }

@@ -19,6 +19,7 @@ import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.maas.common.model.metric.CollectdMetrics;
 import com.hpcloud.maas.common.model.metric.MetricDefinition;
 import com.hpcloud.maas.domain.model.SubAlarm;
+import com.hpcloud.maas.infrastructure.storm.Logging;
 
 /**
  * Processes events by emitting tuples related to the event.
@@ -36,7 +37,7 @@ import com.hpcloud.maas.domain.model.SubAlarm;
  */
 public class EventProcessingBolt extends BaseRichBolt {
   private static final long serialVersionUID = 897171858708109378L;
-  private static final Logger LOG = LoggerFactory.getLogger(EventProcessingBolt.class);
+
   /** Stream for alarm specific events. */
   public static final String ALARM_EVENT_STREAM_ID = "alarm-events";
   /** Stream for metric and alarm specific events. */
@@ -44,7 +45,7 @@ public class EventProcessingBolt extends BaseRichBolt {
   /** Stream for metric and sub-alarm specific events. */
   public static final String METRIC_SUB_ALARM_EVENT_STREAM_ID = "metric-sub-alarm-events";
 
-  private TopologyContext ctx;
+  private Logger LOG;
   private OutputCollector collector;
 
   @Override
@@ -60,13 +61,13 @@ public class EventProcessingBolt extends BaseRichBolt {
   public void execute(Tuple tuple) {
     try {
       Object event = tuple.getValue(0);
-      LOG.trace("{} Received event for processing {}", ctx.getThisTaskId(), event);
+      LOG.trace("Received event for processing {}", event);
       if (event instanceof AlarmCreatedEvent)
         handle((AlarmCreatedEvent) event);
       else if (event instanceof AlarmDeletedEvent)
         handle((AlarmDeletedEvent) event);
     } catch (Exception e) {
-      LOG.error("{} Error processing tuple {}", ctx.getThisTaskId(), tuple, e);
+      LOG.error("Error processing tuple {}", tuple, e);
     } finally {
       collector.ack(tuple);
     }
@@ -75,8 +76,8 @@ public class EventProcessingBolt extends BaseRichBolt {
   @Override
   @SuppressWarnings("rawtypes")
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
-    LOG.info("{} Preparing {}", context.getThisTaskId(), context.getThisComponentId());
-    this.ctx = context;
+    LOG = LoggerFactory.getLogger(Logging.categoryFor(context));
+    LOG.info("Preparing");
     this.collector = collector;
   }
 

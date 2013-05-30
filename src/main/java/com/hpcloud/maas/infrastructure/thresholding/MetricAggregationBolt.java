@@ -25,6 +25,7 @@ import com.hpcloud.maas.domain.model.SubAlarmStats;
 import com.hpcloud.maas.domain.service.SubAlarmDAO;
 import com.hpcloud.maas.domain.service.SubAlarmStatsRepository;
 import com.hpcloud.maas.infrastructure.persistence.PersistenceModule;
+import com.hpcloud.maas.infrastructure.storm.Logging;
 import com.hpcloud.maas.infrastructure.storm.Streams;
 import com.hpcloud.maas.infrastructure.storm.Tuples;
 import com.hpcloud.persistence.DatabaseConfiguration;
@@ -50,15 +51,13 @@ import com.hpcloud.util.Injector;
  * @author Jonathan Halterman
  */
 public class MetricAggregationBolt extends BaseRichBolt {
-  private static final Logger LOG = LoggerFactory.getLogger(MetricAggregationBolt.class);
   private static final long serialVersionUID = 5624314196838090726L;
   public static final String TICK_TUPLE_SECONDS_KEY = "maas.aggregation.tick.seconds";
 
   final Map<MetricDefinition, SubAlarmStatsRepository> subAlarmStatsRepos = new HashMap<MetricDefinition, SubAlarmStatsRepository>();
-
+  private Logger LOG;
   private DatabaseConfiguration dbConfig;
   private transient SubAlarmDAO subAlarmDAO;
-  private TopologyContext ctx;
   private OutputCollector collector;
   private int evaluationTimeOffset;
 
@@ -101,7 +100,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
         }
       }
     } catch (Exception e) {
-      LOG.error("{} Error processing tuple {}", ctx.getThisTaskId(), tuple, e);
+      LOG.error("Error processing tuple {}", tuple, e);
     } finally {
       collector.ack(tuple);
     }
@@ -118,8 +117,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
   @Override
   @SuppressWarnings("rawtypes")
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
-    LOG.info("{} Preparing {}", context.getThisTaskId(), context.getThisComponentId());
-    this.ctx = context;
+    LOG = LoggerFactory.getLogger(Logging.categoryFor(context));
+    LOG.info("Preparing");
     this.collector = collector;
     evaluationTimeOffset = Integer.valueOf(System.getProperty(TICK_TUPLE_SECONDS_KEY, "60"))
         .intValue();
@@ -140,11 +139,11 @@ public class MetricAggregationBolt extends BaseRichBolt {
 
     for (SubAlarmStats stats : subAlarmStatsRepo.get()) {
       if (stats.getStats().addValue(metric.value, metric.timestamp))
-        LOG.trace("{} Aggregated value {} at {} for {}. Updated {}", ctx.getThisTaskId(),
-            metric.value, metric.timestamp, metricDefinition, stats.getStats());
+        LOG.trace("Aggregated value {} at {} for {}. Updated {}", metric.value, metric.timestamp,
+            metricDefinition, stats.getStats());
       else
-        LOG.warn("{} Invalid metric timestamp {} for {}, {}", ctx.getThisTaskId(),
-            metric.timestamp, metricDefinition, stats.getStats());
+        LOG.warn("Invalid metric timestamp {} for {}, {}", metric.timestamp, metricDefinition,
+            stats.getStats());
     }
   }
 
@@ -156,9 +155,9 @@ public class MetricAggregationBolt extends BaseRichBolt {
     long newWindowTimestamp = System.currentTimeMillis() / 1000;
     for (SubAlarmStatsRepository subAlarmStatsRepo : subAlarmStatsRepos.values())
       for (SubAlarmStats subAlarmStats : subAlarmStatsRepo.get()) {
-        LOG.debug("{} Evaluating {}", ctx.getThisTaskId(), subAlarmStats);
+        LOG.debug("Evaluating {}", subAlarmStats);
         if (subAlarmStats.evaluateAndSlideWindow(newWindowTimestamp)) {
-          LOG.debug("{} Alarm state changed for {}", ctx.getThisTaskId(), subAlarmStats);
+          LOG.debug("Alarm state changed for {}", subAlarmStats);
           collector.emit(new Values(subAlarmStats.getSubAlarm().getAlarmId(),
               subAlarmStats.getSubAlarm()));
         }
@@ -175,9 +174,9 @@ public class MetricAggregationBolt extends BaseRichBolt {
     if (subAlarmStatsRepo == null) {
       List<SubAlarm> subAlarms = subAlarmDAO.find(metricDefinition);
       if (subAlarms.isEmpty())
-        LOG.warn("{} Failed to find sub alarms for {}", ctx.getThisTaskId(), metricDefinition);
+        LOG.warn("Failed to find sub alarms for {}", metricDefinition);
       else {
-        LOG.debug("{} Creating SubAlarmStats for {}", ctx.getThisTaskId(), metricDefinition);
+        LOG.debug("Creating SubAlarmStats for {}", metricDefinition);
         long viewEndTimestamp = (System.currentTimeMillis() / 1000) + evaluationTimeOffset;
         subAlarmStatsRepo = new SubAlarmStatsRepository(subAlarms, viewEndTimestamp);
         subAlarmStatsRepos.put(metricDefinition, subAlarmStatsRepo);
@@ -191,7 +190,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
    * Adds the {@code subAlarm} subAlarmStatsRepo for the {@code metricDefinition}.
    */
   void handleAlarmCreated(MetricDefinition metricDefinition, SubAlarm subAlarm) {
-    LOG.debug("{} Received AlarmCreatedEvent for {}", ctx.getThisTaskId(), subAlarm);
+    LOG.debug("Received AlarmCreatedEvent for {}", subAlarm);
     SubAlarmStatsRepository subAlarmStatsRepo = getOrCreateSubAlarmStatsRepo(metricDefinition);
     if (subAlarmStatsRepo == null)
       return;
@@ -205,7 +204,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
    * {@code metricDefinition}.
    */
   void handleAlarmDeleted(MetricDefinition metricDefinition, String subAlarmId) {
-    LOG.debug("{} Received AlarmDeletedEvent for subAlarm id {}", ctx.getThisTaskId(), subAlarmId);
+    LOG.debug("Received AlarmDeletedEvent for subAlarm id {}", subAlarmId);
     SubAlarmStatsRepository subAlarmStatsRepo = subAlarmStatsRepos.get(metricDefinition);
     if (subAlarmStatsRepo != null)
       subAlarmStatsRepo.remove(subAlarmId);
