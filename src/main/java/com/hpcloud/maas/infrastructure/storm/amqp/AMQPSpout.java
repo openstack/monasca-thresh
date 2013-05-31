@@ -231,6 +231,7 @@ public class AMQPSpout implements IRichSpout {
 
             for (int i = 0; i < tuples.size(); i++) {
               List<Object> tuple = (List<Object>) tuples.get(i);
+              // LOG.trace("Emitting tuple {}", tuple);
               if (i > 0 || config.autoAck)
                 collector.emit(tuple);
               else
