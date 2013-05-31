@@ -211,14 +211,14 @@ public class SlidingWindowStats {
     final int viewSlotsToDisplay = 3;
 
     StringBuilder b = new StringBuilder();
-    b.append("SlidingWindowStats [[");
+    b.append("SlidingWindowStats [(");
     int startIndex = numViewSlots > viewSlotsToDisplay ? numViewSlots - viewSlotsToDisplay : 0;
     if (startIndex != 0)
       b.append("... ");
     int index = indexOf(startIndex);
     for (int i = startIndex; i < slots.length; i++, index = indexAfter(index)) {
       if (i == numViewSlots)
-        b.append("], ");
+        b.append("), ");
       else if (i != startIndex)
         b.append(", ");
       b.append(slots[index]);
