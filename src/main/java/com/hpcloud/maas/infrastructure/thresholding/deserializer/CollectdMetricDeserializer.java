@@ -9,7 +9,7 @@ import backtype.storm.tuple.Fields;
 
 import com.hpcloud.maas.common.model.metric.CollectdMetrics;
 import com.hpcloud.maas.common.model.metric.Metric;
-import com.hpcloud.maas.infrastructure.storm.TupleDeserializer;
+import com.hpcloud.streaming.storm.TupleDeserializer;
 
 /**
  * Deserializes collectd metrics.

@@ -5,9 +5,9 @@ import javax.validation.constraints.NotNull;
 
 import org.hibernate.validator.constraints.NotEmpty;
 
-import com.hpcloud.maas.infrastructure.storm.amqp.AMQPSpoutConfiguration;
 import com.hpcloud.messaging.rabbitmq.RabbitMQConfiguration;
 import com.hpcloud.persistence.DatabaseConfiguration;
+import com.hpcloud.streaming.storm.amqp.AMQPSpoutConfiguration;
 
 /**
  * Thresholding configuration.

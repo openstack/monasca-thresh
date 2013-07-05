@@ -29,10 +29,10 @@ import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.service.AlarmDAO;
 import com.hpcloud.maas.domain.service.MetricDefinitionDAO;
 import com.hpcloud.maas.domain.service.SubAlarmDAO;
-import com.hpcloud.maas.infrastructure.storm.NoopSpout;
-import com.hpcloud.maas.infrastructure.storm.TopologyTestCase;
 import com.hpcloud.maas.infrastructure.thresholding.MetricAggregationBolt;
 import com.hpcloud.messaging.rabbitmq.RabbitMQService;
+import com.hpcloud.streaming.storm.NoopSpout;
+import com.hpcloud.streaming.storm.TopologyTestCase;
 import com.hpcloud.util.Injector;
 
 /**

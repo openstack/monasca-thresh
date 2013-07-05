@@ -21,11 +21,11 @@ import com.hpcloud.maas.domain.model.SubAlarm;
 import com.hpcloud.maas.domain.service.AlarmDAO;
 import com.hpcloud.maas.infrastructure.messaging.MessagingModule;
 import com.hpcloud.maas.infrastructure.persistence.PersistenceModule;
-import com.hpcloud.maas.infrastructure.storm.Logging;
-import com.hpcloud.maas.infrastructure.storm.Streams;
 import com.hpcloud.messaging.rabbitmq.RabbitMQConfiguration;
 import com.hpcloud.messaging.rabbitmq.RabbitMQService;
 import com.hpcloud.persistence.DatabaseConfiguration;
+import com.hpcloud.streaming.storm.Logging;
+import com.hpcloud.streaming.storm.Streams;
 import com.hpcloud.util.Injector;
 import com.hpcloud.util.Serialization;
 

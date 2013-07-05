@@ -10,7 +10,7 @@ import backtype.storm.tuple.Fields;
 import com.hpcloud.maas.common.model.metric.FlatMetric;
 import com.hpcloud.maas.common.model.metric.FlatMetrics;
 import com.hpcloud.maas.common.model.metric.Metric;
-import com.hpcloud.maas.infrastructure.storm.TupleDeserializer;
+import com.hpcloud.streaming.storm.TupleDeserializer;
 
 /**
  * Deserializes MaaS metrics.

@@ -10,8 +10,8 @@ import backtype.storm.LocalCluster;
 import backtype.storm.StormSubmitter;
 import backtype.storm.generated.StormTopology;
 
-import com.hpcloud.maas.util.config.ConfigurationFactory;
 import com.hpcloud.util.Injector;
+import com.hpcloud.util.config.ConfigurationFactory;
 
 /**
  * Alarm thresholding engine.

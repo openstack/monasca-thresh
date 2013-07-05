@@ -19,7 +19,7 @@ import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.maas.common.model.metric.CollectdMetrics;
 import com.hpcloud.maas.common.model.metric.MetricDefinition;
 import com.hpcloud.maas.domain.model.SubAlarm;
-import com.hpcloud.maas.infrastructure.storm.Logging;
+import com.hpcloud.streaming.storm.Logging;
 
 /**
  * Processes events by emitting tuples related to the event.

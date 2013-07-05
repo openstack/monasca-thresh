@@ -25,10 +25,10 @@ import com.hpcloud.maas.domain.model.SubAlarmStats;
 import com.hpcloud.maas.domain.service.SubAlarmDAO;
 import com.hpcloud.maas.domain.service.SubAlarmStatsRepository;
 import com.hpcloud.maas.infrastructure.persistence.PersistenceModule;
-import com.hpcloud.maas.infrastructure.storm.Logging;
-import com.hpcloud.maas.infrastructure.storm.Streams;
-import com.hpcloud.maas.infrastructure.storm.Tuples;
 import com.hpcloud.persistence.DatabaseConfiguration;
+import com.hpcloud.streaming.storm.Logging;
+import com.hpcloud.streaming.storm.Streams;
+import com.hpcloud.streaming.storm.Tuples;
 import com.hpcloud.util.Injector;
 
 /**

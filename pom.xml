@@ -15,8 +15,8 @@
   <properties>
     <versionNumber>1.0.0</versionNumber>
     <computedVersion>${versionNumber}-SNAPSHOT</computedVersion>
-    <ps.common.version>1.0.0.265</ps.common.version>
-    <maas.commons.version>1.0.0.82</maas.commons.version>
+    <ps.common.version>1.0.0.271</ps.common.version>
+    <maas.commons.version>1.0.0.89</maas.commons.version>
     <dropwizard.version>0.6.1</dropwizard.version>
 
     <skipITs>true</skipITs>
@@ -99,6 +99,11 @@
     </dependency>
     <dependency>
       <groupId>com.hpcloud</groupId>
+      <artifactId>ps-streaming</artifactId>
+      <version>${ps.common.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.hpcloud</groupId>
       <artifactId>ps-persistence</artifactId>
       <version>${ps.common.version}</version>
     </dependency>
@@ -130,7 +135,7 @@
     <dependency>
       <groupId>org.jodah</groupId>
       <artifactId>stormcell</artifactId>
-      <version>0.1.0-SNAPSHOT</version>
+      <version>0.2.0-SNAPSHOT</version>
     </dependency>
 
     <!-- Test dependencies -->
