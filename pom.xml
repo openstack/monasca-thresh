@@ -152,6 +152,13 @@
       <type>test-jar</type>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>com.hpcloud</groupId>
+      <artifactId>ps-streaming</artifactId>
+      <version>${ps.common.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
