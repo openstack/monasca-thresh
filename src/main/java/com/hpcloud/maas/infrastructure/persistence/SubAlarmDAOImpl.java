@@ -32,10 +32,7 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
   private static final String FIND_BY_METRIC_DEF_SQL = "select sa.* from sub_alarm sa, sub_alarm_dimension d "
       + "join (%s) v on d.dimension_name = v.dimension_name and d.value = v.value "
       + "where sa.id = d.sub_alarm_id and sa.namespace = :namespace and sa.metric_type = :metricType and sa.metric_subject %s "
-      + "group by d.sub_alarm_id"; // having count(d.sub_alarm_id) = (select count(*) from
-                                   // sub_alarm_dimension where sub_alarm_id = d.sub_alarm_id) //
-                                   // Removed temporarily since we don't receive all of the expected
-                                   // dimensions for collectd metrics
+      + "group by d.sub_alarm_id having count(d.sub_alarm_id) = %s";
   private static final String FIND_BY_METRIC_DEF_NO_DIMS_SQL = "select * from sub_alarm sa where sa.namespace = :namespace "
       + "and sa.metric_type = :metricType and sa.metric_subject %s and (select count(*) from sub_alarm_dimension where sub_alarm_id = sa.id) = 0";
 
@@ -58,7 +55,8 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
       else {
         String unionAllStatement = SqlStatements.unionAllStatementFor(metricDefinition.dimensions,
             "dimension_name", "value");
-        sql = String.format(FIND_BY_METRIC_DEF_SQL, unionAllStatement, subjectSql);
+        sql = String.format(FIND_BY_METRIC_DEF_SQL, unionAllStatement, subjectSql,
+            metricDefinition.dimensions.size());
       }
 
       Query<Map<String, Object>> query = h.createQuery(sql)
@@ -77,6 +75,7 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
             operator, (Double) row.get("threshold"), (Integer) row.get("period"),
             (Integer) row.get("periods"));
         SubAlarm subAlarm = new SubAlarm(subAlarmId, (String) row.get("alarm_id"), subExpression);
+       
         subAlarms.add(subAlarm);
       }
 
