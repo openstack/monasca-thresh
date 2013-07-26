@@ -36,7 +36,7 @@
     </repository>
     <repository>
       <id>nexus 3rd party</id>
-      <url>http:/nexus.paas.hpcloud.net:8081/nexus/content/repositories/thirdparty</url>
+      <url>http://nexus.paas.hpcloud.net:8081/nexus/content/repositories/thirdparty</url>
     </repository>
     <repository>
       <id>nexus-snapshots</id>
