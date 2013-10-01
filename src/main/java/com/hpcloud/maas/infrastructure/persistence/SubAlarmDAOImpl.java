@@ -31,10 +31,10 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
    */
   private static final String FIND_BY_METRIC_DEF_SQL = "select sa.* from sub_alarm sa, sub_alarm_dimension d "
       + "join (%s) v on d.dimension_name = v.dimension_name and d.value = v.value "
-      + "where sa.id = d.sub_alarm_id and sa.namespace = :namespace and sa.metric_type = :metricType and sa.metric_subject %s "
+      + "where sa.id = d.sub_alarm_id and sa.namespace = :namespace "
       + "group by d.sub_alarm_id having count(d.sub_alarm_id) = %s";
   private static final String FIND_BY_METRIC_DEF_NO_DIMS_SQL = "select * from sub_alarm sa where sa.namespace = :namespace "
-      + "and sa.metric_type = :metricType and sa.metric_subject %s and (select count(*) from sub_alarm_dimension where sub_alarm_id = sa.id) = 0";
+      + "and (select count(*) from sub_alarm_dimension where sub_alarm_id = sa.id) = 0";
 
   private final DBI db;
 
@@ -49,21 +49,17 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
 
     try {
       String sql = null;
-      String subjectSql = metricDefinition.subject == null ? "is null" : "= :metricSubject";
       if (metricDefinition.dimensions == null || metricDefinition.dimensions.isEmpty())
-        sql = String.format(FIND_BY_METRIC_DEF_NO_DIMS_SQL, subjectSql);
+        sql = FIND_BY_METRIC_DEF_NO_DIMS_SQL;
       else {
         String unionAllStatement = SqlStatements.unionAllStatementFor(metricDefinition.dimensions,
             "dimension_name", "value");
-        sql = String.format(FIND_BY_METRIC_DEF_SQL, unionAllStatement, subjectSql,
+        sql = String.format(FIND_BY_METRIC_DEF_SQL, unionAllStatement,
             metricDefinition.dimensions.size());
       }
 
-      Query<Map<String, Object>> query = h.createQuery(sql)
-          .bind("namespace", metricDefinition.namespace)
-          .bind("metricType", metricDefinition.type);
-      if (metricDefinition.subject != null)
-        query.bind("metricSubject", metricDefinition.subject);
+      Query<Map<String, Object>> query = h.createQuery(sql).bind("namespace",
+          metricDefinition.namespace);
       List<Map<String, Object>> rows = query.list();
 
       List<SubAlarm> subAlarms = new ArrayList<SubAlarm>(rows.size());
@@ -75,7 +71,7 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
             operator, (Double) row.get("threshold"), (Integer) row.get("period"),
             (Integer) row.get("periods"));
         SubAlarm subAlarm = new SubAlarm(subAlarmId, (String) row.get("alarm_id"), subExpression);
-       
+
         subAlarms.add(subAlarm);
       }
 

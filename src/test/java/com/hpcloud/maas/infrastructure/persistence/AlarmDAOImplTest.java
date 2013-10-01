@@ -50,17 +50,18 @@ public class AlarmDAOImplTest {
     handle.execute("truncate table alarm_action");
 
     handle.execute("insert into alarm (id, tenant_id, name, expression, state, created_at, updated_at) "
-        + "values ('123', 'bob', '90% CPU', 'avg(hpcs.compute:cpu:{flavor_id=777, image_id=888}) > 10', 'UNDETERMINED', NOW(), NOW())");
-    handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, metric_type, metric_subject, operator, threshold, period, periods, created_at, updated_at) "
-        + "values ('111', '123', 'AVG', 'hpcs.compute', 'cpu', null, 'GT', 10, 60, 1, NOW(), NOW())");
+        + "values ('123', 'bob', '90% CPU', 'avg(hpcs.compute{flavor_id=777, image_id=888, metric_name=cpu}) > 10', 'UNDETERMINED', NOW(), NOW())");
+    handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, operator, threshold, period, periods, created_at, updated_at) "
+        + "values ('111', '123', 'AVG', 'hpcs.compute', 'GT', 10, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('111', 'flavor_id', '777')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'image_id', '888')");
+    handle.execute("insert into sub_alarm_dimension values ('111', 'metric_name', 'cpu')");
     handle.execute("insert into alarm_action values ('123', '29387234')");
     handle.execute("insert into alarm_action values ('123', '77778687')");
   }
 
   public void shouldFindById() {
-    String expr = "avg(hpcs.compute:cpu) > 10";
+    String expr = "avg(hpcs.compute{flavor_id=777, image_id=888, metric_name=cpu}) > 10";
     Alarm expected = new Alarm("123", "bob", "90% CPU", AlarmExpression.of(expr),
         Arrays.asList(new SubAlarm("111", "123", AlarmSubExpression.of(expr))),
         AlarmState.UNDETERMINED);

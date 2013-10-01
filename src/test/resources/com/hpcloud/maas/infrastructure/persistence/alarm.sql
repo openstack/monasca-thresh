@@ -14,8 +14,6 @@ CREATE TABLE `sub_alarm` (
   `alarm_id` varchar(36) NOT NULL,
   `function` varchar(10) NOT NULL,
   `namespace` varchar(100) NOT NULL,
-  `metric_type` varchar(100) NOT NULL,
-  `metric_subject` varchar(50) DEFAULT NULL,
   `operator` varchar(5) NOT NULL,
   `threshold` double NOT NULL,
   `period` int(11) NOT NULL,

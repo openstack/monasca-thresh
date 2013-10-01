@@ -19,7 +19,7 @@ import com.hpcloud.maas.common.model.alarm.AlarmState;
 public class AlarmTest {
   public void shouldBeUndeterminedIfAnySubAlarmIsUndetermined() {
     AlarmExpression expr = new AlarmExpression(
-        "avg(hpcs.compute:cpu:1:{instance_id=5}, 1) > 5 times 3 AND avg(hpcs.compute:mem:{flavor_id=3}, 2) < 4 times 3");
+        "avg(hpcs.compute{instance_id=5,metric_name=cpu,device=1}, 1) > 5 times 3 AND avg(hpcs.compute{flavor_id=3,metric_name=mem}, 2) < 4 times 3");
     SubAlarm subAlarm1 = new SubAlarm("123", "1", expr.getSubExpressions().get(0),
         AlarmState.UNDETERMINED);
     SubAlarm subAlarm2 = new SubAlarm("456", "1", expr.getSubExpressions().get(1), AlarmState.ALARM);
@@ -32,7 +32,7 @@ public class AlarmTest {
 
   public void shouldEvaluateExpressionWithBooleanAnd() {
     AlarmExpression expr = new AlarmExpression(
-        "avg(hpcs.compute:cpu:1:{instance_id=5}, 1) > 5 times 3 AND avg(hpcs.compute:mem:{flavor_id=3}, 2) < 4 times 3");
+        "avg(hpcs.compute{instance_id=5,metric_name=cpu,device=1}, 1) > 5 times 3 AND avg(hpcs.compute{flavor_id=3,metric_name=mem}, 2) < 4 times 3");
     SubAlarm subAlarm1 = new SubAlarm("123", "1", expr.getSubExpressions().get(0));
     SubAlarm subAlarm2 = new SubAlarm("456", "1", expr.getSubExpressions().get(1));
 
@@ -66,7 +66,7 @@ public class AlarmTest {
 
   public void shouldEvaluateExpressionWithBooleanOr() {
     AlarmExpression expr = new AlarmExpression(
-        "avg(hpcs.compute:cpu:1:{instance_id=5}, 1) > 5 times 3 OR avg(hpcs.compute:mem:{flavor_id=3}, 2) < 4 times 3");
+        "avg(hpcs.compute{instance_id=5,metric_name=cpu,device=1}, 1) > 5 times 3 OR avg(hpcs.compute{flavor_id=3,metric_name=mem}, 2) < 4 times 3");
     SubAlarm subAlarm1 = new SubAlarm("123", "1", expr.getSubExpressions().get(0));
     SubAlarm subAlarm2 = new SubAlarm("456", "1", expr.getSubExpressions().get(1));
 
@@ -103,7 +103,7 @@ public class AlarmTest {
 
   public void shouldBuiltStateChangeReason() {
     AlarmExpression expr = new AlarmExpression(
-        "avg(hpcs.compute:cpu:1:{instance_id=5}, 1) > 5 times 3 OR avg(hpcs.compute:mem:{flavor_id=3}, 2) < 4 times 3");
+        "avg(hpcs.compute{instance_id=5,metric_name=cpu,device=1}, 1) > 5 times 3 OR avg(hpcs.compute{flavor_id=3,metric_name=mem}, 2) < 4 times 3");
     SubAlarm subAlarm1 = new SubAlarm("123", "1", expr.getSubExpressions().get(0));
     SubAlarm subAlarm2 = new SubAlarm("456", "1", expr.getSubExpressions().get(1));
     List<String> expressions = Arrays.asList(subAlarm1.getExpression().toString(),
@@ -111,10 +111,10 @@ public class AlarmTest {
 
     assertEquals(
         Alarm.buildStateChangeReason(AlarmState.UNDETERMINED, expressions),
-        "No data was present for the sub-alarms: [avg(hpcs.compute:cpu:1:{instance_id=5}, 1) > 5.0 times 3, avg(hpcs.compute:mem:{flavor_id=3}, 2) < 4.0 times 3]");
+        "No data was present for the sub-alarms: [avg(hpcs.compute:{device=1, metric_name=cpu, instance_id=5}, 1) > 5.0 times 3, avg(hpcs.compute:{flavor_id=3, metric_name=mem}, 2) < 4.0 times 3]");
 
     assertEquals(
         Alarm.buildStateChangeReason(AlarmState.ALARM, expressions),
-        "Thresholds were exceeded for the sub-alarms: [avg(hpcs.compute:cpu:1:{instance_id=5}, 1) > 5.0 times 3, avg(hpcs.compute:mem:{flavor_id=3}, 2) < 4.0 times 3]");
+        "Thresholds were exceeded for the sub-alarms: [avg(hpcs.compute:{device=1, metric_name=cpu, instance_id=5}, 1) > 5.0 times 3, avg(hpcs.compute:{flavor_id=3, metric_name=mem}, 2) < 4.0 times 3]");
   }
 }

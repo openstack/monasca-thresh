@@ -1,5 +1,6 @@
 *.swp
 *.iml
+.DS_Store
 .cache
 .classpath
 .idea
