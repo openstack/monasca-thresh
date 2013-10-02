@@ -13,6 +13,7 @@ import com.hpcloud.maas.common.model.alarm.AggregateFunction;
 import com.hpcloud.maas.common.model.alarm.AlarmOperator;
 import com.hpcloud.maas.common.model.alarm.AlarmState;
 import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
+import com.hpcloud.maas.common.model.metric.CollectdMetrics;
 import com.hpcloud.maas.common.model.metric.MetricDefinition;
 import com.hpcloud.maas.domain.model.Alarm;
 import com.hpcloud.maas.domain.model.SubAlarm;
@@ -51,7 +52,7 @@ public class AlarmDAOImpl implements AlarmDAO {
       AggregateFunction function = AggregateFunction.valueOf((String) row.get("function"));
       MetricDefinition metricDef = new MetricDefinition((String) row.get("namespace"), dimensions);
       // TODO remove later when collectd supports all dimensions
-      // CollectdMetrics.removeUnsupportedDimensions(metricDef);
+      CollectdMetrics.removeUnsupportedDimensions(metricDef);
       AlarmOperator operator = AlarmOperator.valueOf((String) row.get("operator"));
       AlarmSubExpression subExpression = new AlarmSubExpression(function, metricDef, operator,
           (Double) row.get("threshold"), (Integer) row.get("period"), (Integer) row.get("periods"));

@@ -46,24 +46,37 @@ public class MetricDefinitionDAOImplTest {
 
     handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, metric_type, metric_subject, operator, threshold, period, periods, state, created_at, updated_at) "
         + "values ('111', '123', 'AVG', 'hpcs.compute', 'cpu', '1', 'GT', 10, 60, 1, 'OK', NOW(), NOW())");
+    handle.execute("insert into sub_alarm_dimension values ('111', 'metric_name', 'cpu')");
+    handle.execute("insert into sub_alarm_dimension values ('111', 'device', '1')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'instance_id', '777')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'image_id', '888')");
 
     handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, metric_type, metric_subject, operator, threshold, period, periods, state, created_at, updated_at) "
         + "values ('222', '123', 'AVG', 'hpcs.compute', 'mem', null, 'GT', 10, 60, 1, 'OK', NOW(), NOW())");
+    handle.execute("insert into sub_alarm_dimension values ('222', 'metric_name', 'mem')");
     handle.execute("insert into sub_alarm_dimension values ('222', 'instance_id', '123')");
     handle.execute("insert into sub_alarm_dimension values ('222', 'az', '2')");
 
     handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, metric_type, metric_subject, operator, threshold, period, periods, state, created_at, updated_at) "
         + "values ('333', '123', 'AVG', 'foo', 'bar', null, 'GT', 10, 60, 1, 'OK', NOW(), NOW())");
+    handle.execute("insert into sub_alarm_dimension values ('333', 'metric_name', 'bar')");
   }
 
   public void shouldFindForAlarms() {
-    MetricDefinition metricDef1 = new MetricDefinition("hpcs.compute", "cpu", "1",
-        ImmutableMap.<String, String>builder().put("instance_id", "777").build());
-    MetricDefinition metricDef2 = new MetricDefinition("hpcs.compute", "mem", null,
-        ImmutableMap.<String, String>builder().put("instance_id", "123").build());
-    MetricDefinition metricDef3 = new MetricDefinition("foo", "bar", null, null);
+    MetricDefinition metricDef1 = new MetricDefinition("hpcs.compute",
+        ImmutableMap.<String, String>builder()
+            .put("metric_name", "cpu")
+            .put("device", "1")
+            .put("instance_id", "777")
+            .build());
+    MetricDefinition metricDef2 = new MetricDefinition("hpcs.compute",
+        ImmutableMap.<String, String>builder()
+            .put("metric_name", "mem")
+            .put("az", "2")
+            .put("instance_id", "123")
+            .build());
+    MetricDefinition metricDef3 = new MetricDefinition("foo",
+        ImmutableMap.<String, String>builder().put("metric_name", "bar").build());
     List<MetricDefinition> expected = Arrays.asList(metricDef1, metricDef2, metricDef3);
 
     assertTrue(dao.findForAlarms().containsAll(expected));

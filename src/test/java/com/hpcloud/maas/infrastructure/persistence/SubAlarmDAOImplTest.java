@@ -14,6 +14,7 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Resources;
 import com.hpcloud.maas.common.model.alarm.AlarmState;
 import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
@@ -102,7 +103,8 @@ public class SubAlarmDAOImplTest {
   public void shouldFailFindForNullDimensions() {
     List<SubAlarm> expected = Arrays.asList(new SubAlarm("444", "456",
         AlarmSubExpression.of("avg(hpcs.compute{metric_name=cpu}) > 10"), AlarmState.UNDETERMINED));
-    List<SubAlarm> subAlarms = dao.find(new MetricDefinition("hpcs.compute", "cpu", null, null));
+    List<SubAlarm> subAlarms = dao.find(new MetricDefinition("hpcs.compute",
+        new ImmutableMap.Builder<String, String>().put("metric_name", "cpu").build()));
     assertNotEquals(subAlarms, expected);
   }
 }
