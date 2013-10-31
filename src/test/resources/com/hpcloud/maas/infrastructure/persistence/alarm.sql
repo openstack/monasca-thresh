@@ -6,6 +6,7 @@ CREATE TABLE `alarm` (
   `state` varchar(20) NOT NULL check state in ('UNDETERMINED','OK','ALARM'),
   `created_at` datetime NOT NULL,
   `updated_at` datetime NOT NULL,
+  `deleted_at` datetime,
   PRIMARY KEY (`id`)
 );
 

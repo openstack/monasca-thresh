@@ -68,7 +68,7 @@ public class AlarmDAOImpl implements AlarmDAO {
     Handle h = db.open();
 
     try {
-      Alarm alarm = h.createQuery("select * from alarm where id = :id")
+      Alarm alarm = h.createQuery("select * from alarm where id = :id and deleted_at is null")
           .bind("id", id)
           .map(new BeanMapper<Alarm>(Alarm.class))
           .first();

@@ -44,21 +44,21 @@ public class MetricDefinitionDAOImplTest {
     handle.execute("delete from sub_alarm where id in (111, 222, 333)");
     handle.execute("delete from sub_alarm_dimension where sub_alarm_id in (111, 222, 333)");
 
-    handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, metric_type, metric_subject, operator, threshold, period, periods, state, created_at, updated_at) "
-        + "values ('111', '123', 'AVG', 'hpcs.compute', 'cpu', '1', 'GT', 10, 60, 1, 'OK', NOW(), NOW())");
+    handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, operator, threshold, period, periods, state, created_at, updated_at) "
+        + "values ('111', '123', 'AVG', 'hpcs.compute', 'GT', 10, 60, 1, 'OK', NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('111', 'metric_name', 'cpu')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'device', '1')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'instance_id', '777')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'image_id', '888')");
 
-    handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, metric_type, metric_subject, operator, threshold, period, periods, state, created_at, updated_at) "
-        + "values ('222', '123', 'AVG', 'hpcs.compute', 'mem', null, 'GT', 10, 60, 1, 'OK', NOW(), NOW())");
+    handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, operator, threshold, period, periods, state, created_at, updated_at) "
+        + "values ('222', '123', 'AVG', 'hpcs.compute', 'GT', 10, 60, 1, 'OK', NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('222', 'metric_name', 'mem')");
     handle.execute("insert into sub_alarm_dimension values ('222', 'instance_id', '123')");
     handle.execute("insert into sub_alarm_dimension values ('222', 'az', '2')");
 
-    handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, metric_type, metric_subject, operator, threshold, period, periods, state, created_at, updated_at) "
-        + "values ('333', '123', 'AVG', 'foo', 'bar', null, 'GT', 10, 60, 1, 'OK', NOW(), NOW())");
+    handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, operator, threshold, period, periods, state, created_at, updated_at) "
+        + "values ('333', '123', 'AVG', 'foo', 'GT', 10, 60, 1, 'OK', NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('333', 'metric_name', 'bar')");
   }
 
