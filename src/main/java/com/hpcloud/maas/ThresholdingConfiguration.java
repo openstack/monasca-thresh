@@ -1,5 +1,7 @@
 package com.hpcloud.maas;
 
+import java.util.Set;
+
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
 
@@ -43,6 +45,9 @@ public class ThresholdingConfiguration {
 
   @NotNull public Integer thresholdingBoltThreads = 6;
   @NotNull public Integer thresholdingBoltTasks = 15;
+
+  /** Namespaces for which metrics are received sporadically. */
+  @NotNull public Set<String> sporadicMetricNamespaces;
 
   /** Configuration for the spout that receives collectd metrics from the internal exchange. */
   @Valid @NotNull public AMQPSpoutConfiguration collectdMetricSpout;

@@ -17,6 +17,8 @@ public class SubAlarm extends AbstractEntity implements Serializable {
   private final String alarmId;
   private final AlarmSubExpression expression;
   private AlarmState state;
+  /** Whether metrics for this sub-alarm are received sporadically. */
+  private boolean sporadicMetric;
 
   public SubAlarm(String id, String alarmId, AlarmSubExpression expression) {
     this(id, alarmId, expression, AlarmState.UNDETERMINED);
@@ -73,6 +75,14 @@ public class SubAlarm extends AbstractEntity implements Serializable {
     result = prime * result + ((expression == null) ? 0 : expression.hashCode());
     result = prime * result + ((state == null) ? 0 : state.hashCode());
     return result;
+  }
+
+  public boolean isSporadicMetric() {
+    return sporadicMetric;
+  }
+
+  public void setSporadicMetric(boolean sporadicMetric) {
+    this.sporadicMetric = sporadicMetric;
   }
 
   public void setState(AlarmState state) {

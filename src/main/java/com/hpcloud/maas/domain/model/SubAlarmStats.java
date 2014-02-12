@@ -118,7 +118,7 @@ public class SubAlarmStats {
     emptyWindowObservations++;
 
     if (emptyWindowObservations >= emptyWindowObservationThreshold
-        && !AlarmState.UNDETERMINED.equals(initialState)) {
+        && !AlarmState.UNDETERMINED.equals(initialState) && !subAlarm.isSporadicMetric()) {
       subAlarm.setState(AlarmState.UNDETERMINED);
       return true;
     }

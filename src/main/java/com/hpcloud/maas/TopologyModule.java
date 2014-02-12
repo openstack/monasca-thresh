@@ -115,7 +115,8 @@ public class TopologyModule extends AbstractModule {
         .setNumTasks(config.filteringBoltTasks);
 
     // Filtering / Event -> Aggregation
-    builder.setBolt("aggregation-bolt", new MetricAggregationBolt(config.database),
+    builder.setBolt("aggregation-bolt",
+        new MetricAggregationBolt(config.database, config.sporadicMetricNamespaces),
         config.aggregationBoltThreads)
         .fieldsGrouping("filtering-bolt", new Fields("metricDefinition"))
         .fieldsGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID,

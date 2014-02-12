@@ -1,8 +1,10 @@
 package com.hpcloud.maas.infrastructure.thresholding;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,6 +60,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
   private transient Logger LOG;
   private DatabaseConfiguration dbConfig;
   private transient SubAlarmDAO subAlarmDAO;
+  /** Namespaces for which metrics are received sporadically */
+  private Set<String> sporadicMetricNamespaces = Collections.emptySet();
   private OutputCollector collector;
   private int evaluationTimeOffset;
 
@@ -65,8 +69,9 @@ public class MetricAggregationBolt extends BaseRichBolt {
     this.subAlarmDAO = subAlarmDAO;
   }
 
-  public MetricAggregationBolt(DatabaseConfiguration dbConfig) {
+  public MetricAggregationBolt(DatabaseConfiguration dbConfig, Set<String> sporadicMetricNamespaces) {
     this.dbConfig = dbConfig;
+    this.sporadicMetricNamespaces = sporadicMetricNamespaces;
   }
 
   @Override
@@ -177,6 +182,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
         LOG.warn("Failed to find sub alarms for {}", metricDefinition);
       else {
         LOG.debug("Creating SubAlarmStats for {}", metricDefinition);
+        for (SubAlarm subAlarm : subAlarms)
+          subAlarm.setSporadicMetric(sporadicMetricNamespaces.contains(metricDefinition.namespace));
         long viewEndTimestamp = (System.currentTimeMillis() / 1000) + evaluationTimeOffset;
         subAlarmStatsRepo = new SubAlarmStatsRepository(subAlarms, viewEndTimestamp);
         subAlarmStatsRepos.put(metricDefinition, subAlarmStatsRepo);
