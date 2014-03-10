@@ -88,10 +88,10 @@ public class MetricAggregationBoltTest {
   public void shouldAggregateValues() {
     long t1 = System.currentTimeMillis() / 1000;
 
-    bolt.aggregateValues(metricDef1, new Metric(metricDef1, t1, 100));
-    bolt.aggregateValues(metricDef1, new Metric(metricDef1, t1, 80));
-    bolt.aggregateValues(metricDef2, new Metric(metricDef2, t1, 50));
-    bolt.aggregateValues(metricDef2, new Metric(metricDef2, t1, 40));
+    bolt.aggregateValues(metricDef1, new Metric(metricDef1.namespace, metricDef1.dimensions, t1, 100));
+    bolt.aggregateValues(metricDef1, new Metric(metricDef1.namespace, metricDef1.dimensions, t1, 80));
+    bolt.aggregateValues(metricDef2, new Metric(metricDef2.namespace, metricDef2.dimensions, t1, 50));
+    bolt.aggregateValues(metricDef2, new Metric(metricDef2.namespace, metricDef2.dimensions, t1, 40));
 
     SubAlarmStats alarmData = bolt.getOrCreateSubAlarmStatsRepo(metricDef1).get("123");
     assertEquals(alarmData.getStats().getValue(t1), 90.0);
@@ -107,14 +107,14 @@ public class MetricAggregationBoltTest {
 
     // Given
     long t1 = System.currentTimeMillis() / 1000;
-    bolt.aggregateValues(metricDef1, new Metric(metricDef1, t1, 100));
-    bolt.aggregateValues(metricDef1, new Metric(metricDef1, t1 -= 60, 95));
-    bolt.aggregateValues(metricDef1, new Metric(metricDef1, t1 -= 60, 88));
+    bolt.aggregateValues(metricDef1, new Metric(metricDef1.namespace, metricDef1.dimensions, t1, 100));
+    bolt.aggregateValues(metricDef1, new Metric(metricDef1.namespace, metricDef1.dimensions, t1 -= 60, 95));
+    bolt.aggregateValues(metricDef1, new Metric(metricDef1.namespace, metricDef1.dimensions, t1 -= 60, 88));
 
     bolt.evaluateAlarmsAndSlideWindows();
     assertEquals(subAlarm2.getState(), AlarmState.UNDETERMINED);
 
-    bolt.aggregateValues(metricDef1, new Metric(metricDef1, t1, 99));
+    bolt.aggregateValues(metricDef1, new Metric(metricDef1.namespace, metricDef1.dimensions, t1, 99));
 
     bolt.evaluateAlarmsAndSlideWindows();
     assertEquals(subAlarm1.getState(), AlarmState.ALARM);

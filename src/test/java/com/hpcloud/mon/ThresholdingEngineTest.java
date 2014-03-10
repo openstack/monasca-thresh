@@ -129,10 +129,10 @@ public class ThresholdingEngineTest extends TopologyTestCase {
         System.out.println("Feeding metrics...");
 
         long time = System.currentTimeMillis();
-        collectdMetricSpout.feed(new Values(cpuMetricDef, new Metric(cpuMetricDef, time,
-            ++goodValueCount == 15 ? 1 : 555)));
-        collectdMetricSpout.feed(new Values(memMetricDef, new Metric(memMetricDef, time,
-            goodValueCount == 15 ? 1 : 555)));
+        collectdMetricSpout.feed(new Values(cpuMetricDef, new Metric(cpuMetricDef.namespace,
+                cpuMetricDef.dimensions, time, (double) (++goodValueCount == 15 ? 1 : 555))));
+        collectdMetricSpout.feed(new Values(memMetricDef, new Metric(memMetricDef.namespace,
+                memMetricDef.dimensions, time, (double) (goodValueCount == 15 ? 1 : 555))));
 
         if (--feedCount == 0)
           waitCount = 3;
