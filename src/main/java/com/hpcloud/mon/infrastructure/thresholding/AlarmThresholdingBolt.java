@@ -5,7 +5,6 @@ import io.dropwizard.db.DataSourceFactory;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.commons.fileupload.util.Streams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,8 +14,6 @@ import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 
-import com.hpcloud.messaging.rabbitmq.RabbitMQConfiguration;
-import com.hpcloud.messaging.rabbitmq.RabbitMQService;
 import com.hpcloud.mon.ThresholdingConfiguration;
 import com.hpcloud.mon.common.event.AlarmDeletedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
@@ -27,6 +24,7 @@ import com.hpcloud.mon.domain.service.AlarmDAO;
 import com.hpcloud.mon.infrastructure.messaging.MessagingModule;
 import com.hpcloud.mon.infrastructure.persistence.PersistenceModule;
 import com.hpcloud.streaming.storm.Logging;
+import com.hpcloud.streaming.storm.Streams;
 import com.hpcloud.util.Injector;
 import com.hpcloud.util.Serialization;
 
