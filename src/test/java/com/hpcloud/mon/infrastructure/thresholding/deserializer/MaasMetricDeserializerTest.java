@@ -9,6 +9,7 @@ import java.util.List;
 import org.testng.annotations.Test;
 
 import com.hpcloud.mon.common.model.metric.Metric;
+import com.hpcloud.mon.common.model.metric.Metrics;
 
 /**
  * @author Jonathan Halterman
@@ -18,9 +19,8 @@ public class MaasMetricDeserializerTest {
   private MaasMetricDeserializer deserializer = new MaasMetricDeserializer();
 
   public void shouldDeserialize() {
-    FlatMetric initial = new FlatMetric("bob", null, 123, 5.0);
-    List<List<?>> metrics = deserializer.deserialize(FlatMetrics.toJson(initial).getBytes());
-    Metric expected = initial.toMetric();
-    assertEquals(metrics, Collections.singletonList(Arrays.asList(expected.definition(), expected)));
+    Metric metric = new Metric("bob", null, 123, 5.0);
+    List<List<?>> metrics = deserializer.deserialize(Metrics.toJson(metric).getBytes());
+    assertEquals(metrics, Collections.singletonList(Arrays.asList(metric.definition(), metric)));
   }
 }
