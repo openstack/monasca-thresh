@@ -1,5 +1,7 @@
 package com.hpcloud.mon.infrastructure.persistence;
 
+import io.dropwizard.db.DataSourceFactory;
+
 import javax.inject.Singleton;
 
 import org.skife.jdbi.v2.DBI;
@@ -10,7 +12,6 @@ import com.google.inject.Scopes;
 import com.hpcloud.mon.domain.service.AlarmDAO;
 import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
-import com.hpcloud.persistence.DatabaseConfiguration;
 
 /**
  * Configures persistence related types.
@@ -18,9 +19,9 @@ import com.hpcloud.persistence.DatabaseConfiguration;
  * @author Jonathan Halterman
  */
 public class PersistenceModule extends AbstractModule {
-  private final DatabaseConfiguration dbConfig;
+  private final DataSourceFactory dbConfig;
 
-  public PersistenceModule(DatabaseConfiguration dbConfig) {
+  public PersistenceModule(DataSourceFactory dbConfig) {
     this.dbConfig = dbConfig;
   }
 

@@ -1,6 +1,6 @@
 package com.hpcloud.mon.domain.service;
 
-import com.hpcloud.maas.common.model.alarm.AlarmState;
+import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.domain.model.Alarm;
 
 /**

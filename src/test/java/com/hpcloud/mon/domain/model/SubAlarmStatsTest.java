@@ -7,11 +7,9 @@ import static org.testng.Assert.assertTrue;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.hpcloud.maas.common.model.alarm.AlarmState;
-import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
-import com.hpcloud.maas.util.time.TimeResolution;
-import com.hpcloud.mon.domain.model.SubAlarm;
-import com.hpcloud.mon.domain.model.SubAlarmStats;
+import com.hpcloud.mon.common.model.alarm.AlarmState;
+import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
+import com.hpcloud.util.time.TimeResolution;
 
 /**
  * @author Jonathan Halterman

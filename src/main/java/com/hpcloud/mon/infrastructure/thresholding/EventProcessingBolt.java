@@ -13,11 +13,10 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
-import com.hpcloud.maas.common.event.AlarmCreatedEvent;
-import com.hpcloud.maas.common.event.AlarmDeletedEvent;
-import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
-import com.hpcloud.maas.common.model.metric.CollectdMetrics;
-import com.hpcloud.maas.common.model.metric.MetricDefinition;
+import com.hpcloud.mon.common.event.AlarmCreatedEvent;
+import com.hpcloud.mon.common.event.AlarmDeletedEvent;
+import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
+import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.streaming.storm.Logging;
 
@@ -85,8 +84,6 @@ public class EventProcessingBolt extends BaseRichBolt {
     String eventType = event.getClass().getSimpleName();
     for (Map.Entry<String, AlarmSubExpression> subExpressionEntry : event.alarmSubExpressions.entrySet()) {
       MetricDefinition metricDef = subExpressionEntry.getValue().getMetricDefinition();
-      // TODO remove in the future
-      CollectdMetrics.removeUnsupportedDimensions(metricDef);
       collector.emit(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Values(eventType, metricDef,
           new SubAlarm(subExpressionEntry.getKey(), event.alarmId, subExpressionEntry.getValue())));
     }
@@ -96,8 +93,6 @@ public class EventProcessingBolt extends BaseRichBolt {
     String eventType = event.getClass().getSimpleName();
     for (Map.Entry<String, MetricDefinition> entry : event.subAlarmMetricDefinitions.entrySet()) {
       MetricDefinition metricDef = entry.getValue();
-      // TODO remove in the future
-      CollectdMetrics.removeUnsupportedDimensions(metricDef);
       collector.emit(METRIC_ALARM_EVENT_STREAM_ID, new Values(eventType, metricDef, entry.getKey()));
     }
 

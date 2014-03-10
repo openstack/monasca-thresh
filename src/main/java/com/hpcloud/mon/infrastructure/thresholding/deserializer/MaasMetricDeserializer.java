@@ -7,9 +7,7 @@ import java.util.List;
 
 import backtype.storm.tuple.Fields;
 
-import com.hpcloud.maas.common.model.metric.FlatMetric;
-import com.hpcloud.maas.common.model.metric.FlatMetrics;
-import com.hpcloud.maas.common.model.metric.Metric;
+import com.hpcloud.mon.common.model.metric.Metric;
 import com.hpcloud.streaming.storm.TupleDeserializer;
 
 /**

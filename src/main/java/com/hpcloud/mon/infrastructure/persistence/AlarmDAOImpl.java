@@ -9,12 +9,11 @@ import javax.inject.Inject;
 import org.skife.jdbi.v2.DBI;
 import org.skife.jdbi.v2.Handle;
 
-import com.hpcloud.maas.common.model.alarm.AggregateFunction;
-import com.hpcloud.maas.common.model.alarm.AlarmOperator;
-import com.hpcloud.maas.common.model.alarm.AlarmState;
-import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
-import com.hpcloud.maas.common.model.metric.CollectdMetrics;
-import com.hpcloud.maas.common.model.metric.MetricDefinition;
+import com.hpcloud.mon.common.model.alarm.AggregateFunction;
+import com.hpcloud.mon.common.model.alarm.AlarmOperator;
+import com.hpcloud.mon.common.model.alarm.AlarmState;
+import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
+import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.mon.domain.model.Alarm;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.service.AlarmDAO;
@@ -51,8 +50,6 @@ public class AlarmDAOImpl implements AlarmDAO {
       Map<String, String> dimensions = findDimensionsById(handle, subAlarmId);
       AggregateFunction function = AggregateFunction.valueOf((String) row.get("function"));
       MetricDefinition metricDef = new MetricDefinition((String) row.get("namespace"), dimensions);
-      // TODO remove later when collectd supports all dimensions
-      CollectdMetrics.removeUnsupportedDimensions(metricDef);
       AlarmOperator operator = AlarmOperator.valueOf((String) row.get("operator"));
       AlarmSubExpression subExpression = new AlarmSubExpression(function, metricDef, operator,
           (Double) row.get("threshold"), (Integer) row.get("period"), (Integer) row.get("periods"));

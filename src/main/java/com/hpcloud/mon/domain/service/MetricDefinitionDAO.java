@@ -2,7 +2,7 @@ package com.hpcloud.mon.domain.service;
 
 import java.util.List;
 
-import com.hpcloud.maas.common.model.metric.MetricDefinition;
+import com.hpcloud.mon.common.model.metric.MetricDefinition;
 
 /**
  * Metric definition data access object.

@@ -2,9 +2,9 @@ package com.hpcloud.mon.domain.model;
 
 import java.io.Serializable;
 
-import com.hpcloud.maas.common.model.alarm.AlarmState;
-import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
-import com.hpcloud.maas.domain.common.AbstractEntity;
+import com.hpcloud.mon.common.model.alarm.AlarmState;
+import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
+import com.hpcloud.mon.domain.common.AbstractEntity;
 
 /**
  * Sub-alarm. Decorates an AlarmSubExpression.

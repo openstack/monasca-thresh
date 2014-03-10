@@ -9,10 +9,8 @@ import java.util.List;
 
 import org.testng.annotations.Test;
 
-import com.hpcloud.maas.common.model.alarm.AlarmExpression;
-import com.hpcloud.maas.common.model.alarm.AlarmState;
-import com.hpcloud.mon.domain.model.Alarm;
-import com.hpcloud.mon.domain.model.SubAlarm;
+import com.hpcloud.mon.common.model.alarm.AlarmExpression;
+import com.hpcloud.mon.common.model.alarm.AlarmState;
 
 /**
  * @author Jonathan Halterman

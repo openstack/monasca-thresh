@@ -1,7 +1,7 @@
 package com.hpcloud.mon.domain.model;
 
 import com.fasterxml.jackson.annotation.JsonRootName;
-import com.hpcloud.maas.common.model.alarm.AlarmState;
+import com.hpcloud.mon.common.model.alarm.AlarmState;
 
 /**
  * Represents an alarm state transition having occurred.

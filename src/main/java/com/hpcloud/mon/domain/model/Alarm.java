@@ -6,11 +6,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.hpcloud.maas.common.model.alarm.AlarmExpression;
-import com.hpcloud.maas.common.model.alarm.AlarmState;
-import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
-import com.hpcloud.maas.common.model.metric.CollectdMetrics;
-import com.hpcloud.maas.domain.common.AbstractEntity;
+import com.hpcloud.mon.common.model.alarm.AlarmExpression;
+import com.hpcloud.mon.common.model.alarm.AlarmState;
+import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
+import com.hpcloud.mon.domain.common.AbstractEntity;
 
 /**
  * An alarm comprised of sub-alarms.
@@ -18,8 +17,6 @@ import com.hpcloud.maas.domain.common.AbstractEntity;
  * @author Jonathan Halterman
  */
 public class Alarm extends AbstractEntity {
-  private static final long serialVersionUID = -8882458476630030926L;
-
   private String tenantId;
   private String name;
   private AlarmExpression expression;
@@ -176,7 +173,6 @@ public class Alarm extends AbstractEntity {
 
   public void setExpression(String expression) {
     this.expression = AlarmExpression.of(expression);
-    CollectdMetrics.removeUnsupportedDimensions(this.expression);
   }
 
   public void setId(String id) {

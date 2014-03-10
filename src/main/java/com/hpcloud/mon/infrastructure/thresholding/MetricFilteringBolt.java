@@ -1,8 +1,11 @@
 package com.hpcloud.mon.infrastructure.thresholding;
 
+import io.dropwizard.db.DataSourceFactory;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.commons.fileupload.util.Streams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,15 +17,13 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
-import com.hpcloud.maas.common.event.AlarmCreatedEvent;
-import com.hpcloud.maas.common.event.AlarmDeletedEvent;
-import com.hpcloud.maas.common.model.metric.MetricDefinition;
+import com.hpcloud.mon.common.event.AlarmCreatedEvent;
+import com.hpcloud.mon.common.event.AlarmDeletedEvent;
+import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
 import com.hpcloud.mon.infrastructure.persistence.PersistenceModule;
-import com.hpcloud.persistence.DatabaseConfiguration;
 import com.hpcloud.streaming.storm.Logging;
-import com.hpcloud.streaming.storm.Streams;
 import com.hpcloud.util.Injector;
 
 /**
@@ -46,11 +47,11 @@ public class MetricFilteringBolt extends BaseRichBolt {
   private static final Object SENTINAL = new Object();
 
   private transient Logger LOG;
-  private final DatabaseConfiguration dbConfig;
+  private final DataSourceFactory dbConfig;
   private transient MetricDefinitionDAO metricDefDAO;
   private OutputCollector collector;
 
-  public MetricFilteringBolt(DatabaseConfiguration dbConfig) {
+  public MetricFilteringBolt(DataSourceFactory dbConfig) {
     this.dbConfig = dbConfig;
   }
 

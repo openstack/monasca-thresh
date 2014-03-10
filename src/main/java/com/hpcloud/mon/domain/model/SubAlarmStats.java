@@ -3,10 +3,9 @@ package com.hpcloud.mon.domain.model;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.hpcloud.maas.common.model.alarm.AlarmState;
-import com.hpcloud.maas.util.stats.SlidingWindowStats;
-import com.hpcloud.maas.util.stats.Statistics;
-import com.hpcloud.maas.util.time.TimeResolution;
+import com.hpcloud.mon.common.model.alarm.AlarmState;
+import com.hpcloud.util.stats.SlidingWindowStats;
+import com.hpcloud.util.time.TimeResolution;
 
 /**
  * Aggregates statistics for a specific SubAlarm.
@@ -34,9 +33,9 @@ public class SubAlarmStats {
   public SubAlarmStats(SubAlarm subAlarm, TimeResolution timeResolution, long viewEndTimestamp) {
     slotWidth = subAlarm.getExpression().getPeriod();
     this.subAlarm = subAlarm;
-    this.stats = new SlidingWindowStats(Statistics.statTypeFor(subAlarm.getExpression()
-        .getFunction()), timeResolution, slotWidth, subAlarm.getExpression().getPeriods(),
-        FUTURE_SLOTS, viewEndTimestamp);
+    this.stats = new SlidingWindowStats(subAlarm.getExpression().getFunction().toStatistic(),
+        timeResolution, slotWidth, subAlarm.getExpression().getPeriods(), FUTURE_SLOTS,
+        viewEndTimestamp);
     int period = subAlarm.getExpression().getPeriod();
     int periodMinutes = period < 60 ? 1 : period / 60; // Assumes the period is in seconds so we
                                                        // convert to minutes

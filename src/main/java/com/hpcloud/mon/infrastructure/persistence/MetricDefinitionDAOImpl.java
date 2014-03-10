@@ -10,8 +10,7 @@ import javax.inject.Inject;
 import org.skife.jdbi.v2.DBI;
 import org.skife.jdbi.v2.Handle;
 
-import com.hpcloud.maas.common.model.metric.CollectdMetrics;
-import com.hpcloud.maas.common.model.metric.MetricDefinition;
+import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
 
 /**
@@ -47,8 +46,7 @@ public class MetricDefinitionDAOImpl implements MetricDefinitionDAO {
         if (dimensionSet != null) {
           for (String kvStr : dimensionSet.split(",")) {
             String[] kv = kvStr.split("=");
-            // TODO Remove second conditional in the future
-            if (kv.length > 1 && CollectdMetrics.isSupportedDimension(namespace, kv[0])) {
+            if (kv.length > 1) {
               if (dimensions == null)
                 dimensions = new HashMap<String, String>();
               dimensions.put(kv[0], kv[1]);

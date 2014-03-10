@@ -6,8 +6,8 @@ import java.util.List;
 
 import backtype.storm.tuple.Fields;
 
-import com.hpcloud.maas.common.event.AlarmCreatedEvent;
-import com.hpcloud.maas.common.event.AlarmDeletedEvent;
+import com.hpcloud.mon.common.event.AlarmCreatedEvent;
+import com.hpcloud.mon.common.event.AlarmDeletedEvent;
 import com.hpcloud.streaming.storm.TupleDeserializer;
 import com.hpcloud.util.Serialization;
 

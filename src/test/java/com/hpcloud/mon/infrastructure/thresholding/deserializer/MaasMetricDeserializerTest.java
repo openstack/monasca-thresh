@@ -8,10 +8,7 @@ import java.util.List;
 
 import org.testng.annotations.Test;
 
-import com.hpcloud.maas.common.model.metric.FlatMetric;
-import com.hpcloud.maas.common.model.metric.FlatMetrics;
-import com.hpcloud.maas.common.model.metric.Metric;
-import com.hpcloud.mon.infrastructure.thresholding.deserializer.MaasMetricDeserializer;
+import com.hpcloud.mon.common.model.metric.Metric;
 
 /**
  * @author Jonathan Halterman

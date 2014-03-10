@@ -10,10 +10,10 @@ import org.skife.jdbi.v2.DBI;
 import org.skife.jdbi.v2.Handle;
 import org.skife.jdbi.v2.Query;
 
-import com.hpcloud.maas.common.model.alarm.AggregateFunction;
-import com.hpcloud.maas.common.model.alarm.AlarmOperator;
-import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
-import com.hpcloud.maas.common.model.metric.MetricDefinition;
+import com.hpcloud.mon.common.model.alarm.AggregateFunction;
+import com.hpcloud.mon.common.model.alarm.AlarmOperator;
+import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
+import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
 import com.hpcloud.persistence.SqlStatements;
@@ -58,8 +58,8 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
             metricDefinition.dimensions.size());
       }
 
-      Query<Map<String, Object>> query = h.createQuery(sql).bind("namespace",
-          metricDefinition.namespace);
+      Query<Map<String, Object>> query = h.createQuery(sql)
+          .bind("namespace", metricDefinition.name);
       List<Map<String, Object>> rows = query.list();
 
       List<SubAlarm> subAlarms = new ArrayList<SubAlarm>(rows.size());

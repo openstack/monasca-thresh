@@ -1,11 +1,14 @@
 package com.hpcloud.mon.infrastructure.thresholding;
 
+import io.dropwizard.db.DataSourceFactory;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.fileupload.util.Streams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,18 +21,16 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
-import com.hpcloud.maas.common.event.AlarmCreatedEvent;
-import com.hpcloud.maas.common.event.AlarmDeletedEvent;
-import com.hpcloud.maas.common.model.metric.Metric;
-import com.hpcloud.maas.common.model.metric.MetricDefinition;
+import com.hpcloud.mon.common.event.AlarmCreatedEvent;
+import com.hpcloud.mon.common.event.AlarmDeletedEvent;
+import com.hpcloud.mon.common.model.metric.Metric;
+import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.model.SubAlarmStats;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
 import com.hpcloud.mon.domain.service.SubAlarmStatsRepository;
 import com.hpcloud.mon.infrastructure.persistence.PersistenceModule;
-import com.hpcloud.persistence.DatabaseConfiguration;
 import com.hpcloud.streaming.storm.Logging;
-import com.hpcloud.streaming.storm.Streams;
 import com.hpcloud.streaming.storm.Tuples;
 import com.hpcloud.util.Injector;
 
@@ -58,7 +59,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
 
   final Map<MetricDefinition, SubAlarmStatsRepository> subAlarmStatsRepos = new HashMap<MetricDefinition, SubAlarmStatsRepository>();
   private transient Logger LOG;
-  private DatabaseConfiguration dbConfig;
+  private DataSourceFactory dbConfig;
   private transient SubAlarmDAO subAlarmDAO;
   /** Namespaces for which metrics are received sporadically */
   private Set<String> sporadicMetricNamespaces = Collections.emptySet();
@@ -69,7 +70,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
     this.subAlarmDAO = subAlarmDAO;
   }
 
-  public MetricAggregationBolt(DatabaseConfiguration dbConfig, Set<String> sporadicMetricNamespaces) {
+  public MetricAggregationBolt(DataSourceFactory dbConfig, Set<String> sporadicMetricNamespaces) {
     this.dbConfig = dbConfig;
     this.sporadicMetricNamespaces = sporadicMetricNamespaces;
   }

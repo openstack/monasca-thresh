@@ -20,13 +20,11 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Values;
 
 import com.google.inject.AbstractModule;
-import com.hpcloud.maas.common.model.alarm.AlarmExpression;
-import com.hpcloud.maas.common.model.alarm.AlarmState;
-import com.hpcloud.maas.common.model.metric.Metric;
-import com.hpcloud.maas.common.model.metric.MetricDefinition;
 import com.hpcloud.messaging.rabbitmq.RabbitMQService;
-import com.hpcloud.mon.ThresholdingConfiguration;
-import com.hpcloud.mon.TopologyModule;
+import com.hpcloud.mon.common.model.alarm.AlarmExpression;
+import com.hpcloud.mon.common.model.alarm.AlarmState;
+import com.hpcloud.mon.common.model.metric.Metric;
+import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.mon.domain.model.Alarm;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.service.AlarmDAO;

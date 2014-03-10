@@ -7,8 +7,7 @@ import java.util.Collections;
 
 import org.testng.annotations.Test;
 
-import com.hpcloud.maas.common.event.AlarmDeletedEvent;
-import com.hpcloud.mon.infrastructure.thresholding.deserializer.MaasEventDeserializer;
+import com.hpcloud.mon.common.event.AlarmDeletedEvent;
 import com.hpcloud.util.Serialization;
 
 /**

@@ -1,15 +1,13 @@
 package com.hpcloud.mon;
 
+import io.dropwizard.db.DataSourceFactory;
+
 import java.util.Set;
 
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
 
 import org.hibernate.validator.constraints.NotEmpty;
-
-import com.hpcloud.messaging.rabbitmq.RabbitMQConfiguration;
-import com.hpcloud.persistence.DatabaseConfiguration;
-import com.hpcloud.streaming.storm.amqp.AMQPSpoutConfiguration;
 
 /**
  * Thresholding configuration.
@@ -62,5 +60,5 @@ public class ThresholdingConfiguration {
   @Valid @NotNull public RabbitMQConfiguration externalRabbit = new RabbitMQConfiguration();
 
   /** MaaS API database configuration. */
-  @Valid @NotNull public DatabaseConfiguration database = new DatabaseConfiguration();
+  @Valid @NotNull public DataSourceFactory database = new DataSourceFactory();
 }

@@ -13,13 +13,12 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.google.common.io.Resources;
-import com.hpcloud.maas.common.model.alarm.AlarmExpression;
-import com.hpcloud.maas.common.model.alarm.AlarmState;
-import com.hpcloud.maas.common.model.alarm.AlarmSubExpression;
+import com.hpcloud.mon.common.model.alarm.AlarmExpression;
+import com.hpcloud.mon.common.model.alarm.AlarmState;
+import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.domain.model.Alarm;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.service.AlarmDAO;
-import com.hpcloud.mon.infrastructure.persistence.AlarmDAOImpl;
 
 /**
  * @author Jonathan Halterman

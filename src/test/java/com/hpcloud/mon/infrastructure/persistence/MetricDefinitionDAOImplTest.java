@@ -13,9 +13,8 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.google.common.collect.ImmutableMap;
-import com.hpcloud.maas.common.model.metric.MetricDefinition;
+import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
-import com.hpcloud.mon.infrastructure.persistence.MetricDefinitionDAOImpl;
 
 /**
  * Note: MySQL dependent test.

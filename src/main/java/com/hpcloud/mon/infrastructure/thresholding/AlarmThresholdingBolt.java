@@ -1,8 +1,11 @@
 package com.hpcloud.mon.infrastructure.thresholding;
 
+import io.dropwizard.db.DataSourceFactory;
+
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.commons.fileupload.util.Streams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,20 +15,18 @@ import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 
-import com.hpcloud.maas.common.event.AlarmDeletedEvent;
-import com.hpcloud.maas.common.model.alarm.AlarmState;
 import com.hpcloud.messaging.rabbitmq.RabbitMQConfiguration;
 import com.hpcloud.messaging.rabbitmq.RabbitMQService;
 import com.hpcloud.mon.ThresholdingConfiguration;
+import com.hpcloud.mon.common.event.AlarmDeletedEvent;
+import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.domain.model.Alarm;
 import com.hpcloud.mon.domain.model.AlarmStateTransitionEvent;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.service.AlarmDAO;
 import com.hpcloud.mon.infrastructure.messaging.MessagingModule;
 import com.hpcloud.mon.infrastructure.persistence.PersistenceModule;
-import com.hpcloud.persistence.DatabaseConfiguration;
 import com.hpcloud.streaming.storm.Logging;
-import com.hpcloud.streaming.storm.Streams;
 import com.hpcloud.util.Injector;
 import com.hpcloud.util.Serialization;
 
@@ -46,7 +47,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   private static final long serialVersionUID = -4126465124017857754L;
 
   private transient Logger LOG;
-  private final DatabaseConfiguration dbConfig;
+  private final DataSourceFactory dbConfig;
   private final RabbitMQConfiguration rabbitConfig;
   private final Map<String, Alarm> alarms = new HashMap<String, Alarm>();
   private String alertExchange;
@@ -55,7 +56,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   private transient RabbitMQService rabbitService;
   private OutputCollector collector;
 
-  public AlarmThresholdingBolt(DatabaseConfiguration dbConfig, RabbitMQConfiguration rabbitConfig) {
+  public AlarmThresholdingBolt(DataSourceFactory dbConfig, RabbitMQConfiguration rabbitConfig) {
     this.dbConfig = dbConfig;
     this.rabbitConfig = rabbitConfig;
   }
