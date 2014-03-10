@@ -14,7 +14,6 @@ import com.hpcloud.mon.infrastructure.thresholding.AlarmThresholdingBolt;
 import com.hpcloud.mon.infrastructure.thresholding.EventProcessingBolt;
 import com.hpcloud.mon.infrastructure.thresholding.MetricAggregationBolt;
 import com.hpcloud.mon.infrastructure.thresholding.MetricFilteringBolt;
-import com.hpcloud.mon.infrastructure.thresholding.deserializer.CollectdMetricDeserializer;
 import com.hpcloud.mon.infrastructure.thresholding.deserializer.MaasEventDeserializer;
 import com.hpcloud.mon.infrastructure.thresholding.deserializer.MaasMetricDeserializer;
 import com.hpcloud.streaming.storm.amqp.AMQPSpout;
@@ -63,13 +62,6 @@ public class TopologyModule extends AbstractModule {
   }
 
   @Provides
-  @Named("collectd-metrics")
-  IRichSpout collectdMetricSpout() {
-    return collectdMetricSpout == null ? new AMQPSpout(config.collectdMetricSpout,
-        new CollectdMetricDeserializer()) : collectdMetricSpout;
-  }
-
-  @Provides
   @Named("maas-metrics")
   IRichSpout maasMetricSpout() {
     return maasMetricSpout == null ? new AMQPSpout(config.maasMetricSpout,
@@ -87,11 +79,6 @@ public class TopologyModule extends AbstractModule {
   StormTopology topology() {
     TopologyBuilder builder = new TopologyBuilder();
 
-    // Receives CollectD Metrics
-    builder.setSpout("collectd-metrics-spout",
-        Injector.getInstance(IRichSpout.class, "collectd-metrics"),
-        config.collectdMetricSpoutThreads).setNumTasks(config.collectdMetricSpoutTasks);
-
     // Receives MaaS Metrics
     builder.setSpout("maas-metrics-spout", Injector.getInstance(IRichSpout.class, "maas-metrics"),
         config.maasMetricSpoutThreads).setNumTasks(config.maasMetricSpoutTasks);
@@ -108,7 +95,6 @@ public class TopologyModule extends AbstractModule {
     // Metrics / Event -> Filtering
     builder.setBolt("filtering-bolt", new MetricFilteringBolt(config.database),
         config.filteringBoltThreads)
-        .shuffleGrouping("collectd-metrics-spout")
         .shuffleGrouping("maas-metrics-spout")
         .allGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID)
         .allGrouping("event-bolt", EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID)

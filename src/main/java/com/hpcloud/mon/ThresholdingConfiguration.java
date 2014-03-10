@@ -23,9 +23,6 @@ public class ThresholdingConfiguration {
   /** Total number of acker threads across the cluster. */
   @NotNull public Integer numAckerThreads = 12;
 
-  @NotNull public Integer collectdMetricSpoutThreads = 6;
-  @NotNull public Integer collectdMetricSpoutTasks = 9;
-
   @NotNull public Integer maasMetricSpoutThreads = 6;
   @NotNull public Integer maasMetricSpoutTasks = 6;
 
@@ -47,8 +44,6 @@ public class ThresholdingConfiguration {
   /** Namespaces for which metrics are received sporadically. */
   @NotNull public Set<String> sporadicMetricNamespaces;
 
-  /** Configuration for the spout that receives collectd metrics from the internal exchange. */
-  @Valid @NotNull public AMQPSpoutConfiguration collectdMetricSpout;
   /** Configuration for the spout that receives MaaS metrics from the external exchange. */
   @Valid @NotNull public AMQPSpoutConfiguration maasMetricSpout;
   /** Configuration for the spout that receives MaaS events from the external exchange. */
