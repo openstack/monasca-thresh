@@ -185,7 +185,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
         LOG.debug("Creating SubAlarmStats for {}", metricDefinition);
         for (SubAlarm subAlarm : subAlarms)
           // TODO should treat metric def name previx like a namespace
-          subAlarm.setSporadicMetric(sporadicMetricNamespaces.contains(metricDefinition.namespace));
+          subAlarm.setSporadicMetric(sporadicMetricNamespaces.contains(metricDefinition.name));
         long viewEndTimestamp = (System.currentTimeMillis() / 1000) + evaluationTimeOffset;
         subAlarmStatsRepo = new SubAlarmStatsRepository(subAlarms, viewEndTimestamp);
         subAlarmStatsRepos.put(metricDefinition, subAlarmStatsRepo);

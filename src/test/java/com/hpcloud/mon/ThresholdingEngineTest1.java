@@ -150,11 +150,11 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
 
     while (true) {
       long time = System.currentTimeMillis();
-      collectdMetricSpout.feed(new Values(cpuMetricDef, new Metric(cpuMetricDef.namespace,
+      collectdMetricSpout.feed(new Values(cpuMetricDef, new Metric(cpuMetricDef.name,
           cpuMetricDef.dimensions, time, count % 10 == 0 ? 555 : 1)));
-      collectdMetricSpout.feed(new Values(memMetricDef, new Metric(memMetricDef.namespace,
+      collectdMetricSpout.feed(new Values(memMetricDef, new Metric(memMetricDef.name,
               cpuMetricDef.dimensions, time, count % 10 == 0 ? 555 : 1)));
-      maasMetricSpout.feed(new Values(customMetricDef, new Metric(customMetricDef.namespace,
+      maasMetricSpout.feed(new Values(customMetricDef, new Metric(customMetricDef.name,
               cpuMetricDef.dimensions, time, count % 20 == 0 ? 1 : 123)));
 
       if (count % 5 == 0) {
