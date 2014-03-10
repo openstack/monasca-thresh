@@ -31,9 +31,9 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
    */
   private static final String FIND_BY_METRIC_DEF_SQL = "select sa.* from sub_alarm sa, sub_alarm_dimension d "
       + "join (%s) v on d.dimension_name = v.dimension_name and d.value = v.value "
-      + "where sa.id = d.sub_alarm_id and sa.namespace = :namespace "
+      + "where sa.id = d.sub_alarm_id and sa.metric_name = :metric_name "
       + "group by d.sub_alarm_id having count(d.sub_alarm_id) = %s";
-  private static final String FIND_BY_METRIC_DEF_NO_DIMS_SQL = "select * from sub_alarm sa where sa.namespace = :namespace "
+  private static final String FIND_BY_METRIC_DEF_NO_DIMS_SQL = "select * from sub_alarm sa where sa.metric_name = :metric_name "
       + "and (select count(*) from sub_alarm_dimension where sub_alarm_id = sa.id) = 0";
 
   private final DBI db;
@@ -58,8 +58,8 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
             metricDefinition.dimensions.size());
       }
 
-      Query<Map<String, Object>> query = h.createQuery(sql)
-          .bind("namespace", metricDefinition.name);
+      Query<Map<String, Object>> query = h.createQuery(sql).bind("metric_name",
+          metricDefinition.name);
       List<Map<String, Object>> rows = query.list();
 
       List<SubAlarm> subAlarms = new ArrayList<SubAlarm>(rows.size());

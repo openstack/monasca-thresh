@@ -49,21 +49,21 @@ public class SubAlarmDAOImplTest {
     handle.execute("truncate table sub_alarm");
     handle.execute("truncate table sub_alarm_dimension");
 
-    handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, operator, threshold, period, periods, created_at, updated_at) "
+    handle.execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, created_at, updated_at) "
         + "values ('111', '123', 'AVG', 'hpcs.compute', 'GT', 10, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('111', 'instance_id', '555')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'az', '1')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'instance_uuid', '555')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'metric_name', 'cpu')");
 
-    handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, operator, threshold, period, periods, created_at, updated_at) "
+    handle.execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, created_at, updated_at) "
         + "values ('222', '234', 'AVG', 'hpcs.compute', 'GT', 10, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('222', 'instance_id', '666')");
     handle.execute("insert into sub_alarm_dimension values ('222', 'az', '1')");
     handle.execute("insert into sub_alarm_dimension values ('222', 'instance_uuid', '666')");
     handle.execute("insert into sub_alarm_dimension values ('222', 'metric_name', 'cpu')");
 
-    handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, operator, threshold, period, periods, created_at, updated_at) "
+    handle.execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, created_at, updated_at) "
         + "values ('333', '345', 'AVG', 'hpcs.compute', 'GT', 10, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('333', 'instance_id', '777')");
     handle.execute("insert into sub_alarm_dimension values ('333', 'az', '1')");
@@ -71,7 +71,7 @@ public class SubAlarmDAOImplTest {
     handle.execute("insert into sub_alarm_dimension values ('333', 'metric_name', 'disk')");
     handle.execute("insert into sub_alarm_dimension values ('333', 'device', 'vda')");
 
-    handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, operator, threshold, period, periods, created_at, updated_at) "
+    handle.execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, created_at, updated_at) "
         + "values ('444', '456', 'AVG', 'hpcs.compute', 'GT', 10, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('444', 'metric_name', 'cpu')");
   }
