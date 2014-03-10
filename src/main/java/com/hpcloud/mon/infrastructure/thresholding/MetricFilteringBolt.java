@@ -5,7 +5,6 @@ import io.dropwizard.db.DataSourceFactory;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.commons.fileupload.util.Streams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,6 +23,7 @@ import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
 import com.hpcloud.mon.infrastructure.persistence.PersistenceModule;
 import com.hpcloud.streaming.storm.Logging;
+import com.hpcloud.streaming.storm.Streams;
 import com.hpcloud.util.Injector;
 
 /**

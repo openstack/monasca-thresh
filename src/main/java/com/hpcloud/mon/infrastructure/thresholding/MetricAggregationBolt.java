@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.fileupload.util.Streams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +30,7 @@ import com.hpcloud.mon.domain.service.SubAlarmDAO;
 import com.hpcloud.mon.domain.service.SubAlarmStatsRepository;
 import com.hpcloud.mon.infrastructure.persistence.PersistenceModule;
 import com.hpcloud.streaming.storm.Logging;
+import com.hpcloud.streaming.storm.Streams;
 import com.hpcloud.streaming.storm.Tuples;
 import com.hpcloud.util.Injector;
 
@@ -184,6 +184,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
       else {
         LOG.debug("Creating SubAlarmStats for {}", metricDefinition);
         for (SubAlarm subAlarm : subAlarms)
+          // TODO should treat metric def name previx like a namespace
           subAlarm.setSporadicMetric(sporadicMetricNamespaces.contains(metricDefinition.namespace));
         long viewEndTimestamp = (System.currentTimeMillis() / 1000) + evaluationTimeOffset;
         subAlarmStatsRepo = new SubAlarmStatsRepository(subAlarms, viewEndTimestamp);

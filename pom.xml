@@ -15,8 +15,6 @@
   <properties>
     <versionNumber>1.0.0</versionNumber>
     <computedVersion>${versionNumber}-SNAPSHOT</computedVersion>
-    <!-- TODO REMOVE -->
-    <ps.common.version>1.0.0.295</ps.common.version>
     <mon.common.version>1.0.0-SNAPSHOT</mon.common.version>
     <dropwizard.version>0.7.0-rc1</dropwizard.version>
 
@@ -98,12 +96,6 @@
         </exclusion>
       </exclusions>
     </dependency>
-    <!-- TODO REMOVE -->
-    <dependency>
-      <groupId>com.hpcloud</groupId>
-      <artifactId>ps-streaming</artifactId>
-      <version>${ps.common.version}</version>
-    </dependency>
     <dependency>
       <groupId>com.hpcloud</groupId>
       <artifactId>mon-model</artifactId>
@@ -112,6 +104,11 @@
     <dependency>
       <groupId>com.hpcloud</groupId>
       <artifactId>mon-persistence</artifactId>
+      <version>${mon.common.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.hpcloud</groupId>
+      <artifactId>mon-streaming</artifactId>
       <version>${mon.common.version}</version>
     </dependency>
     <dependency>
@@ -137,11 +134,10 @@
       <version>${mon.common.version}</version>
       <scope>test</scope>
     </dependency>
-    <!-- TODO REMOVE OR MIGRATE ME -->
     <dependency>
       <groupId>com.hpcloud</groupId>
-      <artifactId>ps-streaming</artifactId>
-      <version>${ps.common.version}</version>
+      <artifactId>mon-streaming</artifactId>
+      <version>${mon.common.version}</version>
       <type>test-jar</type>
       <scope>test</scope>
     </dependency>
