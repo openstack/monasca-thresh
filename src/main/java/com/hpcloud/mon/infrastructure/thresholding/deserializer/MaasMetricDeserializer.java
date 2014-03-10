@@ -8,6 +8,7 @@ import java.util.List;
 import backtype.storm.tuple.Fields;
 
 import com.hpcloud.mon.common.model.metric.Metric;
+import com.hpcloud.mon.common.model.metric.Metrics;
 import com.hpcloud.streaming.storm.TupleDeserializer;
 
 /**
@@ -25,8 +26,7 @@ public class MaasMetricDeserializer implements TupleDeserializer, Serializable {
 
   @Override
   public List<List<?>> deserialize(byte[] tuple) {
-    FlatMetric flatMetric = FlatMetrics.fromJson(tuple);
-    Metric metric = flatMetric.toMetric();
+    Metric metric = Metrics.fromJson(tuple);
     return Collections.<List<?>>singletonList(Arrays.asList(metric.definition(), metric));
   }
 
