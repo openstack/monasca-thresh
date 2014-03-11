@@ -20,7 +20,6 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Values;
 
 import com.google.inject.AbstractModule;
-import com.hpcloud.messaging.rabbitmq.RabbitMQService;
 import com.hpcloud.mon.common.model.alarm.AlarmExpression;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.metric.Metric;
@@ -30,6 +29,7 @@ import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.service.AlarmDAO;
 import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
+import com.hpcloud.mon.infrastructure.thresholding.AlarmEventForwarder;
 import com.hpcloud.mon.infrastructure.thresholding.MetricAggregationBolt;
 import com.hpcloud.streaming.storm.NoopSpout;
 import com.hpcloud.streaming.storm.TopologyTestCase;
@@ -87,7 +87,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     List<MetricDefinition> metricDefs = Arrays.asList(cpuMetricDef, memMetricDef);
     when(metricDefinitionDAO.findForAlarms()).thenReturn(metricDefs);
 
-    final RabbitMQService rabbitMQService = mock(RabbitMQService.class);
+    final AlarmEventForwarder alarmEventForwarder = mock(AlarmEventForwarder.class);
 
     // Bindings
     Injector.reset();
@@ -96,7 +96,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
         bind(AlarmDAO.class).toInstance(alarmDAO);
         bind(SubAlarmDAO.class).toInstance(subAlarmDAO);
         bind(MetricDefinitionDAO.class).toInstance(metricDefinitionDAO);
-        bind(RabbitMQService.class).toInstance(rabbitMQService);
+        bind(AlarmEventForwarder.class).toInstance(alarmEventForwarder);
       }
     });
 

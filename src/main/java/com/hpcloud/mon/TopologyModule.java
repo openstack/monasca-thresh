@@ -12,11 +12,12 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import com.hpcloud.mon.infrastructure.thresholding.AlarmThresholdingBolt;
 import com.hpcloud.mon.infrastructure.thresholding.EventProcessingBolt;
+import com.hpcloud.mon.infrastructure.thresholding.EventSpout;
 import com.hpcloud.mon.infrastructure.thresholding.MetricAggregationBolt;
 import com.hpcloud.mon.infrastructure.thresholding.MetricFilteringBolt;
+import com.hpcloud.mon.infrastructure.thresholding.MetricSpout;
 import com.hpcloud.mon.infrastructure.thresholding.deserializer.MaasEventDeserializer;
 import com.hpcloud.mon.infrastructure.thresholding.deserializer.MaasMetricDeserializer;
-import com.hpcloud.streaming.storm.amqp.AMQPSpout;
 import com.hpcloud.util.Injector;
 
 /**
@@ -64,14 +65,14 @@ public class TopologyModule extends AbstractModule {
   @Provides
   @Named("maas-metrics")
   IRichSpout maasMetricSpout() {
-    return maasMetricSpout == null ? new AMQPSpout(config.maasMetricSpout,
+    return maasMetricSpout == null ? new MetricSpout(config.maasMetricSpout,
         new MaasMetricDeserializer()) : maasMetricSpout;
   }
 
   @Provides
   @Named("event")
   IRichSpout eventSpout() {
-    return eventSpout == null ? new AMQPSpout(config.eventSpout, new MaasEventDeserializer())
+    return eventSpout == null ? new EventSpout(config.eventSpout, new MaasEventDeserializer())
         : eventSpout;
   }
 

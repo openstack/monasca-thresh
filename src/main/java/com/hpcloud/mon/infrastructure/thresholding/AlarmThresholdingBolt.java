@@ -14,6 +14,7 @@ import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 
+import com.hpcloud.mon.KafkaProducerConfiguration;
 import com.hpcloud.mon.ThresholdingConfiguration;
 import com.hpcloud.mon.common.event.AlarmDeletedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
@@ -46,17 +47,17 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
 
   private transient Logger LOG;
   private final DataSourceFactory dbConfig;
-  private final RabbitMQConfiguration rabbitConfig;
+  private final KafkaProducerConfiguration kafkaConfig;
   private final Map<String, Alarm> alarms = new HashMap<String, Alarm>();
   private String alertExchange;
   private String alertRoutingKey;
   private transient AlarmDAO alarmDAO;
-  private transient RabbitMQService rabbitService;
+  private transient AlarmEventForwarder alarmEventForwarder;
   private OutputCollector collector;
 
-  public AlarmThresholdingBolt(DataSourceFactory dbConfig, RabbitMQConfiguration rabbitConfig) {
+  public AlarmThresholdingBolt(DataSourceFactory dbConfig, KafkaProducerConfiguration rabbitConfig) {
     this.dbConfig = dbConfig;
-    this.rabbitConfig = rabbitConfig;
+    this.kafkaConfig = rabbitConfig;
   }
 
   @Override
@@ -98,10 +99,10 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     alertRoutingKey = (String) config.get(ThresholdingConfiguration.ALERTS_ROUTING_KEY);
 
     Injector.registerIfNotBound(AlarmDAO.class, new PersistenceModule(dbConfig));
-    Injector.registerIfNotBound(RabbitMQService.class, new MessagingModule(rabbitConfig));
+    Injector.registerIfNotBound(AlarmEventForwarder.class, new KafkaAlarmEventForwarder(kafkaConfig));
 
     alarmDAO = Injector.getInstance(AlarmDAO.class);
-    rabbitService = Injector.getInstance(RabbitMQService.class);
+    alarmEventForwarder = Injector.getInstance(AlarmEventForwarder.class);
   }
 
   void evaluateThreshold(Alarm alarm, SubAlarm subAlarm) {
@@ -118,7 +119,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
             alarm.getId(), alarm.getName(), initialState, alarm.getState(),
             alarm.getStateChangeReason(), System.currentTimeMillis() / 1000);
         try {
-          rabbitService.send(alertExchange, alertRoutingKey, Serialization.toJson(event));
+          alarmEventForwarder.send(alertExchange, alertRoutingKey, Serialization.toJson(event));
         } catch (Exception ignore) {
         }
       } else

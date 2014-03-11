@@ -9,9 +9,6 @@ import javax.validation.constraints.NotNull;
 
 import org.hibernate.validator.constraints.NotEmpty;
 
-import com.hpcloud.messaging.rabbitmq.RabbitMQConfiguration;
-import com.hpcloud.streaming.storm.amqp.AMQPSpoutConfiguration;
-
 /**
  * Thresholding configuration.
  * 
@@ -48,14 +45,14 @@ public class ThresholdingConfiguration {
   @NotNull public Set<String> sporadicMetricNamespaces;
 
   /** Configuration for the spout that receives MaaS metrics from the external exchange. */
-  @Valid @NotNull public AMQPSpoutConfiguration maasMetricSpout;
+  @Valid @NotNull public KafkaConsumerConfiguration maasMetricSpout;
   /** Configuration for the spout that receives MaaS events from the external exchange. */
-  @Valid @NotNull public AMQPSpoutConfiguration eventSpout;
+  @Valid @NotNull public KafkaConsumerConfiguration eventSpout;
 
   /** Configuration for publishing to the alerts exchange on the external server. */
   @NotEmpty public String alertsExchange = "alerts";
   @NotEmpty public String alertsRoutingKey = "alert";
-  @Valid @NotNull public RabbitMQConfiguration externalRabbit = new RabbitMQConfiguration();
+  @Valid @NotNull public KafkaProducerConfiguration externalRabbit = new KafkaProducerConfiguration();
 
   /** MaaS API database configuration. */
   @Valid @NotNull public DataSourceFactory database = new DataSourceFactory();
