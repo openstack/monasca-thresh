@@ -51,7 +51,7 @@ public class AlarmDAOImplTest {
 
     handle.execute("insert into alarm (id, tenant_id, name, expression, state, created_at, updated_at) "
         + "values ('123', 'bob', '90% CPU', 'avg(hpcs.compute{disk=vda, instance_id=123, metric_name=cpu}) > 10', 'UNDETERMINED', NOW(), NOW())");
-    handle.execute("insert into sub_alarm (id, alarm_id, function, namespace, operator, threshold, period, periods, created_at, updated_at) "
+    handle.execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, created_at, updated_at) "
         + "values ('111', '123', 'AVG', 'hpcs.compute', 'GT', 10, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('111', 'instance_id', '123')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'disk', 'vda')");

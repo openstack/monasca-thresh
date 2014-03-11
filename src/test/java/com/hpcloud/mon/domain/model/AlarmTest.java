@@ -111,10 +111,10 @@ public class AlarmTest {
 
     assertEquals(
         Alarm.buildStateChangeReason(AlarmState.UNDETERMINED, expressions),
-        "No data was present for the sub-alarms: [avg(hpcs.compute{device=1, metric_name=cpu, instance_id=5}, 1) > 5.0 times 3, avg(hpcs.compute{flavor_id=3, metric_name=mem}, 2) < 4.0 times 3]");
+        "No data was present for the sub-alarms: [avg(hpcs.compute{device=1, instance_id=5, metric_name=cpu}, 1) > 5.0 times 3, avg(hpcs.compute{flavor_id=3, metric_name=mem}, 2) < 4.0 times 3]");
 
     assertEquals(
         Alarm.buildStateChangeReason(AlarmState.ALARM, expressions),
-        "Thresholds were exceeded for the sub-alarms: [avg(hpcs.compute{device=1, metric_name=cpu, instance_id=5}, 1) > 5.0 times 3, avg(hpcs.compute{flavor_id=3, metric_name=mem}, 2) < 4.0 times 3]");
+        "Thresholds were exceeded for the sub-alarms: [avg(hpcs.compute{device=1, instance_id=5, metric_name=cpu}, 1) > 5.0 times 3, avg(hpcs.compute{flavor_id=3, metric_name=mem}, 2) < 4.0 times 3]");
   }
 }

@@ -49,7 +49,7 @@ public class AlarmDAOImpl implements AlarmDAO {
       String subAlarmId = (String) row.get("id");
       Map<String, String> dimensions = findDimensionsById(handle, subAlarmId);
       AggregateFunction function = AggregateFunction.valueOf((String) row.get("function"));
-      MetricDefinition metricDef = new MetricDefinition((String) row.get("namespace"), dimensions);
+      MetricDefinition metricDef = new MetricDefinition((String) row.get("metric_name"), dimensions);
       AlarmOperator operator = AlarmOperator.valueOf((String) row.get("operator"));
       AlarmSubExpression subExpression = new AlarmSubExpression(function, metricDef, operator,
           (Double) row.get("threshold"), (Integer) row.get("period"), (Integer) row.get("periods"));
