@@ -22,7 +22,7 @@ public class SubAlarmStatsTest {
 
   @BeforeMethod
   protected void beforeMethod() {
-    expression = AlarmSubExpression.of("avg(hpcs.compute:cpu:{id=5}, 1) > 3 times 3");
+    expression = AlarmSubExpression.of("avg(hpcs.compute.cpu{id=5}, 1) > 3 times 3");
     subAlarm = new SubAlarm("123", "1", expression);
     subAlarmStats = new SubAlarmStats(subAlarm, TimeResolution.ABSOLUTE, 4);
   }
@@ -96,7 +96,7 @@ public class SubAlarmStatsTest {
   }
 
   public void testEmptyWindowObservationThreshold() {
-    expression = AlarmSubExpression.of("avg(hpcs.compute:cpu:{id=5}) > 3 times 3");
+    expression = AlarmSubExpression.of("avg(hpcs.compute.cpu{id=5}) > 3 times 3");
     subAlarm = new SubAlarm("123", "1", expression);
     SubAlarmStats saStats = new SubAlarmStats(subAlarm, (System.currentTimeMillis() / 1000) + 60);
     assertEquals(saStats.emptyWindowObservationThreshold, 6);
