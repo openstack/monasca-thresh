@@ -28,9 +28,9 @@ public class MetricSpout extends BaseRichSpout {
     private final MetricSpoutConfig metricSpoutConfig;
     private final MetricDeserializer metricDeserializer;
 
-    private ConsumerConnector consumerConnector;
+    private transient ConsumerConnector consumerConnector;
 
-    private List<KafkaStream<byte[], byte[]>> streams = null;
+    private transient List<KafkaStream<byte[], byte[]>> streams = null;
 
     private SpoutOutputCollector collector;
 
