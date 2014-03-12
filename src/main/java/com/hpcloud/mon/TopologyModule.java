@@ -16,7 +16,7 @@ import com.hpcloud.mon.infrastructure.thresholding.EventSpout;
 import com.hpcloud.mon.infrastructure.thresholding.MetricAggregationBolt;
 import com.hpcloud.mon.infrastructure.thresholding.MetricFilteringBolt;
 import com.hpcloud.mon.infrastructure.thresholding.MetricSpout;
-import com.hpcloud.mon.infrastructure.thresholding.deserializer.MaasEventDeserializer;
+import com.hpcloud.mon.infrastructure.thresholding.deserializer.EventDeserializer;
 import com.hpcloud.mon.infrastructure.thresholding.deserializer.MetricDeserializer;
 import com.hpcloud.util.Injector;
 
@@ -72,7 +72,7 @@ public class TopologyModule extends AbstractModule {
   @Provides
   @Named("event")
   IRichSpout eventSpout() {
-    return eventSpout == null ? new EventSpout(config.eventSpoutConfig, new MaasEventDeserializer())
+    return eventSpout == null ? new EventSpout(config.eventSpoutConfig, new EventDeserializer())
         : eventSpout;
   }
 

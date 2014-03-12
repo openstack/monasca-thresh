@@ -20,7 +20,7 @@ import com.hpcloud.util.Serialization;
  * 
  * @author Jonathan Halterman
  */
-public class MaasEventDeserializer implements TupleDeserializer, Serializable {
+public class EventDeserializer implements TupleDeserializer, Serializable {
   private static final long serialVersionUID = -1306620481933667305L;
   private static final Fields FIELDS = new Fields("event");
 
@@ -44,3 +44,4 @@ public class MaasEventDeserializer implements TupleDeserializer, Serializable {
     return FIELDS;
   }
 }
+

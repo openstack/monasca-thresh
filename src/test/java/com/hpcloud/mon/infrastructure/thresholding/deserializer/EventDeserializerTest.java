@@ -14,8 +14,8 @@ import com.hpcloud.util.Serialization;
  * @author Jonathan Halterman
  */
 @Test
-public class MaasEventDeserializerTest {
-  private MaasEventDeserializer deserializer = new MaasEventDeserializer();
+public class EventDeserializerTest {
+  private EventDeserializer deserializer = new EventDeserializer();
 
   public void shouldDeserialize() {
     Object event = new AlarmDeletedEvent("abc", "123", null);
