@@ -17,7 +17,7 @@ import com.hpcloud.mon.infrastructure.thresholding.MetricAggregationBolt;
 import com.hpcloud.mon.infrastructure.thresholding.MetricFilteringBolt;
 import com.hpcloud.mon.infrastructure.thresholding.MetricSpout;
 import com.hpcloud.mon.infrastructure.thresholding.deserializer.MaasEventDeserializer;
-import com.hpcloud.mon.infrastructure.thresholding.deserializer.MaasMetricDeserializer;
+import com.hpcloud.mon.infrastructure.thresholding.deserializer.MetricDeserializer;
 import com.hpcloud.util.Injector;
 
 /**
@@ -29,7 +29,7 @@ public class TopologyModule extends AbstractModule {
   private final ThresholdingConfiguration config;
   private Config stormConfig;
   private IRichSpout collectdMetricSpout;
-  private IRichSpout maasMetricSpout;
+  private IRichSpout metricSpout;
   private IRichSpout eventSpout;
 
   public TopologyModule(ThresholdingConfiguration config) {
@@ -37,11 +37,11 @@ public class TopologyModule extends AbstractModule {
   }
 
   public TopologyModule(ThresholdingConfiguration threshConfig, Config stormConfig,
-      IRichSpout collectdMetricSpout, IRichSpout maasMetricSpout, IRichSpout eventSpout) {
+      IRichSpout collectdMetricSpout, IRichSpout metricSpout, IRichSpout eventSpout) {
     this(threshConfig);
     this.stormConfig = stormConfig;
     this.collectdMetricSpout = collectdMetricSpout;
-    this.maasMetricSpout = maasMetricSpout;
+    this.metricSpout = metricSpout;
     this.eventSpout = eventSpout;
   }
 
@@ -63,16 +63,16 @@ public class TopologyModule extends AbstractModule {
   }
 
   @Provides
-  @Named("maas-metrics")
-  IRichSpout maasMetricSpout() {
-    return maasMetricSpout == null ? new MetricSpout(config.maasMetricSpout,
-        new MaasMetricDeserializer()) : maasMetricSpout;
+  @Named("metrics")
+  IRichSpout metricSpout() {
+    return metricSpout == null ? new MetricSpout(config.metricSpoutConfig,
+        new MetricDeserializer()) : metricSpout;
   }
 
   @Provides
   @Named("event")
   IRichSpout eventSpout() {
-    return eventSpout == null ? new EventSpout(config.eventSpout, new MaasEventDeserializer())
+    return eventSpout == null ? new EventSpout(config.eventSpoutConfig, new MaasEventDeserializer())
         : eventSpout;
   }
 
@@ -80,11 +80,11 @@ public class TopologyModule extends AbstractModule {
   StormTopology topology() {
     TopologyBuilder builder = new TopologyBuilder();
 
-    // Receives MaaS Metrics
-    builder.setSpout("maas-metrics-spout", Injector.getInstance(IRichSpout.class, "maas-metrics"),
-        config.maasMetricSpoutThreads).setNumTasks(config.maasMetricSpoutTasks);
+    // Receives metrics
+    builder.setSpout("metrics-spout", Injector.getInstance(IRichSpout.class, "metrics"),
+        config.metricSpoutThreads).setNumTasks(config.metricSpoutTasks);
 
-    // Receives MaaS events
+    // Receives events
     builder.setSpout("event-spout", Injector.getInstance(IRichSpout.class, "event"),
         config.eventSpoutThreads).setNumTasks(config.eventSpoutTasks);
 
@@ -96,7 +96,7 @@ public class TopologyModule extends AbstractModule {
     // Metrics / Event -> Filtering
     builder.setBolt("filtering-bolt", new MetricFilteringBolt(config.database),
         config.filteringBoltThreads)
-        .shuffleGrouping("maas-metrics-spout")
+        .shuffleGrouping("metrics-spout")
         .allGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID)
         .allGrouping("event-bolt", EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID)
         .setNumTasks(config.filteringBoltTasks);

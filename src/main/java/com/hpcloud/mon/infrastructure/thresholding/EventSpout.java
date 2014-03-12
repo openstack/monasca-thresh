@@ -7,14 +7,15 @@ import backtype.storm.task.TopologyContext;
 import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichSpout;
 
-import com.hpcloud.mon.KafkaConsumerConfiguration;
+import com.hpcloud.configuration.KafkaConsumerConfiguration;
+import com.hpcloud.mon.EventSpoutConfig;
 import com.hpcloud.mon.infrastructure.thresholding.deserializer.MaasEventDeserializer;
 
 public class EventSpout extends BaseRichSpout {
 
     private static final long serialVersionUID = 8457340455857276878L;
 
-    public EventSpout(KafkaConsumerConfiguration eventSpout, MaasEventDeserializer maasEventDeserializer) {
+    public EventSpout(EventSpoutConfig eventSpout, MaasEventDeserializer maasEventDeserializer) {
         // TODO Auto-generated constructor stub
     }
 

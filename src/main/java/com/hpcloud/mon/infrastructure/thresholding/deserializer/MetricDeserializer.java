@@ -20,7 +20,7 @@ import com.hpcloud.streaming.storm.TupleDeserializer;
  * 
  * @author Jonathan Halterman
  */
-public class MaasMetricDeserializer implements TupleDeserializer, Serializable {
+public class MetricDeserializer implements TupleDeserializer, Serializable {
   private static final long serialVersionUID = 4021288586913323048L;
   private static final Fields FIELDS = new Fields("metricDefinition", "metric");
 

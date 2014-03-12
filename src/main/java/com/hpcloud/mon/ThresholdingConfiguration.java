@@ -1,5 +1,6 @@
 package com.hpcloud.mon;
 
+import com.hpcloud.configuration.KafkaConsumerConfiguration;
 import io.dropwizard.db.DataSourceFactory;
 
 import java.util.Set;
@@ -23,8 +24,8 @@ public class ThresholdingConfiguration {
   /** Total number of acker threads across the cluster. */
   @NotNull public Integer numAckerThreads = 12;
 
-  @NotNull public Integer maasMetricSpoutThreads = 6;
-  @NotNull public Integer maasMetricSpoutTasks = 6;
+  @NotNull public Integer metricSpoutThreads = 6;
+  @NotNull public Integer metricSpoutTasks = 6;
 
   @NotNull public Integer eventSpoutThreads = 3;
   @NotNull public Integer eventSpoutTasks = 3;
@@ -44,10 +45,10 @@ public class ThresholdingConfiguration {
   /** Namespaces for which metrics are received sporadically. */
   @NotNull public Set<String> sporadicMetricNamespaces;
 
-  /** Configuration for the spout that receives MaaS metrics from the external exchange. */
-  @Valid @NotNull public KafkaConsumerConfiguration maasMetricSpout;
+  /** Configuration for the spout that receives metrics from the external exchange. */
+  @Valid @NotNull public MetricSpoutConfig metricSpoutConfig;
   /** Configuration for the spout that receives MaaS events from the external exchange. */
-  @Valid @NotNull public KafkaConsumerConfiguration eventSpout;
+  @Valid @NotNull public EventSpoutConfig eventSpoutConfig;
 
   /** Configuration for publishing to the alerts exchange on the external server. */
   @NotEmpty public String alertsExchange = "alerts";

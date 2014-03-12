@@ -15,8 +15,8 @@ import com.hpcloud.mon.common.model.metric.Metrics;
  * @author Jonathan Halterman
  */
 @Test
-public class MaasMetricDeserializerTest {
-  private MaasMetricDeserializer deserializer = new MaasMetricDeserializer();
+public class MetricDeserializerTest {
+  private MetricDeserializer deserializer = new MetricDeserializer();
 
   public void shouldDeserialize() {
     Metric metric = new Metric("bob", null, 123, 5.0);

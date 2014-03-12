@@ -84,7 +84,6 @@
             <groupId>storm</groupId>
             <artifactId>storm</artifactId>
             <version>0.9.0.1</version>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>com.hpcloud</groupId>
@@ -114,6 +113,11 @@
         <dependency>
             <groupId>com.hpcloud</groupId>
             <artifactId>mon-streaming</artifactId>
+            <version>${mon.common.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.hpcloud</groupId>
+            <artifactId>mon-kafka</artifactId>
             <version>${mon.common.version}</version>
         </dependency>
         <dependency>
