@@ -1,7 +1,5 @@
 package com.hpcloud.mon.infrastructure.thresholding;
 
-import io.dropwizard.db.DataSourceFactory;
-
 import java.util.HashMap;
 import java.util.Map;
 

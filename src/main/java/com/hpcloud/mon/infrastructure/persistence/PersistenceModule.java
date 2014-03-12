@@ -1,7 +1,5 @@
 package com.hpcloud.mon.infrastructure.persistence;
 
-import io.dropwizard.db.DataSourceFactory;
-
 import javax.inject.Singleton;
 
 import org.skife.jdbi.v2.DBI;
@@ -12,6 +10,7 @@ import com.google.inject.Scopes;
 import com.hpcloud.mon.domain.service.AlarmDAO;
 import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
+import com.hpcloud.mon.infrastructure.thresholding.DataSourceFactory;
 
 /**
  * Configures persistence related types.
