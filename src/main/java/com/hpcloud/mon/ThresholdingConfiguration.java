@@ -1,7 +1,6 @@
 package com.hpcloud.mon;
 
 import com.hpcloud.configuration.KafkaConsumerConfiguration;
-import io.dropwizard.db.DataSourceFactory;
 
 import java.util.Set;
 
@@ -9,6 +8,9 @@ import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
 
 import org.hibernate.validator.constraints.NotEmpty;
+
+import com.hpcloud.configuration.KafkaConsumerConfiguration;
+import com.hpcloud.mon.infrastructure.thresholding.DataSourceFactory;
 
 /**
  * Thresholding configuration.
