@@ -1,0 +1,86 @@
+metricSpoutThreads: 1
+metricSpoutTasks: 1
+
+metricSpoutConfig:
+
+  #Kafka settings.
+  kafkaConsumerConfiguration:
+  # See http://kafka.apache.org/documentation.html#api for semantics and defaults.
+    topic: test
+    numThreads: 1
+    groupId: 1
+    zookeeperConnect: localhost:2181
+    consumerId: 1
+    socketTimeoutMs: 30000
+    socketReceiveBufferBytes : 65536
+    fetchMessageMaxBytes: 1048576
+    autoCommitEnable: true
+    autoCommitIntervalMs: 60000
+    queuedMaxMessageChunks: 10
+    rebalanceMaxRetries: 4
+    fetchMinBytes:  1
+    fetchWaitMaxMs:  100
+    rebalanceBackoffMs: 2000
+    refreshLeaderBackoffMs: 200
+    autoOffsetReset: largest
+    consumerTimeoutMs:  -1
+    clientId : 1
+    zookeeperSessionTimeoutMs : 6000
+    zookeeperConnectionTimeoutMs : 6000
+    zookeeperSyncTimeMs: 2000
+
+
+eventSpoutConfig:
+  #Kafka settings.
+  kafkaConsumerConfiguration:
+  # See http://kafka.apache.org/documentation.html#api for semantics and defaults.
+    topic: test
+    numThreads: 1
+    groupId: 1
+    zookeeperConnect: localhost:2181
+    consumerId: 1
+    socketTimeoutMs: 30000
+    socketReceiveBufferBytes : 65536
+    fetchMessageMaxBytes: 1048576
+    autoCommitEnable: true
+    autoCommitIntervalMs: 60000
+    queuedMaxMessageChunks: 10
+    rebalanceMaxRetries: 4
+    fetchMinBytes:  1
+    fetchWaitMaxMs:  100
+    rebalanceBackoffMs: 2000
+    refreshLeaderBackoffMs: 200
+    autoOffsetReset: largest
+    consumerTimeoutMs:  -1
+    clientId : 1
+    zookeeperSessionTimeoutMs : 6000
+    zookeeperConnectionTimeoutMs : 6000
+    zookeeperSyncTimeMs: 2000
+
+
+sporadicMetricNamespaces:
+  - foo
+
+database:
+  driverClass: com.vertica.jdbc.Driver
+#  url: jdbc:vertica://mon-aw1rdd1-vertica0001.rndd.aw1.hpcloud.net:5433/som
+  url: jdbc:vertica://15.185.94.245:5433/som
+#  user: persister
+  user: mon_persister
+#  user: dbadmin
+  password: password
+  properties:
+      ssl: false
+  # the maximum amount of time to wait on an empty pool before throwing an exception
+  maxWaitForConnection: 1s
+
+  # the SQL query to run when validating a connection's liveness
+  validationQuery: "/* MyService Health Check */ SELECT 1"
+
+  # the minimum number of connections to keep open
+  minSize: 8
+
+  # the maximum number of connections to keep open
+
+
+  maxSize: 41
