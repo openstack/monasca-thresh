@@ -28,7 +28,7 @@ public class MetricSpout extends BaseRichSpout {
     private final MetricSpoutConfig metricSpoutConfig;
     private final MetricDeserializer metricDeserializer;
 
-    private final ConsumerConnector consumerConnector;
+    private ConsumerConnector consumerConnector;
 
     private List<KafkaStream<byte[], byte[]>> streams = null;
 
@@ -37,10 +37,6 @@ public class MetricSpout extends BaseRichSpout {
     public MetricSpout(MetricSpoutConfig metricSpoutConfig, MetricDeserializer metricDeserializer) {
         this.metricSpoutConfig = metricSpoutConfig;
         this.metricDeserializer = metricDeserializer;
-
-        Properties kafkaProperties = KafkaConsumerProperties.createKafkaProperties(metricSpoutConfig.kafkaConsumerConfiguration);
-        ConsumerConfig consumerConfig = new ConsumerConfig(kafkaProperties);
-        this.consumerConnector = Consumer.createJavaConsumerConnector(consumerConfig);
     }
 
     @Override
@@ -56,6 +52,10 @@ public class MetricSpout extends BaseRichSpout {
     @Override
     public void open(Map conf, TopologyContext context, SpoutOutputCollector collector) {
         this.collector = collector;
+
+        Properties kafkaProperties = KafkaConsumerProperties.createKafkaProperties(metricSpoutConfig.kafkaConsumerConfiguration);
+        ConsumerConfig consumerConfig = new ConsumerConfig(kafkaProperties);
+        this.consumerConnector = Consumer.createJavaConsumerConnector(consumerConfig);
 
     }
 
