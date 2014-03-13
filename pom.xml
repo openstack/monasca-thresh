@@ -5,7 +5,7 @@
 
     <groupId>com.hpcloud</groupId>
     <artifactId>mon-thresh</artifactId>
-    <version>${computedVersion}</version>
+    <version>1.0.0-SNAPSHOT</version>
     <url>http://hpcloud.net</url>
     <packaging>jar</packaging>
 
@@ -14,8 +14,6 @@
     </prerequisites>
 
     <properties>
-        <versionNumber>1.0.0</versionNumber>
-        <computedVersion>${versionNumber}-SNAPSHOT</computedVersion>
         <mon.common.version>1.0.0-SNAPSHOT</mon.common.version>
         <dropwizard.version>0.7.0-rc1</dropwizard.version>
 
@@ -58,7 +56,7 @@
                 </property>
             </activation>
             <properties>
-                <computedVersion>${versionNumber}.${BUILD_NUM}</computedVersion>
+                <computedVersion>${version}</computedVersion>
             </properties>
         </profile>
     </profiles>
