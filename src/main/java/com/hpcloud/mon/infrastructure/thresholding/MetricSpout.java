@@ -8,11 +8,10 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Values;
 import com.hpcloud.configuration.KafkaConsumerProperties;
 import com.hpcloud.mon.MetricSpoutConfig;
-import com.hpcloud.mon.common.model.metric.Metric;
-import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.mon.common.model.metric.MetricEnvelope;
 import com.hpcloud.mon.common.model.metric.MetricEnvelopes;
 import com.hpcloud.mon.infrastructure.thresholding.deserializer.MetricDeserializer;
+
 import kafka.consumer.Consumer;
 import kafka.consumer.ConsumerConfig;
 import kafka.consumer.ConsumerIterator;
@@ -21,7 +20,11 @@ import kafka.javaapi.consumer.ConsumerConnector;
 
 import java.util.*;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class MetricSpout extends BaseRichSpout {
+    private static final Logger LOG = LoggerFactory.getLogger(MetricSpout.class);
 
     private static final long serialVersionUID = 744004533863562119L;
 
@@ -37,10 +40,12 @@ public class MetricSpout extends BaseRichSpout {
     public MetricSpout(MetricSpoutConfig metricSpoutConfig, MetricDeserializer metricDeserializer) {
         this.metricSpoutConfig = metricSpoutConfig;
         this.metricDeserializer = metricDeserializer;
+        LOG.info("Created");
     }
 
     @Override
     public void activate() {
+        LOG.info("Activated");
         if (streams == null) {
             Map<String, Integer> topicCountMap = new HashMap<>();
             topicCountMap.put(metricSpoutConfig.kafkaConsumerConfiguration.getTopic(), new Integer(1));
@@ -51,6 +56,7 @@ public class MetricSpout extends BaseRichSpout {
 
     @Override
     public void open(Map conf, TopologyContext context, SpoutOutputCollector collector) {
+        LOG.info("Opened");
         this.collector = collector;
 
         Properties kafkaProperties = KafkaConsumerProperties.createKafkaProperties(metricSpoutConfig.kafkaConsumerConfiguration);
@@ -64,7 +70,14 @@ public class MetricSpout extends BaseRichSpout {
 
         ConsumerIterator<byte[], byte[]> it = streams.get(0).iterator();
         if (it.hasNext()) {
-            MetricEnvelope metricEnvelope = MetricEnvelopes.fromJson(it.next().message());
+            final MetricEnvelope metricEnvelope;
+            try {
+                metricEnvelope = MetricEnvelopes.fromJson(it.next().message());
+            }
+            catch (RuntimeException re) {
+                LOG.warn("Error parsing MetricEnvelope", re);
+                return;
+            }
             collector.emit(new Values(metricEnvelope.metric.definition(), metricEnvelope.metric));
         }
 
