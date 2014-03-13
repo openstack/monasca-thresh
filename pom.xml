@@ -81,14 +81,9 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.apache.storm</groupId>
+            <groupId>storm</groupId>
             <artifactId>storm</artifactId>
-            <version>0.9.1-incubating</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.storm</groupId>
-            <artifactId>apache-storm-source</artifactId>
-            <version>0.9.1-incubating</version>
+            <version>0.9.0.1</version>
         </dependency>
         <dependency>
             <groupId>com.hpcloud</groupId>
@@ -159,11 +154,6 @@
                     <artifactId>slf4j-simple</artifactId>
                 </exclusion>
             </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>storm</groupId>
-            <artifactId>storm-kafka</artifactId>
-            <version>0.9.0-wip16a-scala292</version>
         </dependency>
 
         <!-- Test dependencies -->
