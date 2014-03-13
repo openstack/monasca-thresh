@@ -40,7 +40,7 @@ public class EventSpout extends BaseRichSpout {
 
     private int numThreads;
 
-    private KafkaStream<byte[], byte[]> stream;
+    private transient KafkaStream<byte[], byte[]> stream;
 
     private ConsumerConnector consumerConnector;
 
@@ -58,6 +58,7 @@ public class EventSpout extends BaseRichSpout {
     @Override
     public void open(Map conf, TopologyContext context, SpoutOutputCollector collector) {
         LOG.info("open called");
+        this.collector = collector;
         this.topic = configuration.kafkaConsumerConfiguration.getTopic();
         LOG.info(" topic = " + topic);
 
@@ -71,20 +72,23 @@ public class EventSpout extends BaseRichSpout {
         Properties kafkaProperties = KafkaConsumerProperties.createKafkaProperties(configuration.kafkaConsumerConfiguration);
         ConsumerConfig consumerConfig = new ConsumerConfig(kafkaProperties);
         this.consumerConnector = Consumer.createJavaConsumerConnector(consumerConfig);
+    }
 
-        Map<String, Integer> topicCountMap = new HashMap<>();
-        topicCountMap.put(topic, new Integer(numThreads));
-        Map<String, List<KafkaStream<byte[], byte[]>>> consumerMap = consumerConnector.createMessageStreams(topicCountMap);
-        List<KafkaStream<byte[], byte[]>> streams = consumerMap.get(topic);
-
-        // TODO - decide about numThreads
-        this.stream = streams.get(0);
+    @Override
+    public void activate() {
+        LOG.info("Activated");
+        if (stream == null) {
+            Map<String, Integer> topicCountMap = new HashMap<>();
+            topicCountMap.put(configuration.kafkaConsumerConfiguration.getTopic(), new Integer(1));
+            Map<String, List<KafkaStream<byte[], byte[]>>> consumerMap = consumerConnector.createMessageStreams(topicCountMap);
+            stream = consumerMap.get(configuration.kafkaConsumerConfiguration.getTopic()).get(0);
+        }
     }
 
     @Override
     public void nextTuple() {
         ConsumerIterator<byte[], byte[]> it = this.stream.iterator();
-        while (it.hasNext()) {
+        if (it.hasNext()) {
             List<List<?>> events = deserializer.deserialize(it.next().message());
             if (events != null) {
                 for (final List<?> event : events) {
