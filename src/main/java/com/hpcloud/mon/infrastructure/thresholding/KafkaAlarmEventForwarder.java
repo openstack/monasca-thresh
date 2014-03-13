@@ -15,7 +15,6 @@ public class KafkaAlarmEventForwarder extends AbstractModule implements AlarmEve
 
     @Override
     protected void configure() {
-        
     }
 
 }

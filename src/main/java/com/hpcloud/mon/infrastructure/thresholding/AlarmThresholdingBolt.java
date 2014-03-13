@@ -100,7 +100,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     Injector.registerIfNotBound(AlarmEventForwarder.class, new KafkaAlarmEventForwarder(kafkaConfig));
 
     alarmDAO = Injector.getInstance(AlarmDAO.class);
-    alarmEventForwarder = Injector.getInstance(AlarmEventForwarder.class);
+    alarmEventForwarder = new KafkaAlarmEventForwarder(kafkaConfig);
   }
 
   void evaluateThreshold(Alarm alarm, SubAlarm subAlarm) {
