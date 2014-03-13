@@ -10,7 +10,6 @@ import com.hpcloud.configuration.KafkaConsumerProperties;
 import com.hpcloud.mon.MetricSpoutConfig;
 import com.hpcloud.mon.common.model.metric.MetricEnvelope;
 import com.hpcloud.mon.common.model.metric.MetricEnvelopes;
-import com.hpcloud.mon.infrastructure.thresholding.deserializer.MetricDeserializer;
 
 import kafka.consumer.Consumer;
 import kafka.consumer.ConsumerConfig;
@@ -29,7 +28,6 @@ public class MetricSpout extends BaseRichSpout {
     private static final long serialVersionUID = 744004533863562119L;
 
     private final MetricSpoutConfig metricSpoutConfig;
-    private final MetricDeserializer metricDeserializer;
 
     private transient ConsumerConnector consumerConnector;
 
@@ -37,9 +35,8 @@ public class MetricSpout extends BaseRichSpout {
 
     private SpoutOutputCollector collector;
 
-    public MetricSpout(MetricSpoutConfig metricSpoutConfig, MetricDeserializer metricDeserializer) {
+    public MetricSpout(MetricSpoutConfig metricSpoutConfig) {
         this.metricSpoutConfig = metricSpoutConfig;
-        this.metricDeserializer = metricDeserializer;
         LOG.info("Created");
     }
 

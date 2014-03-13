@@ -15,7 +15,6 @@ import org.testng.annotations.Test;
 
 import backtype.storm.Config;
 import backtype.storm.testing.FeederSpout;
-import backtype.storm.topology.IRichSpout;
 import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Values;
 
@@ -31,7 +30,6 @@ import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
 import com.hpcloud.mon.infrastructure.thresholding.AlarmEventForwarder;
 import com.hpcloud.mon.infrastructure.thresholding.MetricAggregationBolt;
-import com.hpcloud.streaming.storm.NoopSpout;
 import com.hpcloud.streaming.storm.TopologyTestCase;
 import com.hpcloud.util.Injector;
 
@@ -43,8 +41,7 @@ import com.hpcloud.util.Injector;
  */
 @Test(groups = "integration")
 public class ThresholdingEngineTest extends TopologyTestCase {
-  private FeederSpout collectdMetricSpout;
-  private IRichSpout maasMetricSpout;
+  private FeederSpout metricSpout;
   private FeederSpout eventSpout;
   private AlarmDAO alarmDAO;
   private SubAlarmDAO subAlarmDAO;
@@ -104,11 +101,10 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     ThresholdingConfiguration threshConfig = new ThresholdingConfiguration();
     Config stormConfig = new Config();
     stormConfig.setMaxTaskParallelism(1);
-    collectdMetricSpout = new FeederSpout(new Fields("metricDefinition", "metric"));
-    maasMetricSpout = new NoopSpout(new Fields("metricDefinition", "metric"));
+    metricSpout = new FeederSpout(new Fields("metricDefinition", "metric"));
     eventSpout = new FeederSpout(new Fields("event"));
-    Injector.registerModules(new TopologyModule(threshConfig, stormConfig, collectdMetricSpout,
-        maasMetricSpout, eventSpout));
+    Injector.registerModules(new TopologyModule(threshConfig, stormConfig,
+        metricSpout, eventSpout));
 
     // Evaluate alarm stats every 1 seconds
     System.setProperty(MetricAggregationBolt.TICK_TUPLE_SECONDS_KEY, "1");
@@ -129,9 +125,9 @@ public class ThresholdingEngineTest extends TopologyTestCase {
         System.out.println("Feeding metrics...");
 
         long time = System.currentTimeMillis();
-        collectdMetricSpout.feed(new Values(cpuMetricDef, new Metric(cpuMetricDef.name,
+        metricSpout.feed(new Values(cpuMetricDef, new Metric(cpuMetricDef.name,
                 cpuMetricDef.dimensions, time, (double) (++goodValueCount == 15 ? 1 : 555))));
-        collectdMetricSpout.feed(new Values(memMetricDef, new Metric(memMetricDef.name,
+        metricSpout.feed(new Values(memMetricDef, new Metric(memMetricDef.name,
                 memMetricDef.dimensions, time, (double) (goodValueCount == 15 ? 1 : 555))));
 
         if (--feedCount == 0)

@@ -17,7 +17,6 @@ import com.hpcloud.mon.infrastructure.thresholding.MetricAggregationBolt;
 import com.hpcloud.mon.infrastructure.thresholding.MetricFilteringBolt;
 import com.hpcloud.mon.infrastructure.thresholding.MetricSpout;
 import com.hpcloud.mon.infrastructure.thresholding.deserializer.EventDeserializer;
-import com.hpcloud.mon.infrastructure.thresholding.deserializer.MetricDeserializer;
 import com.hpcloud.util.Injector;
 
 /**
@@ -28,7 +27,6 @@ import com.hpcloud.util.Injector;
 public class TopologyModule extends AbstractModule {
   private final ThresholdingConfiguration config;
   private Config stormConfig;
-  private IRichSpout collectdMetricSpout;
   private IRichSpout metricSpout;
   private IRichSpout eventSpout;
 
@@ -37,10 +35,9 @@ public class TopologyModule extends AbstractModule {
   }
 
   public TopologyModule(ThresholdingConfiguration threshConfig, Config stormConfig,
-      IRichSpout collectdMetricSpout, IRichSpout metricSpout, IRichSpout eventSpout) {
+      IRichSpout metricSpout, IRichSpout eventSpout) {
     this(threshConfig);
     this.stormConfig = stormConfig;
-    this.collectdMetricSpout = collectdMetricSpout;
     this.metricSpout = metricSpout;
     this.eventSpout = eventSpout;
   }
@@ -65,8 +62,7 @@ public class TopologyModule extends AbstractModule {
   @Provides
   @Named("metrics")
   IRichSpout metricSpout() {
-    return metricSpout == null ? new MetricSpout(config.metricSpoutConfig,
-        new MetricDeserializer()) : metricSpout;
+    return metricSpout == null ? new MetricSpout(config.metricSpoutConfig) : metricSpout;
   }
 
   @Provides

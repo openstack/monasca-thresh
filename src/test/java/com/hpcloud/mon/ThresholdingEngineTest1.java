@@ -45,8 +45,7 @@ import com.hpcloud.util.Injector;
  */
 @Test(groups = "integration")
 public class ThresholdingEngineTest1 extends TopologyTestCase {
-  private FeederSpout collectdMetricSpout;
-  private FeederSpout maasMetricSpout;
+  private FeederSpout metricSpout;
   private FeederSpout eventSpout;
   private AlarmDAO alarmDAO;
   private SubAlarmDAO subAlarmDAO;
@@ -122,11 +121,10 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
     Config stormConfig = new Config();
     stormConfig.setMaxTaskParallelism(5);
 
-    collectdMetricSpout = new FeederSpout(new Fields("metricDefinition", "metric"));
-    maasMetricSpout = new FeederSpout(new Fields("metricDefinition", "metric"));
+    metricSpout = new FeederSpout(new Fields("metricDefinition", "metric"));
     eventSpout = new FeederSpout(new Fields("event"));
-    Injector.registerModules(new TopologyModule(threshConfig, stormConfig, collectdMetricSpout,
-        maasMetricSpout, eventSpout));
+    Injector.registerModules(new TopologyModule(threshConfig, stormConfig,
+        metricSpout, eventSpout));
 
     // Evaluate alarm stats every 1 seconds
     System.setProperty(MetricAggregationBolt.TICK_TUPLE_SECONDS_KEY, "1");
@@ -150,11 +148,11 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
 
     while (true) {
       long time = System.currentTimeMillis();
-      collectdMetricSpout.feed(new Values(cpuMetricDef, new Metric(cpuMetricDef.name,
+      metricSpout.feed(new Values(cpuMetricDef, new Metric(cpuMetricDef.name,
           cpuMetricDef.dimensions, time, count % 10 == 0 ? 555 : 1)));
-      collectdMetricSpout.feed(new Values(memMetricDef, new Metric(memMetricDef.name,
+      metricSpout.feed(new Values(memMetricDef, new Metric(memMetricDef.name,
               cpuMetricDef.dimensions, time, count % 10 == 0 ? 555 : 1)));
-      maasMetricSpout.feed(new Values(customMetricDef, new Metric(customMetricDef.name,
+      metricSpout.feed(new Values(customMetricDef, new Metric(customMetricDef.name,
               cpuMetricDef.dimensions, time, count % 20 == 0 ? 1 : 123)));
 
       if (count % 5 == 0) {
