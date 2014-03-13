@@ -56,7 +56,7 @@
                 </property>
             </activation>
             <properties>
-                <computedVersion>${version}</computedVersion>
+                <computedVersion>${project.version}</computedVersion>
             </properties>
         </profile>
     </profiles>
