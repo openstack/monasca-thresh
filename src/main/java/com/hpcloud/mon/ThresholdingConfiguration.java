@@ -1,6 +1,6 @@
 package com.hpcloud.mon;
 
-import com.hpcloud.configuration.KafkaConsumerConfiguration;
+import com.hpcloud.configuration.KafkaProducerConfiguration;
 
 import java.util.Set;
 
@@ -9,7 +9,6 @@ import javax.validation.constraints.NotNull;
 
 import org.hibernate.validator.constraints.NotEmpty;
 
-import com.hpcloud.configuration.KafkaConsumerConfiguration;
 import com.hpcloud.mon.infrastructure.thresholding.DataSourceFactory;
 
 /**
@@ -55,7 +54,7 @@ public class ThresholdingConfiguration {
   /** Configuration for publishing to the alerts exchange on the external server. */
   @NotEmpty public String alertsExchange = "alerts";
   @NotEmpty public String alertsRoutingKey = "alert";
-  @Valid @NotNull public KafkaProducerConfiguration externalRabbit = new KafkaProducerConfiguration();
+  @Valid @NotNull public KafkaProducerConfiguration kafkaProducerConfig = new KafkaProducerConfiguration();
 
   /** MaaS API database configuration. */
   @Valid @NotNull public DataSourceFactory database = new DataSourceFactory();
