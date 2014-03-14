@@ -14,7 +14,7 @@
     </prerequisites>
 
     <properties>
-        <mon.common.version>1.0.0-SNAPSHOT</mon.common.version>
+        <mon.common.version>1.0.0.16</mon.common.version>
         <dropwizard.version>0.7.0-rc1</dropwizard.version>
 
         <skipITs>true</skipITs>
