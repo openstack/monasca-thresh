@@ -20,6 +20,8 @@
         <skipITs>true</skipITs>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <artifactNamedVersion>${project.name}-${project.version}-${timestamp}-${buildNumber}
+        </artifactNamedVersion>
     </properties>
 
     <scm>
@@ -216,7 +218,7 @@
                 <artifactId>maven-shade-plugin</artifactId>
                 <version>2.2</version>
                 <configuration>
-                    <finalName>mon-thresh</finalName>
+                    <finalName>${artifactNamedVersion}</finalName>
                     <createDependencyReducedPom>true</createDependencyReducedPom>
                     <filters>
                         <filter>
@@ -254,6 +256,59 @@
                 <configuration>
                     <tag>${project.version}</tag>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>buildnumber-maven-plugin</artifactId>
+                <version>1.2</version>
+                <executions>
+                    <execution>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>create</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <doCheck>false</doCheck>
+                    <shortRevisionLength>6</shortRevisionLength>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>jdeb</artifactId>
+                <groupId>org.vafer</groupId>
+                <version>1.0.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jdeb</goal>
+                        </goals>
+                        <configuration>
+                            <deb>${project.basedir}/debs/binaries/${artifactNamedVersion}.deb</deb>
+                            <dataSet>
+                                <data>
+                                    <type>file</type>
+                                    <src>${project.build.directory}/${artifactNamedVersion}.jar
+                                    </src>
+                                    <dst>/opt/mon/mon-thresh.jar</dst>
+                                </data>
+                                <data>
+                                    <type>file</type>
+                                    <src>${project.basedir}/src/deb/init/mon-thresh.conf</src>
+                                    <dst>/etc/init/mon-thresh.conf</dst>
+                                </data>
+                                <data>
+                                    <type>file</type>
+                                    <src>
+                                        ${project.basedir}/src/deb/etc/mon-thresh-config.yml-sample
+                                    </src>
+                                    <dst>/etc/mon/thresh-config.yml-sample</dst>
+                                </data>
+                            </dataSet>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
