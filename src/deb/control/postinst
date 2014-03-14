@@ -2,8 +2,8 @@
 
 case "$1" in
   configure)
-    if ! [ `getent passwd persister` ]; then
-      adduser --system --group persister
+    if ! [ `getent passwd thresh` ]; then
+      adduser --system --group thresh
     fi
 
     #Restart does not pick up upstart job config changes stop/start is needed
