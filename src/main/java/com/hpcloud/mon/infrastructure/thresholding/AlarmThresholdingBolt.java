@@ -12,7 +12,7 @@ import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 
-import com.hpcloud.mon.KafkaProducerConfiguration;
+import com.hpcloud.configuration.KafkaProducerConfiguration;
 import com.hpcloud.mon.ThresholdingConfiguration;
 import com.hpcloud.mon.common.event.AlarmDeletedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
@@ -20,7 +20,6 @@ import com.hpcloud.mon.domain.model.Alarm;
 import com.hpcloud.mon.domain.model.AlarmStateTransitionEvent;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.service.AlarmDAO;
-import com.hpcloud.mon.infrastructure.messaging.MessagingModule;
 import com.hpcloud.mon.infrastructure.persistence.PersistenceModule;
 import com.hpcloud.streaming.storm.Logging;
 import com.hpcloud.streaming.storm.Streams;

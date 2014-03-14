@@ -110,7 +110,7 @@ public class TopologyModule extends AbstractModule {
 
     // Aggregation / Event -> Thresholding
     builder.setBolt("thresholding-bolt",
-        new AlarmThresholdingBolt(config.database, config.externalRabbit),
+        new AlarmThresholdingBolt(config.database, config.kafkaProducerConfig),
         config.thresholdingBoltThreads)
         .fieldsGrouping("aggregation-bolt", new Fields("alarmId"))
         .fieldsGrouping("event-bolt", EventProcessingBolt.ALARM_EVENT_STREAM_ID,

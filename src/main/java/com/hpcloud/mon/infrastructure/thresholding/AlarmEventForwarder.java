@@ -4,4 +4,5 @@ public interface AlarmEventForwarder {
 
     void send(String alertExchange, String alertRoutingKey, String json);
 
+    void close();
 }
