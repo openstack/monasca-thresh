@@ -63,10 +63,12 @@ public abstract class KafkaSpout extends BaseRichSpout {
 
     @Override
     public void nextTuple() {
-
+                      LOG.debug("nextTuple called");
         ConsumerIterator<byte[], byte[]> it = streams.get(0).iterator();
         if (it.hasNext()) {
-            processMessage(it.next().message(), collector);
+            byte[] message = it.next().message();
+            LOG.debug("Received message: " + message);
+            processMessage(message, collector);
         }
     }
 
