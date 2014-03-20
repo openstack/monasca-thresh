@@ -80,6 +80,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
 
   @Override
   public void execute(Tuple tuple) {
+      LOG.debug("tuple: {}", tuple);
     try {
       if (Tuples.isTickTuple(tuple)) {
         evaluateAlarmsAndSlideWindows();

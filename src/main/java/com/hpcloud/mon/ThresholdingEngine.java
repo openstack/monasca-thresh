@@ -30,6 +30,8 @@ public class ThresholdingEngine {
         this.threshConfig = threshConfig;
         this.topologyName = topologyName;
         this.local = local;
+        LOG.info("local set to {}", local);
+
     }
 
     public static final ThresholdingConfiguration configFor(String configFileName) throws Exception {
@@ -47,6 +49,9 @@ public class ThresholdingEngine {
             System.exit(1);
         }
 
+        LOG.info("Instantiating ThresholdingEngine with config file: {}, topology: {}",
+                args[0], args[1]);
+
         ThresholdingEngine engine = new ThresholdingEngine(configFor(args[0]), args[1],
                 args.length > 2 ? true : false);
         engine.configure();
@@ -61,9 +66,12 @@ public class ThresholdingEngine {
         Config config = Injector.getInstance(Config.class);
         StormTopology topology = Injector.getInstance(StormTopology.class);
 
-        if (local)
+        if (local) {
+            LOG.info("submitting topology {} to local storm cluster", topologyName);
             new LocalCluster().submitTopology(topologyName, config, topology);
-        else
+        } else {
+            LOG.info("submitting topology {} to non-local storm cluster", topologyName);
             StormSubmitter.submitTopology(topologyName, config, topology);
+        }
     }
 }

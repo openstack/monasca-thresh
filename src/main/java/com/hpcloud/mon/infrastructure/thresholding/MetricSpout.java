@@ -26,6 +26,7 @@ public class MetricSpout extends KafkaSpout {
         final MetricEnvelope metricEnvelope;
         try {
             metricEnvelope = MetricEnvelopes.fromJson(message);
+            LOG.debug("metric envelope: {}", metricEnvelope);
         }
         catch (RuntimeException re) {
             LOG.warn("Error parsing MetricEnvelope", re);

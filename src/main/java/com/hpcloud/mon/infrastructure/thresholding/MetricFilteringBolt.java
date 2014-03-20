@@ -60,10 +60,12 @@ public class MetricFilteringBolt extends BaseRichBolt {
 
   @Override
   public void execute(Tuple tuple) {
+      LOG.debug("tuple: {}", tuple);
     try {
       if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
         MetricDefinition metricDef = (MetricDefinition) tuple.getValue(0);
 
+          LOG.debug("metric definition: {}", metricDef);
         if (METRIC_DEFS.containsKey(metricDef))
           collector.emit(tuple, tuple.getValues());
       } else {

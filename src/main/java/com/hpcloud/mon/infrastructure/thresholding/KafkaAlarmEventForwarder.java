@@ -1,16 +1,18 @@
 package com.hpcloud.mon.infrastructure.thresholding;
 
-import java.util.Properties;
-
+import com.hpcloud.configuration.KafkaProducerConfiguration;
+import com.hpcloud.configuration.KafkaProducerProperties;
 import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import com.google.inject.AbstractModule;
-import com.hpcloud.configuration.KafkaProducerConfiguration;
-import com.hpcloud.configuration.KafkaProducerProperties;
+import java.util.Properties;
 
-public class KafkaAlarmEventForwarder extends AbstractModule implements AlarmEventForwarder {
+public class KafkaAlarmEventForwarder implements AlarmEventForwarder {
+
+    private static final Logger LOG = LoggerFactory.getLogger(KafkaAlarmEventForwarder.class);
 
     private final Producer<String, String> producer;
 
@@ -25,6 +27,8 @@ public class KafkaAlarmEventForwarder extends AbstractModule implements AlarmEve
 
     @Override
     public void send(String alertExchange, String alertRoutingKey, String json) {
+        LOG.debug("sending alertExchange: {}, alertRoutingKey: {}, json: {}", alertExchange,
+                alertRoutingKey, json);
         final KeyedMessage<String, String> message = new KeyedMessage<String, String>(topic, alertRoutingKey, json);
         producer.send(message);
     }
@@ -34,7 +38,5 @@ public class KafkaAlarmEventForwarder extends AbstractModule implements AlarmEve
         producer.close();
     }
 
-    @Override
-    protected void configure() {
-    }
+
 }

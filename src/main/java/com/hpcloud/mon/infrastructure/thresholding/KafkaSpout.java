@@ -1,25 +1,22 @@
 package com.hpcloud.mon.infrastructure.thresholding;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-
+import backtype.storm.spout.SpoutOutputCollector;
+import backtype.storm.task.TopologyContext;
+import backtype.storm.topology.base.BaseRichSpout;
+import com.hpcloud.configuration.KafkaConsumerConfiguration;
+import com.hpcloud.configuration.KafkaConsumerProperties;
 import kafka.consumer.Consumer;
 import kafka.consumer.ConsumerConfig;
 import kafka.consumer.ConsumerIterator;
 import kafka.consumer.KafkaStream;
 import kafka.javaapi.consumer.ConsumerConnector;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import backtype.storm.spout.SpoutOutputCollector;
-import backtype.storm.task.TopologyContext;
-import backtype.storm.topology.base.BaseRichSpout;
-
-import com.hpcloud.configuration.KafkaConsumerConfiguration;
-import com.hpcloud.configuration.KafkaConsumerProperties;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 
 public abstract class KafkaSpout extends BaseRichSpout {
     private static final Logger LOG = LoggerFactory.getLogger(KafkaSpout.class);
@@ -36,7 +33,6 @@ public abstract class KafkaSpout extends BaseRichSpout {
 
     protected KafkaSpout(KafkaConsumerConfiguration kafkaConsumerConfig) {
         this.kafkaConsumerConfig = kafkaConsumerConfig;
-        LOG.info("Created");
     }
 
     @Override
@@ -63,11 +59,11 @@ public abstract class KafkaSpout extends BaseRichSpout {
 
     @Override
     public void nextTuple() {
-                      LOG.debug("nextTuple called");
+        LOG.debug("nextTuple called");
         ConsumerIterator<byte[], byte[]> it = streams.get(0).iterator();
         if (it.hasNext()) {
+            LOG.debug("streams iterator has next");
             byte[] message = it.next().message();
-            LOG.debug("Received message: " + message);
             processMessage(message, collector);
         }
     }
