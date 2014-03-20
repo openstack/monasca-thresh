@@ -1,97 +1,105 @@
 package com.hpcloud.mon.domain.model;
 
-import java.io.Serializable;
-
 import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.domain.common.AbstractEntity;
 
+import java.io.Serializable;
+
 /**
  * Sub-alarm. Decorates an AlarmSubExpression.
- * 
+ *
  * @author Jonathan Halterman
  */
 public class SubAlarm extends AbstractEntity implements Serializable {
-  private static final long serialVersionUID = -3946708553723868124L;
+    private static final long serialVersionUID = -3946708553723868124L;
 
-  private final String alarmId;
-  private final AlarmSubExpression expression;
-  private AlarmState state;
-  /** Whether metrics for this sub-alarm are received sporadically. */
-  private boolean sporadicMetric;
+    private String alarmId;
+    private AlarmSubExpression expression;
+    private AlarmState state;
+    /**
+     * Whether metrics for this sub-alarm are received sporadically.
+     */
+    private boolean sporadicMetric;
 
-  public SubAlarm(String id, String alarmId, AlarmSubExpression expression) {
-    this(id, alarmId, expression, AlarmState.UNDETERMINED);
-  }
+    public SubAlarm(String id, String alarmId, AlarmSubExpression expression) {
+        this(id, alarmId, expression, AlarmState.UNDETERMINED);
+    }
 
-  public SubAlarm(String id, String alarmId, AlarmSubExpression expression, AlarmState state) {
-    this.id = id;
-    this.alarmId = alarmId;
-    this.expression = expression;
-    this.state = state;
-  }
+    // Need this for kryo serialization/deserialization.  Fixes a bug in default java
+    // serialization/deserialization where id was not being set.  See resources/storm.yaml
+    // file for how to handle serialization/deserialization with kryo.
+    public SubAlarm() {
+    }
 
-  @Override
-  public boolean equals(Object obj) {
-    if (this == obj)
-      return true;
-    if (!super.equals(obj))
-      return false;
-    if (getClass() != obj.getClass())
-      return false;
-    SubAlarm other = (SubAlarm) obj;
-    if (alarmId == null) {
-      if (other.alarmId != null)
-        return false;
-    } else if (!alarmId.equals(other.alarmId))
-      return false;
-    if (expression == null) {
-      if (other.expression != null)
-        return false;
-    } else if (!expression.equals(other.expression))
-      return false;
-    if (state != other.state)
-      return false;
-    return true;
-  }
+    public SubAlarm(String id, String alarmId, AlarmSubExpression expression, AlarmState state) {
+        this.id = id;
+        this.alarmId = alarmId;
+        this.expression = expression;
+        this.state = state;
+    }
 
-  public String getAlarmId() {
-    return alarmId;
-  }
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (!super.equals(obj))
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        SubAlarm other = (SubAlarm) obj;
+        if (alarmId == null) {
+            if (other.alarmId != null)
+                return false;
+        } else if (!alarmId.equals(other.alarmId))
+            return false;
+        if (expression == null) {
+            if (other.expression != null)
+                return false;
+        } else if (!expression.equals(other.expression))
+            return false;
+        if (state != other.state)
+            return false;
+        return true;
+    }
 
-  public AlarmSubExpression getExpression() {
-    return expression;
-  }
+    public String getAlarmId() {
+        return alarmId;
+    }
 
-  public AlarmState getState() {
-    return state;
-  }
+    public AlarmSubExpression getExpression() {
+        return expression;
+    }
 
-  @Override
-  public int hashCode() {
-    final int prime = 31;
-    int result = super.hashCode();
-    result = prime * result + ((alarmId == null) ? 0 : alarmId.hashCode());
-    result = prime * result + ((expression == null) ? 0 : expression.hashCode());
-    result = prime * result + ((state == null) ? 0 : state.hashCode());
-    return result;
-  }
+    public AlarmState getState() {
+        return state;
+    }
 
-  public boolean isSporadicMetric() {
-    return sporadicMetric;
-  }
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = super.hashCode();
+        result = prime * result + ((alarmId == null) ? 0 : alarmId.hashCode());
+        result = prime * result + ((expression == null) ? 0 : expression.hashCode());
+        result = prime * result + ((state == null) ? 0 : state.hashCode());
+        return result;
+    }
 
-  public void setSporadicMetric(boolean sporadicMetric) {
-    this.sporadicMetric = sporadicMetric;
-  }
+    public boolean isSporadicMetric() {
+        return sporadicMetric;
+    }
 
-  public void setState(AlarmState state) {
-    this.state = state;
-  }
+    public void setSporadicMetric(boolean sporadicMetric) {
+        this.sporadicMetric = sporadicMetric;
+    }
 
-  @Override
-  public String toString() {
-    return String.format("SubAlarm [id=%s, alarmId=%s, expression=%s, state=%s]", id, alarmId,
-        expression, state);
-  }
+    public void setState(AlarmState state) {
+        this.state = state;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("SubAlarm [id=%s, alarmId=%s, expression=%s, state=%s]", id, alarmId,
+                expression, state);
+    }
 }
