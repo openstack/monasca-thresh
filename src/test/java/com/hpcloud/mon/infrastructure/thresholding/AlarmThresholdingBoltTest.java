@@ -1,73 +1,122 @@
 package com.hpcloud.mon.infrastructure.thresholding;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.hpcloud.mon.common.event.AlarmCreatedEvent;
+import backtype.storm.task.OutputCollector;
+import backtype.storm.task.TopologyContext;
+import backtype.storm.tuple.Tuple;
+
+import com.hpcloud.mon.ThresholdingConfiguration;
 import com.hpcloud.mon.common.model.alarm.AlarmExpression;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
-import com.hpcloud.mon.common.model.metric.Metric;
-import com.hpcloud.mon.common.model.metric.MetricEnvelope;
-import com.hpcloud.mon.common.model.metric.MetricEnvelopes;
-import com.hpcloud.mon.common.model.metric.Metrics;
 import com.hpcloud.mon.domain.model.Alarm;
-import com.hpcloud.mon.domain.model.AlarmStateTransitionEvent;
 import com.hpcloud.mon.domain.model.SubAlarm;
-import com.hpcloud.util.Serialization;
+import com.hpcloud.mon.domain.service.AlarmDAO;
+import com.hpcloud.streaming.storm.Streams;
 
-/**
- * @author Jonathan Halterman
- */
 @Test
 public class AlarmThresholdingBoltTest {
 
-    public static void main(String[] args) {
-        AlarmStateTransitionEvent event = new AlarmStateTransitionEvent("I am a TenantId",
-                "I am a Alarm Id", "I am a Alarm Name", AlarmState.OK, AlarmState.ALARM,
-                "I am a Alarm Change Reason", System.currentTimeMillis() / 1000);
-        final String s = Serialization.toJson(event);
+    private static final String ALERT_ROUTING_KEY = "Alert Routing Key";
+	private static final String ALERTS_EXCHANGE = "Alerts";
 
+    private AlarmExpression alarmExpression;
+    private Alarm alarm;
+    private List<SubAlarm> subAlarms;
+
+    private AlarmEventForwarder alarmEventForwarder;
+    private AlarmDAO alarmDAO;
+    private AlarmThresholdingBolt bolt;
+    private OutputCollector collector;
+
+    @BeforeClass
+    protected void beforeClass() {
         final String alarmId = "111111112222222222233333333334";
         final String tenantId = "AAAAABBBBBBCCCCC";
         final String expression = "avg(hpcs.compute.cpu{instance_id=123,device=42}, 1) > 5";
-        final Alarm alarm = new Alarm();
+        alarm = new Alarm();
         alarm.setName("Test CPU Alarm");
         alarm.setTenantId(tenantId);
         alarm.setId(alarmId);
         alarm.setExpression(expression);
         alarm.setState(AlarmState.OK);
-        final AlarmExpression alarmExpression = new AlarmExpression(expression);
+        alarmExpression = new AlarmExpression(expression);
         final List<AlarmSubExpression> subExpressions = alarmExpression.getSubExpressions();
-        final List<SubAlarm> subAlarms = new ArrayList<SubAlarm>(subExpressions.size());
+        subAlarms = new ArrayList<SubAlarm>(subExpressions.size());
         int subAlarmId = 4242;
         for (int i = 0; i < subExpressions.size(); i++) {
             final SubAlarm subAlarm = new SubAlarm(String.valueOf(subAlarmId++), alarmId, subExpressions.get(i));
             subAlarms.add(subAlarm);
         }
         alarm.setSubAlarms(subAlarms);
+    }
 
-        final Map<String, String> dimensions = new HashMap<String, String>();
-        dimensions.put("instance_id", "123");
-        dimensions.put("device", "42");
-        final Metric metric = new Metric("hpcs.compute.cpu", dimensions, System.currentTimeMillis(), 90.0);
-        final MetricEnvelope metricEnvelope = new MetricEnvelope(metric);
-        System.out.println(MetricEnvelopes.toJson(metricEnvelope));
+    @BeforeMethod
+    protected void beforeMethod() {
+    	alarmEventForwarder = mock(AlarmEventForwarder.class);
+    	alarmDAO = mock(AlarmDAO.class);
+    	bolt = new MockAlarmThreshholdBolt(alarmDAO, alarmEventForwarder);
+    	collector = mock(OutputCollector.class);
+		final Map<String, String> config = new HashMap<String, String>();
+		config.put(ThresholdingConfiguration.ALERTS_EXCHANGE, ALERTS_EXCHANGE);
+		config.put(ThresholdingConfiguration.ALERTS_ROUTING_KEY, ALERT_ROUTING_KEY);
+		final TopologyContext context = mock(TopologyContext.class);
+		bolt.prepare(config, context, collector);
+    }
 
-        final AlarmCreatedEvent alarmCreatedEvent = new AlarmCreatedEvent();
-        alarmCreatedEvent.tenantId = tenantId;
-        alarmCreatedEvent.alarmId = alarmId;
-        alarmCreatedEvent.alarmExpression = expression;
-        final Map<String, AlarmSubExpression> subExpressionMap = new HashMap<String, AlarmSubExpression>();
-        for (final SubAlarm subAlarm : subAlarms) {
-            subExpressionMap.put(subAlarm.getId(), subAlarm.getExpression());
-        }
-        alarmCreatedEvent.alarmSubExpressions = subExpressionMap;
-        
-        System.out.println(Serialization.toJson(alarmCreatedEvent));
+    /**
+     * Create a simple Alarm with one sub expression.
+     * Send a SubAlarm with state set to ALARM.
+     * Ensure that the Alarm was triggered and sent
+     */
+    @Test
+    public void simpleAlarmCreation() {
+		final Tuple tuple = mock(Tuple.class);
+		when(tuple.getSourceStreamId()).thenReturn(Streams.DEFAULT_STREAM_ID);
+		when(tuple.getString(0)).thenReturn(alarm.getId());
+		when(tuple.toString()).thenReturn("Test Alarm Tuple");
+		final SubAlarm subAlarm = subAlarms.get(0);
+		subAlarm.setState(AlarmState.ALARM);
+		when(tuple.getValue(1)).thenReturn(subAlarm);
+		when(alarmDAO.findById(alarm.getId())).thenReturn(alarm);
+		bolt.execute(tuple);
+		bolt.execute(tuple);
+		verify(collector, times(2)).ack(tuple);
+		final String json = "{\"alarm-transitioned\":{\"tenantId\":\"AAAAABBBBBBCCCCC\"," +
+				"\"alarmId\":\"111111112222222222233333333334\",\"alarmName\":\"Test CPU Alarm\"," +
+				"\"oldState\":\"OK\",\"newState\":\"ALARM\"," +
+				"\"stateChangeReason\":\"Thresholds were exceeded for the sub-alarms: [avg(hpcs.compute.cpu{device=42, instance_id=123}, 1) > 5.0]\"," +
+				"\"timestamp\":1395587091}}";
+
+		verify(alarmEventForwarder, times(1)).send(ALERTS_EXCHANGE, ALERT_ROUTING_KEY, json);
+    }
+
+    private class MockAlarmThreshholdBolt extends AlarmThresholdingBolt {
+
+		private static final long serialVersionUID = 1L;
+
+		public MockAlarmThreshholdBolt(AlarmDAO alarmDAO,
+				AlarmEventForwarder alarmEventForwarder) {
+			super(alarmDAO, alarmEventForwarder);
+		}
+
+		@Override
+		protected long getTimestamp() {
+			// Have to keep the time stamp constant so JSON comparison works
+			return 1395587091;
+		}
     }
 }

@@ -41,8 +41,8 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     private static final long serialVersionUID = -4126465124017857754L;
 
     private transient Logger LOG;
-    private final DataSourceFactory dbConfig;
-    private final KafkaProducerConfiguration kafkaConfig;
+    private DataSourceFactory dbConfig;
+    private KafkaProducerConfiguration kafkaConfig;
     private final Map<String, Alarm> alarms = new HashMap<String, Alarm>();
     private String alertExchange;
     private String alertRoutingKey;
@@ -53,6 +53,12 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     public AlarmThresholdingBolt(DataSourceFactory dbConfig, KafkaProducerConfiguration rabbitConfig) {
         this.dbConfig = dbConfig;
         this.kafkaConfig = rabbitConfig;
+    }
+
+    public AlarmThresholdingBolt(final AlarmDAO alarmDAO,
+    							 final AlarmEventForwarder alarmEventForwarder) {
+    	this.alarmDAO = alarmDAO;
+        this.alarmEventForwarder = alarmEventForwarder;
     }
 
     @Override
@@ -95,10 +101,12 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
         alertExchange = (String) config.get(ThresholdingConfiguration.ALERTS_EXCHANGE);
         alertRoutingKey = (String) config.get(ThresholdingConfiguration.ALERTS_ROUTING_KEY);
 
-        Injector.registerIfNotBound(AlarmDAO.class, new PersistenceModule(dbConfig));
-
-        alarmDAO = Injector.getInstance(AlarmDAO.class);
-        alarmEventForwarder = new KafkaAlarmEventForwarder(kafkaConfig);
+        if (alarmDAO == null) {
+            Injector.registerIfNotBound(AlarmDAO.class, new PersistenceModule(dbConfig));
+        	alarmDAO = Injector.getInstance(AlarmDAO.class);
+        }
+        if (alarmEventForwarder == null)
+        	alarmEventForwarder = new KafkaAlarmEventForwarder(kafkaConfig);
     }
 
     void evaluateThreshold(Alarm alarm, SubAlarm subAlarm) {
@@ -113,15 +121,20 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
                 LOG.debug("ALARM triggered for {}", alarm);
                 AlarmStateTransitionEvent event = new AlarmStateTransitionEvent(alarm.getTenantId(),
                         alarm.getId(), alarm.getName(), initialState, alarm.getState(),
-                        alarm.getStateChangeReason(), System.currentTimeMillis() / 1000);
+                        alarm.getStateChangeReason(), getTimestamp());
                 try {
                     alarmEventForwarder.send(alertExchange, alertRoutingKey, Serialization.toJson(event));
                 } catch (Exception ignore) {
+                	LOG.debug("Failure sending alarm", ignore);
                 }
             } else
                 LOG.debug("State changed for {}", alarm);
         }
     }
+
+	protected long getTimestamp() {
+		return System.currentTimeMillis() / 1000;
+	}
 
     void handleAlarmDeleted(String alarmId) {
         LOG.debug("Received AlarmDeletedEvent for alarm id {}", alarmId);
