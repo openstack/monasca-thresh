@@ -117,18 +117,15 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
         if (alarm.evaluate()) {
             alarmDAO.updateState(alarm.getId(), alarm.getState());
 
-            if (AlarmState.ALARM.equals(alarm.getState())) {
-                LOG.debug("ALARM triggered for {}", alarm);
-                AlarmStateTransitionEvent event = new AlarmStateTransitionEvent(alarm.getTenantId(),
-                        alarm.getId(), alarm.getName(), initialState, alarm.getState(),
-                        alarm.getStateChangeReason(), getTimestamp());
-                try {
-                    alarmEventForwarder.send(alertExchange, alertRoutingKey, Serialization.toJson(event));
-                } catch (Exception ignore) {
-                	LOG.debug("Failure sending alarm", ignore);
-                }
-            } else
-                LOG.debug("State changed for {}", alarm);
+            LOG.debug("Alarm {} transitioned from {} to {}", alarm, initialState, alarm.getState());
+            AlarmStateTransitionEvent event = new AlarmStateTransitionEvent(alarm.getTenantId(),
+                    alarm.getId(), alarm.getName(), initialState, alarm.getState(),
+                    alarm.getStateChangeReason(), getTimestamp());
+            try {
+                alarmEventForwarder.send(alertExchange, alertRoutingKey, Serialization.toJson(event));
+            } catch (Exception ignore) {
+            	LOG.debug("Failure sending alarm", ignore);
+            }
         }
     }
 

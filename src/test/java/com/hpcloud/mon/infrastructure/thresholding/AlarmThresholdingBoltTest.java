@@ -95,14 +95,24 @@ public class AlarmThresholdingBoltTest {
 		bolt.execute(tuple);
 		bolt.execute(tuple);
 		verify(collector, times(2)).ack(tuple);
-		final String json = "{\"alarm-transitioned\":{\"tenantId\":\"AAAAABBBBBBCCCCC\"," +
+		final String alarmJson = "{\"alarm-transitioned\":{\"tenantId\":\"AAAAABBBBBBCCCCC\"," +
 				"\"alarmId\":\"111111112222222222233333333334\",\"alarmName\":\"Test CPU Alarm\"," +
 				"\"oldState\":\"OK\",\"newState\":\"ALARM\"," +
 				"\"stateChangeReason\":\"Thresholds were exceeded for the sub-alarms: [avg(hpcs.compute.cpu{device=42, instance_id=123}, 1) > 5.0]\"," +
 				"\"timestamp\":1395587091}}";
 
-		verify(alarmEventForwarder, times(1)).send(ALERTS_EXCHANGE, ALERT_ROUTING_KEY, json);
-    }
+		verify(alarmEventForwarder, times(1)).send(ALERTS_EXCHANGE, ALERT_ROUTING_KEY, alarmJson);
+		verify(alarmDAO, times(1)).updateState(alarm.getId(), AlarmState.ALARM);
+
+		// Now clear the alarm and ensure another notification gets sent out
+		subAlarm.setState(AlarmState.OK);
+		when(tuple.getValue(1)).thenReturn(subAlarm);
+		bolt.execute(tuple);
+		verify(collector, times(3)).ack(tuple);
+		final String okJson = "{\"alarm-transitioned\":{\"tenantId\":\"AAAAABBBBBBCCCCC\",\"alarmId\":\"111111112222222222233333333334\",\"alarmName\":\"Test CPU Alarm\",\"oldState\":\"ALARM\",\"newState\":\"OK\",\"stateChangeReason\":\"The alarm threshold(s) have not been exceeded\",\"timestamp\":1395587091}}";
+		verify(alarmEventForwarder, times(1)).send(ALERTS_EXCHANGE, ALERT_ROUTING_KEY, okJson);
+		verify(alarmDAO, times(1)).updateState(alarm.getId(), AlarmState.OK);
+	}
 
     private class MockAlarmThreshholdBolt extends AlarmThresholdingBolt {
 
