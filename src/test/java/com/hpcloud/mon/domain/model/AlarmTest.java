@@ -95,6 +95,10 @@ public class AlarmTest {
     assertTrue(alarm.evaluate());
     assertEquals(alarm.getState(), AlarmState.ALARM);
 
+    // ALARM -> ALARM
+    assertFalse(alarm.evaluate());
+    assertEquals(alarm.getState(), AlarmState.ALARM);
+
     // ALARM -> UNDETERMINED
     subAlarm2.setState(AlarmState.UNDETERMINED);
     assertTrue(alarm.evaluate());
