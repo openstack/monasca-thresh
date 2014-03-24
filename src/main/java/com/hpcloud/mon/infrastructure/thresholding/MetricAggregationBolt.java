@@ -214,9 +214,10 @@ public class MetricAggregationBolt extends BaseRichBolt {
   void handleAlarmDeleted(MetricDefinition metricDefinition, String subAlarmId) {
     LOG.debug("Received AlarmDeletedEvent for subAlarm id {}", subAlarmId);
     SubAlarmStatsRepository subAlarmStatsRepo = subAlarmStatsRepos.get(metricDefinition);
-    if (subAlarmStatsRepo != null)
+    if (subAlarmStatsRepo != null) {
       subAlarmStatsRepo.remove(subAlarmId);
-    if (subAlarmStatsRepo.isEmpty())
-      subAlarmStatsRepos.remove(metricDefinition);
+      if (subAlarmStatsRepo.isEmpty())
+        subAlarmStatsRepos.remove(metricDefinition);
+    }
   }
 }
