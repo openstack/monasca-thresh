@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.times;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,8 +15,10 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import backtype.storm.Testing;
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;
+import backtype.storm.testing.MkTupleParam;
 import backtype.storm.tuple.Tuple;
 
 import com.hpcloud.mon.ThresholdingConfiguration;
@@ -70,7 +73,7 @@ public class AlarmThresholdingBoltTest {
     	alarmDAO = mock(AlarmDAO.class);
     	bolt = new MockAlarmThreshholdBolt(alarmDAO, alarmEventForwarder);
     	collector = mock(OutputCollector.class);
-		final Map<String, String> config = new HashMap<String, String>();
+		final Map<String, String> config = new HashMap<>();
 		config.put(ThresholdingConfiguration.ALERTS_EXCHANGE, ALERTS_EXCHANGE);
 		config.put(ThresholdingConfiguration.ALERTS_ROUTING_KEY, ALERT_ROUTING_KEY);
 		final TopologyContext context = mock(TopologyContext.class);
@@ -82,16 +85,14 @@ public class AlarmThresholdingBoltTest {
      * Send a SubAlarm with state set to ALARM.
      * Ensure that the Alarm was triggered and sent
      */
-    @Test
     public void simpleAlarmCreation() {
-		final Tuple tuple = mock(Tuple.class);
-		when(tuple.getSourceStreamId()).thenReturn(Streams.DEFAULT_STREAM_ID);
-		when(tuple.getString(0)).thenReturn(alarm.getId());
-		when(tuple.toString()).thenReturn("Test Alarm Tuple");
 		final SubAlarm subAlarm = subAlarms.get(0);
 		subAlarm.setState(AlarmState.ALARM);
-		when(tuple.getValue(1)).thenReturn(subAlarm);
 		when(alarmDAO.findById(alarm.getId())).thenReturn(alarm);
+        MkTupleParam tupleParam = new MkTupleParam();
+        tupleParam.setFields("alarmId", "subAlarm");
+        tupleParam.setStream(Streams.DEFAULT_STREAM_ID);
+        final Tuple tuple = Testing.testTuple(Arrays.asList(alarm.getId(), subAlarm), tupleParam);
 		bolt.execute(tuple);
 		bolt.execute(tuple);
 		verify(collector, times(2)).ack(tuple);
@@ -106,9 +107,9 @@ public class AlarmThresholdingBoltTest {
 
 		// Now clear the alarm and ensure another notification gets sent out
 		subAlarm.setState(AlarmState.OK);
-		when(tuple.getValue(1)).thenReturn(subAlarm);
-		bolt.execute(tuple);
-		verify(collector, times(3)).ack(tuple);
+        final Tuple clearTuple = Testing.testTuple(Arrays.asList(alarm.getId(), subAlarm), tupleParam);
+		bolt.execute(clearTuple);
+		verify(collector, times(1)).ack(clearTuple);
 		final String okJson = "{\"alarm-transitioned\":{\"tenantId\":\"AAAAABBBBBBCCCCC\",\"alarmId\":\"111111112222222222233333333334\",\"alarmName\":\"Test CPU Alarm\",\"oldState\":\"ALARM\",\"newState\":\"OK\",\"stateChangeReason\":\"The alarm threshold(s) have not been exceeded\",\"timestamp\":1395587091}}";
 		verify(alarmEventForwarder, times(1)).send(ALERTS_EXCHANGE, ALERT_ROUTING_KEY, okJson);
 		verify(alarmDAO, times(1)).updateState(alarm.getId(), AlarmState.OK);

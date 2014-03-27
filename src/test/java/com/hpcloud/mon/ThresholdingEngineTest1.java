@@ -103,8 +103,6 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
     List<MetricDefinition> metricDefs = Arrays.asList(cpuMetricDef, memMetricDef, customMetricDef);
     when(metricDefinitionDAO.findForAlarms()).thenReturn(metricDefs);
 
-    final AlarmEventForwarder alarmEventForwarder = mock(AlarmEventForwarder.class);
-
     // Bindings
     Injector.reset();
     Injector.registerModules(new AbstractModule() {
@@ -112,7 +110,6 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
         bind(AlarmDAO.class).toInstance(alarmDAO);
         bind(SubAlarmDAO.class).toInstance(subAlarmDAO);
         bind(MetricDefinitionDAO.class).toInstance(metricDefinitionDAO);
-        bind(AlarmEventForwarder.class).toInstance(alarmEventForwarder);
       }
     });
 
@@ -123,8 +120,10 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
 
     metricSpout = new FeederSpout(new Fields("metricDefinition", "metric"));
     eventSpout = new FeederSpout(new Fields("event"));
+    final AlarmEventForwarder alarmEventForwarder = mock(AlarmEventForwarder.class);
+
     Injector.registerModules(new TopologyModule(threshConfig, stormConfig,
-        metricSpout, eventSpout));
+        metricSpout, eventSpout, alarmEventForwarder));
 
     // Evaluate alarm stats every 1 seconds
     System.setProperty(MetricAggregationBolt.TICK_TUPLE_SECONDS_KEY, "1");

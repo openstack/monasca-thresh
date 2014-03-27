@@ -16,6 +16,7 @@ import backtype.storm.tuple.Values;
 
 import com.hpcloud.mon.common.event.AlarmCreatedEvent;
 import com.hpcloud.mon.common.event.AlarmDeletedEvent;
+import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
@@ -45,12 +46,16 @@ public class MetricFilteringBolt extends BaseRichBolt {
   private static final Object SENTINAL = new Object();
 
   private transient Logger LOG;
-  private final DataSourceFactory dbConfig;
+  private DataSourceFactory dbConfig;
   private transient MetricDefinitionDAO metricDefDAO;
   private OutputCollector collector;
 
   public MetricFilteringBolt(DataSourceFactory dbConfig) {
     this.dbConfig = dbConfig;
+  }
+
+  public MetricFilteringBolt(MetricDefinitionDAO metricDefDAO) {
+    this.metricDefDAO = metricDefDAO;
   }
 
   @Override
@@ -74,10 +79,12 @@ public class MetricFilteringBolt extends BaseRichBolt {
 
         LOG.debug("Received {} for {}", eventType, metricDefinition);
         if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-          if (AlarmDeletedEvent.class.getSimpleName().equals(eventType))
+          if (AlarmDeletedEvent.class.getSimpleName().equals(eventType) ||
+              AlarmUpdatedEvent.class.getSimpleName().equals(eventType))
             METRIC_DEFS.remove(metricDefinition);
         } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-          if (AlarmCreatedEvent.class.getSimpleName().equals(eventType))
+          if (AlarmCreatedEvent.class.getSimpleName().equals(eventType) ||
+              AlarmUpdatedEvent.class.getSimpleName().equals(eventType))
             METRIC_DEFS.put(metricDefinition, SENTINAL);
         }
       }
@@ -112,5 +119,12 @@ public class MetricFilteringBolt extends BaseRichBolt {
         }
       }
     }
+  }
+
+  /**
+   * Only use for testing.
+   */
+  void clearMetricDefinitions() {
+      METRIC_DEFS.clear();
   }
 }

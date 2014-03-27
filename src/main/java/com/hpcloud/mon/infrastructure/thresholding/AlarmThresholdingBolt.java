@@ -1,13 +1,20 @@
 package com.hpcloud.mon.infrastructure.thresholding;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;
 import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
-import com.hpcloud.configuration.KafkaProducerConfiguration;
+
 import com.hpcloud.mon.ThresholdingConfiguration;
 import com.hpcloud.mon.common.event.AlarmDeletedEvent;
+import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.domain.model.Alarm;
 import com.hpcloud.mon.domain.model.AlarmStateTransitionEvent;
@@ -18,11 +25,6 @@ import com.hpcloud.streaming.storm.Logging;
 import com.hpcloud.streaming.storm.Streams;
 import com.hpcloud.util.Injector;
 import com.hpcloud.util.Serialization;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Determines whether an alarm threshold has been exceeded.
@@ -42,7 +44,6 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
 
     private transient Logger LOG;
     private DataSourceFactory dbConfig;
-    private KafkaProducerConfiguration kafkaConfig;
     private final Map<String, Alarm> alarms = new HashMap<String, Alarm>();
     private String alertExchange;
     private String alertRoutingKey;
@@ -50,9 +51,8 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     private transient AlarmEventForwarder alarmEventForwarder;
     private OutputCollector collector;
 
-    public AlarmThresholdingBolt(DataSourceFactory dbConfig, KafkaProducerConfiguration rabbitConfig) {
+    public AlarmThresholdingBolt(DataSourceFactory dbConfig) {
         this.dbConfig = dbConfig;
-        this.kafkaConfig = rabbitConfig;
     }
 
     public AlarmThresholdingBolt(final AlarmDAO alarmDAO,
@@ -84,7 +84,9 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
 
                 if (AlarmDeletedEvent.class.getSimpleName().equals(eventType))
                     handleAlarmDeleted(alarmId);
-            }
+                else if (AlarmUpdatedEvent.class.getSimpleName().equals(eventType))
+                    handleAlarmUpdated(alarmId);
+                }
         } catch (Exception e) {
             LOG.error("Error processing tuple {}", tuple, e);
         } finally {
@@ -105,8 +107,9 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
             Injector.registerIfNotBound(AlarmDAO.class, new PersistenceModule(dbConfig));
         	alarmDAO = Injector.getInstance(AlarmDAO.class);
         }
-        if (alarmEventForwarder == null)
-        	alarmEventForwarder = new KafkaAlarmEventForwarder(kafkaConfig);
+        if (alarmEventForwarder == null) {
+        	alarmEventForwarder = Injector.getInstance(AlarmEventForwarder.class);
+        }
     }
 
     void evaluateThreshold(Alarm alarm, SubAlarm subAlarm) {
@@ -115,17 +118,22 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
 
         AlarmState initialState = alarm.getState();
         if (alarm.evaluate()) {
-            alarmDAO.updateState(alarm.getId(), alarm.getState());
+            changeAlarmState(alarm, initialState, alarm.getStateChangeReason());
+        }
+    }
 
-            LOG.debug("Alarm {} transitioned from {} to {}", alarm, initialState, alarm.getState());
-            AlarmStateTransitionEvent event = new AlarmStateTransitionEvent(alarm.getTenantId(),
-                    alarm.getId(), alarm.getName(), initialState, alarm.getState(),
-                    alarm.getStateChangeReason(), getTimestamp());
-            try {
-                alarmEventForwarder.send(alertExchange, alertRoutingKey, Serialization.toJson(event));
-            } catch (Exception ignore) {
-            	LOG.debug("Failure sending alarm", ignore);
-            }
+    private void changeAlarmState(Alarm alarm, AlarmState initialState,
+            String stateChangeReason) {
+        alarmDAO.updateState(alarm.getId(), alarm.getState());
+
+        LOG.debug("Alarm {} transitioned from {} to {}", alarm, initialState, alarm.getState());
+        AlarmStateTransitionEvent event = new AlarmStateTransitionEvent(alarm.getTenantId(),
+                alarm.getId(), alarm.getName(), initialState, alarm.getState(),
+                stateChangeReason, getTimestamp());
+        try {
+            alarmEventForwarder.send(alertExchange, alertRoutingKey, Serialization.toJson(event));
+        } catch (Exception ignore) {
+        	LOG.debug("Failure sending alarm", ignore);
         }
     }
 
@@ -136,6 +144,25 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     void handleAlarmDeleted(String alarmId) {
         LOG.debug("Received AlarmDeletedEvent for alarm id {}", alarmId);
         alarms.remove(alarmId);
+    }
+
+    void handleAlarmUpdated(String alarmId) {
+    	// Just flush the Alarm from our cache so it gets read fresh from the database
+    	// when a sub alarm is received
+        LOG.debug("Received AlarmUpdatedEvent for alarm id {}", alarmId);
+        alarms.remove(alarmId);
+        final Alarm alarm = alarmDAO.findById(alarmId);
+        if (alarm == null)
+            LOG.error("Failed to locate alarm for id {}", alarmId);
+        else {
+            // TODO - Should the API be doing this? If so, does it also do the kafka event?
+            if (alarm.getState() != AlarmState.UNDETERMINED) {
+                final AlarmState initialState = alarm.getState();
+                alarm.setState(AlarmState.UNDETERMINED);
+                changeAlarmState(alarm, initialState, "Alarm updated by User");
+            }
+            alarms.put(alarmId, alarm);
+        }
     }
 
     String buildStateChangeReason() {

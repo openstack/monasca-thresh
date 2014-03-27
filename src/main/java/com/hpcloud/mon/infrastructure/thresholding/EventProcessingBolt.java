@@ -15,6 +15,7 @@ import backtype.storm.tuple.Values;
 
 import com.hpcloud.mon.common.event.AlarmCreatedEvent;
 import com.hpcloud.mon.common.event.AlarmDeletedEvent;
+import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.mon.domain.model.SubAlarm;
@@ -65,6 +66,8 @@ public class EventProcessingBolt extends BaseRichBolt {
         handle((AlarmCreatedEvent) event);
       else if (event instanceof AlarmDeletedEvent)
         handle((AlarmDeletedEvent) event);
+      else if (event instanceof AlarmUpdatedEvent)
+          handle((AlarmUpdatedEvent) event);
     } catch (Exception e) {
       LOG.error("Error processing tuple {}", tuple, e);
     } finally {
@@ -83,19 +86,37 @@ public class EventProcessingBolt extends BaseRichBolt {
   void handle(AlarmCreatedEvent event) {
     String eventType = event.getClass().getSimpleName();
     for (Map.Entry<String, AlarmSubExpression> subExpressionEntry : event.alarmSubExpressions.entrySet()) {
-      MetricDefinition metricDef = subExpressionEntry.getValue().getMetricDefinition();
-      collector.emit(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Values(eventType, metricDef,
-          new SubAlarm(subExpressionEntry.getKey(), event.alarmId, subExpressionEntry.getValue())));
+      sendAddSubAlarm(eventType, event.alarmId, subExpressionEntry.getKey(), subExpressionEntry.getValue());
     }
+  }
+
+  private void sendAddSubAlarm(String eventType, String alarmId, String subAlarmId, AlarmSubExpression alarmSubExpression) {
+    MetricDefinition metricDef = alarmSubExpression.getMetricDefinition();
+    collector.emit(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Values(eventType, metricDef,
+          new SubAlarm(subAlarmId, alarmId, alarmSubExpression)));
   }
 
   void handle(AlarmDeletedEvent event) {
     String eventType = event.getClass().getSimpleName();
     for (Map.Entry<String, MetricDefinition> entry : event.subAlarmMetricDefinitions.entrySet()) {
-      MetricDefinition metricDef = entry.getValue();
-      collector.emit(METRIC_ALARM_EVENT_STREAM_ID, new Values(eventType, metricDef, entry.getKey()));
+      sendDeletedSubAlarm(eventType, entry.getKey(), entry.getValue());
     }
 
+    collector.emit(ALARM_EVENT_STREAM_ID, new Values(eventType, event.alarmId));
+  }
+
+  private void sendDeletedSubAlarm(String eventType, String subAlarmId, MetricDefinition metricDef) {
+    collector.emit(METRIC_ALARM_EVENT_STREAM_ID, new Values(eventType, metricDef, subAlarmId));
+  }
+
+  void handle(AlarmUpdatedEvent event) {
+    String eventType = event.getClass().getSimpleName();
+    for (Map.Entry<String, AlarmSubExpression> entry : event.oldAlarmSubExpressions.entrySet()) {
+      sendDeletedSubAlarm(eventType, entry.getKey(), entry.getValue().getMetricDefinition());
+    }
+    for (Map.Entry<String, AlarmSubExpression> entry : event.newAlarmSubExpressions.entrySet()) {
+       sendAddSubAlarm(eventType, event.alarmId, entry.getKey(), entry.getValue());
+    }
     collector.emit(ALARM_EVENT_STREAM_ID, new Values(eventType, event.alarmId));
   }
 }

@@ -20,6 +20,7 @@ import backtype.storm.tuple.Values;
 
 import com.hpcloud.mon.common.event.AlarmCreatedEvent;
 import com.hpcloud.mon.common.event.AlarmDeletedEvent;
+import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
 import com.hpcloud.mon.common.model.metric.Metric;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.mon.domain.model.SubAlarm;
@@ -95,11 +96,13 @@ public class MetricAggregationBolt extends BaseRichBolt {
 
           if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
             String subAlarmId = tuple.getString(2);
-            if (AlarmDeletedEvent.class.getSimpleName().equals(eventType))
+            if (AlarmDeletedEvent.class.getSimpleName().equals(eventType) ||
+                AlarmUpdatedEvent.class.getSimpleName().equals(eventType))
               handleAlarmDeleted(metricDefinition, subAlarmId);
           } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
             SubAlarm subAlarm = (SubAlarm) tuple.getValue(2);
-            if (AlarmCreatedEvent.class.getSimpleName().equals(eventType))
+            if (AlarmCreatedEvent.class.getSimpleName().equals(eventType) ||
+                AlarmUpdatedEvent.class.getSimpleName().equals(eventType))
               handleAlarmCreated(metricDefinition, subAlarm);
           }
         }

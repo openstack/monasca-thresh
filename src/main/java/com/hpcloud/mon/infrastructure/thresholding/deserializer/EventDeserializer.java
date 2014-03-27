@@ -8,6 +8,7 @@ import backtype.storm.tuple.Fields;
 
 import com.hpcloud.mon.common.event.AlarmCreatedEvent;
 import com.hpcloud.mon.common.event.AlarmDeletedEvent;
+import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
 import com.hpcloud.streaming.storm.TupleDeserializer;
 import com.hpcloud.util.Serialization;
 
@@ -27,6 +28,7 @@ public class EventDeserializer implements TupleDeserializer, Serializable {
   static {
     // Register event types
     Serialization.registerTarget(AlarmCreatedEvent.class);
+    Serialization.registerTarget(AlarmUpdatedEvent.class);
     Serialization.registerTarget(AlarmDeletedEvent.class);
   }
 
