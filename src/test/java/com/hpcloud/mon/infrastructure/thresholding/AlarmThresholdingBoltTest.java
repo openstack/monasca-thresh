@@ -52,6 +52,7 @@ public class AlarmThresholdingBoltTest {
         final String expression = "avg(hpcs.compute.cpu{instance_id=123,device=42}, 1) > 5";
         alarm = new Alarm();
         alarm.setName("Test CPU Alarm");
+        alarm.setDescription("Description of Alarm");
         alarm.setTenantId(tenantId);
         alarm.setId(alarmId);
         alarm.setExpression(expression);
@@ -98,7 +99,7 @@ public class AlarmThresholdingBoltTest {
 		verify(collector, times(2)).ack(tuple);
 		final String alarmJson = "{\"alarm-transitioned\":{\"tenantId\":\"AAAAABBBBBBCCCCC\"," +
 				"\"alarmId\":\"111111112222222222233333333334\",\"alarmName\":\"Test CPU Alarm\"," +
-				"\"oldState\":\"OK\",\"newState\":\"ALARM\"," +
+				"\"alarmDescription\":\"Description of Alarm\",\"oldState\":\"OK\",\"newState\":\"ALARM\"," +
 				"\"stateChangeReason\":\"Thresholds were exceeded for the sub-alarms: [avg(hpcs.compute.cpu{device=42, instance_id=123}, 1) > 5.0]\"," +
 				"\"timestamp\":1395587091}}";
 
@@ -110,7 +111,7 @@ public class AlarmThresholdingBoltTest {
         final Tuple clearTuple = Testing.testTuple(Arrays.asList(alarm.getId(), subAlarm), tupleParam);
 		bolt.execute(clearTuple);
 		verify(collector, times(1)).ack(clearTuple);
-		final String okJson = "{\"alarm-transitioned\":{\"tenantId\":\"AAAAABBBBBBCCCCC\",\"alarmId\":\"111111112222222222233333333334\",\"alarmName\":\"Test CPU Alarm\",\"oldState\":\"ALARM\",\"newState\":\"OK\",\"stateChangeReason\":\"The alarm threshold(s) have not been exceeded\",\"timestamp\":1395587091}}";
+		final String okJson = "{\"alarm-transitioned\":{\"tenantId\":\"AAAAABBBBBBCCCCC\",\"alarmId\":\"111111112222222222233333333334\",\"alarmName\":\"Test CPU Alarm\",\"alarmDescription\":\"Description of Alarm\",\"oldState\":\"ALARM\",\"newState\":\"OK\",\"stateChangeReason\":\"The alarm threshold(s) have not been exceeded\",\"timestamp\":1395587091}}";
 		verify(alarmEventForwarder, times(1)).send(ALERTS_EXCHANGE, ALERT_ROUTING_KEY, okJson);
 		verify(alarmDAO, times(1)).updateState(alarm.getId(), AlarmState.OK);
 	}

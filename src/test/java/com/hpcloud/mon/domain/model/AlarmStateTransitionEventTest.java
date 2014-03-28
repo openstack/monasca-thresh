@@ -12,6 +12,6 @@ public class AlarmStateTransitionEventTest {
   public void shouldSerialize() {
     assertEquals(
         Serialization.toJson(new AlarmStateTransitionEvent()),
-        "{\"alarm-transitioned\":{\"tenantId\":null,\"alarmId\":null,\"alarmName\":null,\"oldState\":null,\"newState\":null,\"stateChangeReason\":null,\"timestamp\":0}}");
+        "{\"alarm-transitioned\":{\"tenantId\":null,\"alarmId\":null,\"alarmName\":null,\"alarmDescription\":null,\"oldState\":null,\"newState\":null,\"stateChangeReason\":null,\"timestamp\":0}}");
   }
 }

@@ -128,7 +128,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
 
         LOG.debug("Alarm {} transitioned from {} to {}", alarm, initialState, alarm.getState());
         AlarmStateTransitionEvent event = new AlarmStateTransitionEvent(alarm.getTenantId(),
-                alarm.getId(), alarm.getName(), initialState, alarm.getState(),
+                alarm.getId(), alarm.getName(), alarm.getDescription(), initialState, alarm.getState(),
                 stateChangeReason, getTimestamp());
         try {
             alarmEventForwarder.send(alertExchange, alertRoutingKey, Serialization.toJson(event));

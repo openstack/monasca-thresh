@@ -58,12 +58,13 @@ public class EventProcessingBoltTest {
         final String alarmId = "111111112222222222233333333334";
         final String tenantId = "AAAAABBBBBBCCCCC";
         final String name = "Test CPU Alarm";
+        final String description = "Description of " + name;
         final String expression = "avg(hpcs.compute.cpu{instance_id=123,device=42}, 1) > 5 " +
                 "and max(hpcs.compute.mem{instance_id=123,device=42}) > 80 " +
               "and max(hpcs.compute.load{instance_id=123,device=42}) > 5";
         alarmExpression = new AlarmExpression(expression);
         subAlarms = createSubAlarms(alarmId, alarmExpression);
-        alarm = new Alarm(alarmId, tenantId, name, alarmExpression, subAlarms, AlarmState.UNDETERMINED);
+        alarm = new Alarm(alarmId, tenantId, name, description, alarmExpression, subAlarms, AlarmState.UNDETERMINED);
     }
 
     private List<SubAlarm> createSubAlarms(final String alarmId,

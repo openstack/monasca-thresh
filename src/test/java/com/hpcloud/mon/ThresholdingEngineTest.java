@@ -51,6 +51,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
   private static final String TEST_ALARM_TENANT_ID = "bob";
   private static final String TEST_ALARM_ID = "1";
   private static final String TEST_ALARM_NAME = "test-alarm";
+  private static final String TEST_ALARM_DESCRIPTION = "Description of test-alarm";
   private FeederSpout metricSpout;
   private FeederSpout eventSpout;
   private AlarmDAO alarmDAO;
@@ -77,8 +78,8 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     when(alarmDAO.findById(anyString())).thenAnswer(new Answer<Alarm>() {
       @Override
       public Alarm answer(InvocationOnMock invocation) throws Throwable {
-        return new Alarm(TEST_ALARM_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME, expression, subAlarmsFor(expression),
-            AlarmState.UNDETERMINED);
+        return new Alarm(TEST_ALARM_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME,
+                TEST_ALARM_DESCRIPTION, expression, subAlarmsFor(expression), AlarmState.UNDETERMINED);
       }
     });
 

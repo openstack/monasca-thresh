@@ -25,6 +25,11 @@ import com.hpcloud.mon.domain.service.AlarmDAO;
  */
 @Test
 public class AlarmDAOImplTest {
+  private static final String TENANT_ID = "bob";
+  private static final String ALARM_ID = "123";
+  private static String ALARM_NAME = "90% CPU";
+  private static String ALARM_DESCR = "Description for " + ALARM_NAME;
+
   private DBI db;
   private Handle handle;
   private AlarmDAO dao;
@@ -49,8 +54,10 @@ public class AlarmDAOImplTest {
     handle.execute("truncate table sub_alarm_dimension");
     handle.execute("truncate table alarm_action");
 
-    handle.execute("insert into alarm (id, tenant_id, name, expression, state, created_at, updated_at) "
-        + "values ('123', 'bob', '90% CPU', 'avg(hpcs.compute{disk=vda, instance_id=123, metric_name=cpu}) > 10', 'UNDETERMINED', NOW(), NOW())");
+    String sql = String.format("insert into alarm (id, tenant_id, name, description, expression, state, created_at, updated_at) "
+        + "values ('%s', '%s', '%s', '%s', 'avg(hpcs.compute{disk=vda, instance_id=123, metric_name=cpu}) > 10', 'UNDETERMINED', NOW(), NOW())",
+        ALARM_ID, TENANT_ID, ALARM_NAME, ALARM_DESCR);
+    handle.execute(sql);
     handle.execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, created_at, updated_at) "
         + "values ('111', '123', 'AVG', 'hpcs.compute', 'GT', 10, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('111', 'instance_id', '123')");
@@ -62,11 +69,11 @@ public class AlarmDAOImplTest {
 
   public void shouldFindById() {
     String expr = "avg(hpcs.compute{disk=vda, instance_id=123, metric_name=cpu}) > 10";
-    Alarm expected = new Alarm("123", "bob", "90% CPU", AlarmExpression.of(expr),
-        Arrays.asList(new SubAlarm("111", "123", AlarmSubExpression.of(expr))),
+    Alarm expected = new Alarm(ALARM_ID, TENANT_ID, ALARM_NAME, ALARM_DESCR, AlarmExpression.of(expr),
+        Arrays.asList(new SubAlarm("111", ALARM_ID, AlarmSubExpression.of(expr))),
         AlarmState.UNDETERMINED);
 
-    Alarm alarm = dao.findById("123");
+    Alarm alarm = dao.findById(ALARM_ID);
 
     // Identity equality
     assertEquals(alarm, expected);
@@ -74,7 +81,7 @@ public class AlarmDAOImplTest {
   }
 
   public void shouldUpdateState() {
-    dao.updateState("123", AlarmState.ALARM);
-    assertEquals(dao.findById("123").getState(), AlarmState.ALARM);
+    dao.updateState(ALARM_ID, AlarmState.ALARM);
+    assertEquals(dao.findById(ALARM_ID).getState(), AlarmState.ALARM);
   }
 }

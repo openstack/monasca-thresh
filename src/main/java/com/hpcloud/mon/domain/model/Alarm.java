@@ -19,6 +19,7 @@ import com.hpcloud.mon.domain.common.AbstractEntity;
 public class Alarm extends AbstractEntity {
   private String tenantId;
   private String name;
+  private String description;
   private AlarmExpression expression;
   private Map<String, SubAlarm> subAlarms;
   private AlarmState state;
@@ -27,11 +28,12 @@ public class Alarm extends AbstractEntity {
   public Alarm() {
   }
 
-  public Alarm(String id, String tenantId, String name, AlarmExpression expression,
+  public Alarm(String id, String tenantId, String name, String description, AlarmExpression expression,
       List<SubAlarm> subAlarms, AlarmState state) {
     this.id = id;
     this.tenantId = tenantId;
     this.name = name;
+    this.description = description;
     this.expression = expression;
     setSubAlarms(subAlarms);
     this.state = state;
@@ -55,28 +57,28 @@ public class Alarm extends AbstractEntity {
     if (getClass() != obj.getClass())
       return false;
     Alarm other = (Alarm) obj;
-    if (expression == null) {
-      if (other.expression != null)
-        return false;
-    } else if (!expression.equals(other.expression))
+    if (!compareObjects(expression, other.expression))
       return false;
-    if (name == null) {
-      if (other.name != null)
-        return false;
-    } else if (!name.equals(other.name))
+    if (!compareObjects(name, other.name))
+      return false;
+    if (!compareObjects(description, other.description))
       return false;
     if (state != other.state)
       return false;
-    if (subAlarms == null) {
-      if (other.subAlarms != null)
-        return false;
-    } else if (!subAlarms.equals(other.subAlarms))
+    if (!compareObjects(subAlarms, other.subAlarms))
       return false;
-    if (tenantId == null) {
-      if (other.tenantId != null)
-        return false;
-    } else if (!tenantId.equals(other.tenantId))
+    if (!compareObjects(tenantId, other.tenantId))
       return false;
+    return true;
+  }
+
+  private boolean compareObjects(final Object o1,
+                                 final Object o2) {
+    if (o1 == null) {
+       if (o2 != null)
+          return false;
+    } else if (!o1.equals(o2))
+        return false;
     return true;
   }
 
@@ -139,6 +141,14 @@ public class Alarm extends AbstractEntity {
     return name;
   }
 
+  public String getDescription() {
+    return description;
+  }
+
+  public void setDescription(String description) {
+    this.description = description;
+  }
+
   public AlarmState getState() {
     return state;
   }
@@ -199,7 +209,8 @@ public class Alarm extends AbstractEntity {
 
   @Override
   public String toString() {
-    return String.format("Alarm [tenantId=%s, name=%s, state=%s]", tenantId, name, state);
+    return String.format("Alarm [tenantId=%s, name=%s, description=%s, state=%s]", tenantId,
+            name, description, state);
   }
 
   public void updateSubAlarm(SubAlarm subAlarm) {

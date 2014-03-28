@@ -2,6 +2,7 @@ CREATE TABLE `alarm` (
   `id` varchar(36) NOT NULL,
   `tenant_id` varchar(36) NOT NULL,
   `name` varchar(250) NOT NULL,
+  `description` varchar(250) NOT NULL,
   `expression` mediumtext NOT NULL,
   `state` varchar(20) NOT NULL check state in ('UNDETERMINED','OK','ALARM'),
   `created_at` datetime NOT NULL,
