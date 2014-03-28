@@ -19,7 +19,7 @@ import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
  * @author Jonathan Halterman
  */
 public class MetricDefinitionDAOImpl implements MetricDefinitionDAO {
-  private static final String METRIC_DEF_SQL = "select a.name, sad.dimensions from alarm as a, sub_alarm as sa "
+  private static final String METRIC_DEF_SQL = "select sa.metric_name, sad.dimensions from alarm as a, sub_alarm as sa "
       + "left join (select sub_alarm_id, group_concat(dimension_name, '=', value) as dimensions from sub_alarm_dimension group by sub_alarm_id) as sad on sa.id = sad.sub_alarm_id "
       + "where a.id = sa.alarm_id and a.deleted_at is null";
 
@@ -39,7 +39,7 @@ public class MetricDefinitionDAOImpl implements MetricDefinitionDAO {
 
       List<MetricDefinition> metricDefs = new ArrayList<MetricDefinition>(rows.size());
       for (Map<String, Object> row : rows) {
-        String name = (String) row.get("name");
+        String metric_name = (String) row.get("metric_name");
         String dimensionSet = (String) row.get("dimensions");
         Map<String, String> dimensions = null;
 
@@ -54,7 +54,7 @@ public class MetricDefinitionDAOImpl implements MetricDefinitionDAO {
           }
         }
 
-        metricDefs.add(new MetricDefinition(name, dimensions));
+        metricDefs.add(new MetricDefinition(metric_name, dimensions));
       }
 
       return metricDefs;
