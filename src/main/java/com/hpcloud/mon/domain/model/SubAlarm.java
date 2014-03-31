@@ -17,6 +17,7 @@ public class SubAlarm extends AbstractEntity implements Serializable {
     private String alarmId;
     private AlarmSubExpression expression;
     private AlarmState state;
+    private boolean noState;
     /**
      * Whether metrics for this sub-alarm are received sporadically.
      */
@@ -97,9 +98,17 @@ public class SubAlarm extends AbstractEntity implements Serializable {
         this.state = state;
     }
 
+    public boolean isNoState() {
+        return noState;
+    }
+
+    public void setNoState(boolean noState) {
+        this.noState = noState;
+    }
+
     @Override
     public String toString() {
-        return String.format("SubAlarm [id=%s, alarmId=%s, expression=%s, state=%s]", id, alarmId,
-                expression, state);
+        return String.format("SubAlarm [id=%s, alarmId=%s, expression=%s, state=%s noState=%s]", id, alarmId,
+                expression, state, noState);
     }
 }

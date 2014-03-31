@@ -114,12 +114,23 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
 
     void evaluateThreshold(Alarm alarm, SubAlarm subAlarm) {
         LOG.debug("Received state change for {}", subAlarm);
+        subAlarm.setNoState(false);
         alarm.updateSubAlarm(subAlarm);
 
         AlarmState initialState = alarm.getState();
-        if (alarm.evaluate()) {
+        // Wait for all sub alarms to have a state before evaluating to prevent flapping on startup
+        if (allSubAlarmsHaveState(alarm) && alarm.evaluate()) {
             changeAlarmState(alarm, initialState, alarm.getStateChangeReason());
         }
+    }
+
+    private boolean allSubAlarmsHaveState(final Alarm alarm) {
+        for (SubAlarm subAlarm : alarm.getSubAlarms()) {
+            if (subAlarm.isNoState()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void changeAlarmState(Alarm alarm, AlarmState initialState,
@@ -176,6 +187,9 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
             if (alarm == null)
                 LOG.error("Failed to locate alarm for id {}", alarmId);
             else {
+                for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
+                    subAlarm.setNoState(true);
+                }
                 alarms.put(alarmId, alarm);
             }
         }

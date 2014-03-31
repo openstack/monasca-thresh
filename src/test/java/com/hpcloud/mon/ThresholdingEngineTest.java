@@ -61,7 +61,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
   private MetricDefinitionDAO metricDefinitionDAO;
   private final AlarmEventForwarder alarmEventForwarder;
 
-  private AlarmState previousState = AlarmState.UNDETERMINED;
+  private AlarmState previousState = AlarmState.OK;
   private AlarmState expectedState = AlarmState.ALARM;
   private volatile int alarmsSent = 0;
 
@@ -79,7 +79,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
       @Override
       public Alarm answer(InvocationOnMock invocation) throws Throwable {
         return new Alarm(TEST_ALARM_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME,
-                TEST_ALARM_DESCRIPTION, expression, subAlarmsFor(expression), AlarmState.UNDETERMINED);
+                TEST_ALARM_DESCRIPTION, expression, subAlarmsFor(expression), AlarmState.OK);
       }
     });
 
