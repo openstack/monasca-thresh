@@ -88,21 +88,19 @@ public class Alarm extends AbstractEntity {
    */
   public boolean evaluate() {
     AlarmState initialState = state;
-    List<String> subAlarmExpressions = null;
+    List<String> unitializedSubAlarms = new ArrayList<String>();
     for (SubAlarm subAlarm : subAlarms.values()) {
       if (AlarmState.UNDETERMINED.equals(subAlarm.getState())) {
-        if (subAlarmExpressions == null)
-          subAlarmExpressions = new ArrayList<String>();
-        subAlarmExpressions.add(subAlarm.getExpression().toString());
+        unitializedSubAlarms.add(subAlarm.getExpression().toString());
       }
     }
 
     // Handle UNDETERMINED state
-    if (subAlarmExpressions != null) {
+    if (!unitializedSubAlarms.isEmpty()) {
       if (AlarmState.UNDETERMINED.equals(initialState))
         return false;
       state = AlarmState.UNDETERMINED;
-      stateChangeReason = buildStateChangeReason(state, subAlarmExpressions);
+      stateChangeReason = buildStateChangeReason(state, unitializedSubAlarms);
       return true;
     }
 
@@ -116,7 +114,7 @@ public class Alarm extends AbstractEntity {
       if (AlarmState.ALARM.equals(initialState))
         return false;
 
-      subAlarmExpressions = new ArrayList<String>();
+      List<String> subAlarmExpressions = new ArrayList<String>();
       for (SubAlarm subAlarm : subAlarms.values())
         if (AlarmState.ALARM.equals(subAlarm.getState()))
           subAlarmExpressions.add(subAlarm.getExpression().toString());
