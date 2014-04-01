@@ -14,9 +14,6 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
-import com.hpcloud.mon.common.event.AlarmCreatedEvent;
-import com.hpcloud.mon.common.event.AlarmDeletedEvent;
-import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
@@ -79,12 +76,10 @@ public class MetricFilteringBolt extends BaseRichBolt {
 
         LOG.debug("Received {} for {}", eventType, metricDefinition);
         if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-          if (AlarmDeletedEvent.class.getSimpleName().equals(eventType) ||
-              AlarmUpdatedEvent.class.getSimpleName().equals(eventType))
+          if (EventProcessingBolt.DELETED.equals(eventType))
             METRIC_DEFS.remove(metricDefinition);
         } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-          if (AlarmCreatedEvent.class.getSimpleName().equals(eventType) ||
-              AlarmUpdatedEvent.class.getSimpleName().equals(eventType))
+          if (EventProcessingBolt.CREATED.equals(eventType))
             METRIC_DEFS.put(metricDefinition, SENTINAL);
         }
       }

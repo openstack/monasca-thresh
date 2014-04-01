@@ -22,9 +22,6 @@ import backtype.storm.testing.MkTupleParam;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
-import com.hpcloud.mon.common.event.AlarmCreatedEvent;
-import com.hpcloud.mon.common.event.AlarmDeletedEvent;
-import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmExpression;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.Metric;
@@ -88,15 +85,7 @@ public class MetricFilteringBoltTest {
         return subAlarms;
     }
 
-    public void testAlarmCreatedEvent() {
-        testAddFilter(new AlarmCreatedEvent());
-    }
-
-    public void testAlarmUpdatedEvent() {
-        testAddFilter(new AlarmUpdatedEvent());
-    }
-
-    private void testAddFilter(final Object event) {
+    public void testAddFilter() {
         createBolt(new ArrayList<MetricDefinition>(0));
 
         // First ensure metrics don't pass the filter
@@ -107,7 +96,7 @@ public class MetricFilteringBoltTest {
             verify(collector, never()).emit(tuple, tuple.getValues());
         }
         for (final SubAlarm subAlarm : subAlarms) {
-            final Tuple tuple = createMetricDefinitionTuple(event, subAlarm);
+            final Tuple tuple = createMetricDefinitionTuple(subAlarm);
             bolt.execute(tuple);
             verify(collector, times(1)).ack(tuple);
         }
@@ -120,15 +109,7 @@ public class MetricFilteringBoltTest {
         }
     }
 
-    public void testAlarmDeletedEvent() {
-        testDeleteFilter(new AlarmDeletedEvent());
-    }
-
-    public void testAlarmUpdatedEventDeletions() {
-        testDeleteFilter(new AlarmUpdatedEvent());
-    }
-
-    private void testDeleteFilter(final Object event) {
+    public void testDeleteFilter() {
         final List<MetricDefinition> initialMetricDefinitions = new ArrayList<MetricDefinition>(subAlarms.size());
         for (final SubAlarm subAlarm : subAlarms) {
             initialMetricDefinitions.add(subAlarm.getExpression().getMetricDefinition());
@@ -143,7 +124,7 @@ public class MetricFilteringBoltTest {
             verify(collector, times(1)).emit(tuple, tuple.getValues());
         }
         for (final SubAlarm subAlarm : subAlarms) {
-            final Tuple tuple = createMetricDefinitionDeletionTuple(event, subAlarm);
+            final Tuple tuple = createMetricDefinitionDeletionTuple(subAlarm);
             bolt.execute(tuple);
             verify(collector, times(1)).ack(tuple);
         }
@@ -156,22 +137,20 @@ public class MetricFilteringBoltTest {
         }
     }
 
-    private Tuple createMetricDefinitionTuple(final Object event,
-            final SubAlarm subAlarm) {
+    private Tuple createMetricDefinitionTuple(final SubAlarm subAlarm) {
         final MkTupleParam tupleParam = new MkTupleParam();
         tupleParam.setFields("eventType", "metricDefinition", "subAlarm");
         tupleParam.setStream(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID);
-        final Tuple tuple = Testing.testTuple(Arrays.asList(event.getClass().getSimpleName(),
+        final Tuple tuple = Testing.testTuple(Arrays.asList(EventProcessingBolt.CREATED,
                 subAlarm.getExpression().getMetricDefinition(), subAlarm), tupleParam);
         return tuple;
     }
 
-    private Tuple createMetricDefinitionDeletionTuple(final Object event,
-            final SubAlarm subAlarm) {
+    private Tuple createMetricDefinitionDeletionTuple(final SubAlarm subAlarm) {
         final MkTupleParam tupleParam = new MkTupleParam();
         tupleParam.setFields("eventType", "metricDefinition", "subAlarm");
         tupleParam.setStream(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID);
-        final Tuple tuple = Testing.testTuple(Arrays.asList(event.getClass().getSimpleName(),
+        final Tuple tuple = Testing.testTuple(Arrays.asList(EventProcessingBolt.DELETED,
                 subAlarm.getExpression().getMetricDefinition(), subAlarm.getId()), tupleParam);
 
         return tuple;

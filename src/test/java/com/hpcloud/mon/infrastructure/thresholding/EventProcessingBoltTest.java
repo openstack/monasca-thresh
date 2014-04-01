@@ -92,9 +92,8 @@ public class EventProcessingBoltTest {
                 alarm.getName(), alarm.getAlarmExpression().getExpression(), expressions);
         final Tuple tuple = createTuple(event);
         bolt.execute(tuple);
-        final String eventType = event.getClass().getSimpleName();
         for (final SubAlarm subAlarm : subAlarms) {
-            verifyAddedSubAlarm(eventType, subAlarm);
+            verifyAddedSubAlarm(subAlarm);
         }
         verify(collector, times(1)).ack(tuple);
     }
@@ -116,19 +115,17 @@ public class EventProcessingBoltTest {
                 metricDefinitions);
         final Tuple tuple = createTuple(event);
         bolt.execute(tuple);
-        final String eventType = event.getClass().getSimpleName();
         for (final SubAlarm subAlarm : subAlarms) {
-            verifyDeletedSubAlarm(eventType, subAlarm);
+            verifyDeletedSubAlarm(subAlarm);
         }
         verify(collector, times(1)).emit(EventProcessingBolt.ALARM_EVENT_STREAM_ID,
                 new Values(event.getClass().getSimpleName(), event.alarmId));
         verify(collector, times(1)).ack(tuple);
     }
 
-    private void verifyDeletedSubAlarm(final String eventType,
-            final SubAlarm subAlarm) {
+    private void verifyDeletedSubAlarm(final SubAlarm subAlarm) {
         verify(collector, times(1)).emit(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID,
-            new Values(eventType, subAlarm.getExpression().getMetricDefinition(), subAlarm.getId()));
+            new Values(EventProcessingBolt.DELETED, subAlarm.getExpression().getMetricDefinition(), subAlarm.getId()));
     }
 
     public static AlarmUpdatedEvent createAlarmUpdatedEvent(final Alarm alarm,
@@ -170,11 +167,10 @@ public class EventProcessingBoltTest {
             updatedSubAlarms.add(subAlarm);
         }
 
-        final String eventType = event.getClass().getSimpleName();
-        verifyDeletedSubAlarm(eventType, subAlarms.get(1));
-        verifyDeletedSubAlarm(eventType, subAlarms.get(2));
-        verifyAddedSubAlarm(eventType, updatedSubAlarms.get(1));
-        verifyAddedSubAlarm(eventType, updatedSubAlarms.get(2));
+        verifyDeletedSubAlarm(subAlarms.get(1));
+        verifyDeletedSubAlarm(subAlarms.get(2));
+        verifyAddedSubAlarm(updatedSubAlarms.get(1));
+        verifyAddedSubAlarm(updatedSubAlarms.get(2));
         verify(collector, times(1)).ack(tuple);
     }
 
@@ -210,10 +206,9 @@ public class EventProcessingBoltTest {
         return new SimpleEntry<>(oldSubAlarms, newSubAlarms);
     }
 
-    private void verifyAddedSubAlarm(final String eventType,
-            final SubAlarm subAlarm) {
+    private void verifyAddedSubAlarm(final SubAlarm subAlarm) {
         verify(collector, times(1)).emit(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID,
-            new Values(eventType, subAlarm.getExpression().getMetricDefinition(), subAlarm));
+            new Values(EventProcessingBolt.CREATED, subAlarm.getExpression().getMetricDefinition(), subAlarm));
     }
 
    private static Map<String, AlarmSubExpression> createAlarmSubExpressionMap(

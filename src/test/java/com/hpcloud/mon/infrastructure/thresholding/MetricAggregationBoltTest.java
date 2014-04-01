@@ -25,9 +25,6 @@ import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;
 import backtype.storm.testing.MkTupleParam;
 
-import com.hpcloud.mon.common.event.AlarmCreatedEvent;
-import com.hpcloud.mon.common.event.AlarmDeletedEvent;
-import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.Metric;
@@ -122,36 +119,20 @@ public class MetricAggregationBoltTest {
     verify(collector, times(2)).emit(any(List.class));
   }
 
-  public void shouldHandleAlarmCreated() {
-    validateMetricDefAdded(AlarmCreatedEvent.class.getSimpleName());
-  }
-
-  public void shouldHandleAlarmUpdatedAdd() {
-    validateMetricDefAdded(AlarmUpdatedEvent.class.getSimpleName());
-  }
-
-  private void validateMetricDefAdded(String eventName) {
+  public void validateMetricDefAdded() {
     MkTupleParam tupleParam = new MkTupleParam();
     tupleParam.setFields("eventType", "metricDefinition", "subAlarm");
     tupleParam.setStream(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID);
 
     assertNull(bolt.subAlarmStatsRepos.get(metricDef1));
 
-    bolt.execute(Testing.testTuple(Arrays.asList(eventName,
+    bolt.execute(Testing.testTuple(Arrays.asList(EventProcessingBolt.CREATED,
         metricDef1, new SubAlarm("123", "1", subExpr1)), tupleParam));
 
     assertNotNull(bolt.subAlarmStatsRepos.get(metricDef1).get("123"));
   }
 
-  public void shouldHandleAlarmDeleted() {
-    validateMetricDefDeleted(AlarmDeletedEvent.class.getSimpleName());
-  }
-
-  public void shouldHandleAlarmUpdatedDelete() {
-    validateMetricDefDeleted(AlarmUpdatedEvent.class.getSimpleName());
-  }
-
-  private void validateMetricDefDeleted(String eventName) {
+  public void validateMetricDefDeleted() {
     MkTupleParam tupleParam = new MkTupleParam();
     tupleParam.setFields("eventType", "metricDefinition", "alarmId");
     tupleParam.setStream(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID);
@@ -160,7 +141,7 @@ public class MetricAggregationBoltTest {
     assertNotNull(bolt.subAlarmStatsRepos.get(metricDef1).get("123"));
 
     bolt.execute(Testing.testTuple(
-        Arrays.asList(eventName, metricDef1, "123"), tupleParam));
+        Arrays.asList(EventProcessingBolt.DELETED, metricDef1, "123"), tupleParam));
 
     assertNull(bolt.subAlarmStatsRepos.get(metricDef1));
   }
