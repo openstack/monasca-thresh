@@ -32,7 +32,7 @@ private EventDeserializer deserializer = new EventDeserializer();
   }
 
   public void shouldDeserializeAlarmUpdatedEvent() {
-    roundTrip(new AlarmUpdatedEvent(TENANT_ID, ALARM_ID, ALARM_NAME, ALARM_EXPRESSION, null, null));
+    roundTrip(new AlarmUpdatedEvent(TENANT_ID, ALARM_ID, ALARM_NAME, ALARM_EXPRESSION, null, false, null, null, null));
   }
 
   private void roundTrip(Object event) {

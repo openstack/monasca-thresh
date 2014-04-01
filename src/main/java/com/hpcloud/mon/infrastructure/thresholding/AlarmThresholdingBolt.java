@@ -13,9 +13,9 @@ import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 
 import com.hpcloud.mon.ThresholdingConfiguration;
+import com.hpcloud.mon.common.event.AlarmStateTransitionedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.domain.model.Alarm;
-import com.hpcloud.mon.domain.model.AlarmStateTransitionEvent;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.service.AlarmDAO;
 import com.hpcloud.mon.infrastructure.persistence.PersistenceModule;
@@ -136,7 +136,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
         alarmDAO.updateState(alarm.getId(), alarm.getState());
 
         LOG.debug("Alarm {} transitioned from {} to {}", alarm, initialState, alarm.getState());
-        AlarmStateTransitionEvent event = new AlarmStateTransitionEvent(alarm.getTenantId(),
+        AlarmStateTransitionedEvent event = new AlarmStateTransitionedEvent(alarm.getTenantId(),
                 alarm.getId(), alarm.getName(), alarm.getDescription(), initialState, alarm.getState(),
                 stateChangeReason, getTimestamp());
         try {

@@ -139,9 +139,10 @@ public class EventProcessingBoltTest {
                 oldAndNewSubExpressionsFor(createAlarmSubExpressionMap(alarm), updatedAlarmExpression);
 
         final Map<String, AlarmSubExpression> newAlarmSubExpressions = entry.getValue();
+        Map<String, AlarmSubExpression> changedSubExpressions = new HashMap<>();
         final AlarmUpdatedEvent event = new AlarmUpdatedEvent(updatedAlarm.getTenantId(), updatedAlarm.getId(),
-              updatedAlarm.getName(), updatedAlarm.getAlarmExpression().getExpression(), entry.getKey(),
-              newAlarmSubExpressions);
+              updatedAlarm.getName(), updatedAlarm.getAlarmExpression().getExpression(), alarm.getState(), true, entry.getKey(),
+              changedSubExpressions, newAlarmSubExpressions);
         return event;
     }
 

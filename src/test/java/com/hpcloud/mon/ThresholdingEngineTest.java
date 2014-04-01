@@ -24,12 +24,12 @@ import backtype.storm.tuple.Values;
 
 import com.google.inject.AbstractModule;
 import com.hpcloud.configuration.KafkaProducerConfiguration;
+import com.hpcloud.mon.common.event.AlarmStateTransitionedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmExpression;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.metric.Metric;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.mon.domain.model.Alarm;
-import com.hpcloud.mon.domain.model.AlarmStateTransitionEvent;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.service.AlarmDAO;
 import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
@@ -138,7 +138,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     doAnswer(new Answer<Object>() {
           public Object answer(InvocationOnMock invocation) {
               final Object[] args = invocation.getArguments();
-              AlarmStateTransitionEvent event = Serialization.fromJson((String)args[2]);
+              AlarmStateTransitionedEvent event = Serialization.fromJson((String)args[2]);
               alarmsSent++;
               System.out.printf("Alarm transitioned from %s to %s%n", event.oldState, event.newState);
               assertEquals(event.alarmName, TEST_ALARM_NAME);
