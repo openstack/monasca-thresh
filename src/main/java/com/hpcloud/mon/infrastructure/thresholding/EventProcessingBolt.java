@@ -47,6 +47,7 @@ public class EventProcessingBolt extends BaseRichBolt {
 
   public static final String CREATED = "created";
   public static final String DELETED = "deleted";
+  public static final String UPDATED = "updated";
 
   private transient Logger LOG;
   private OutputCollector collector;
@@ -99,12 +100,11 @@ public class EventProcessingBolt extends BaseRichBolt {
   }
 
   void handle(AlarmDeletedEvent event) {
-    String eventType = event.getClass().getSimpleName();
     for (Map.Entry<String, MetricDefinition> entry : event.subAlarmMetricDefinitions.entrySet()) {
       sendDeletedSubAlarm(entry.getKey(), entry.getValue());
     }
 
-    collector.emit(ALARM_EVENT_STREAM_ID, new Values(eventType, event.alarmId));
+    collector.emit(ALARM_EVENT_STREAM_ID, new Values(DELETED, event.alarmId));
   }
 
   private void sendDeletedSubAlarm(String subAlarmId, MetricDefinition metricDef) {
@@ -112,13 +112,12 @@ public class EventProcessingBolt extends BaseRichBolt {
   }
 
   void handle(AlarmUpdatedEvent event) {
-    String eventType = event.getClass().getSimpleName();
     for (Map.Entry<String, AlarmSubExpression> entry : event.oldAlarmSubExpressions.entrySet()) {
       sendDeletedSubAlarm(entry.getKey(), entry.getValue().getMetricDefinition());
     }
     for (Map.Entry<String, AlarmSubExpression> entry : event.newAlarmSubExpressions.entrySet()) {
        sendAddSubAlarm(event.alarmId, entry.getKey(), entry.getValue());
     }
-    collector.emit(ALARM_EVENT_STREAM_ID, new Values(eventType, event.alarmId));
+    collector.emit(ALARM_EVENT_STREAM_ID, new Values(UPDATED, event.alarmId));
   }
 }

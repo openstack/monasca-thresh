@@ -13,8 +13,6 @@ import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 
 import com.hpcloud.mon.ThresholdingConfiguration;
-import com.hpcloud.mon.common.event.AlarmDeletedEvent;
-import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.domain.model.Alarm;
 import com.hpcloud.mon.domain.model.AlarmStateTransitionEvent;
@@ -82,9 +80,9 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
                 String eventType = tuple.getString(0);
                 String alarmId = tuple.getString(1);
 
-                if (AlarmDeletedEvent.class.getSimpleName().equals(eventType))
+                if (EventProcessingBolt.DELETED.equals(eventType))
                     handleAlarmDeleted(alarmId);
-                else if (AlarmUpdatedEvent.class.getSimpleName().equals(eventType))
+                else if (EventProcessingBolt.UPDATED.equals(eventType))
                     handleAlarmUpdated(alarmId);
                 }
         } catch (Exception e) {

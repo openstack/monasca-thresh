@@ -119,7 +119,7 @@ public class EventProcessingBoltTest {
             verifyDeletedSubAlarm(subAlarm);
         }
         verify(collector, times(1)).emit(EventProcessingBolt.ALARM_EVENT_STREAM_ID,
-                new Values(event.getClass().getSimpleName(), event.alarmId));
+                new Values(EventProcessingBolt.DELETED, event.alarmId));
         verify(collector, times(1)).ack(tuple);
     }
 
@@ -154,7 +154,7 @@ public class EventProcessingBoltTest {
         final Tuple tuple = createTuple(event);
         bolt.execute(tuple);
         verify(collector, times(1)).emit(EventProcessingBolt.ALARM_EVENT_STREAM_ID,
-                new Values(event.getClass().getSimpleName(), event.alarmId));
+                new Values(EventProcessingBolt.UPDATED, event.alarmId));
 
         final List<SubAlarm> updatedSubAlarms = new ArrayList<>();
         final Map<String, AlarmSubExpression> oldAlarmSubExpressionMap = createAlarmSubExpressionMap(alarm);
