@@ -29,10 +29,19 @@ public class SubAlarmStatsTest {
 
   public void shouldBeOkIfAnySlotsInViewAreBelowThreshold() {
     subAlarmStats.getStats().addValue(5, 1);
-    subAlarmStats.getStats().addValue(1, 2);
-    subAlarmStats.getStats().addValue(5, 3);
-
     assertTrue(subAlarmStats.evaluate());
+    // This went to alarm because at least one period is over the threshold,
+    // none are under the threshold and the others are UNDETERMINED
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.ALARM);    
+
+    subAlarmStats.getStats().addValue(1, 2);
+    assertTrue(subAlarmStats.evaluate());
+    // This went to alarm because at least one period is under the threshold
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.OK);
+
+    subAlarmStats.getStats().addValue(5, 3);
+    assertFalse(subAlarmStats.evaluate());
+    // Still one under the threshold
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.OK);
   }
 
