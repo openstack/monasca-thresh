@@ -35,6 +35,7 @@ import com.hpcloud.mon.domain.service.SubAlarmDAO;
 import com.hpcloud.mon.domain.service.SubAlarmMetricDefinition;
 import com.hpcloud.mon.infrastructure.thresholding.AlarmEventForwarder;
 import com.hpcloud.mon.infrastructure.thresholding.MetricAggregationBolt;
+import com.hpcloud.mon.infrastructure.thresholding.MetricSpout;
 import com.hpcloud.streaming.storm.TopologyTestCase;
 import com.hpcloud.util.Injector;
 
@@ -122,7 +123,7 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
     Config stormConfig = new Config();
     stormConfig.setMaxTaskParallelism(5);
 
-    metricSpout = new FeederSpout(new Fields("metricDefinition", "metric"));
+    metricSpout = new FeederSpout(new Fields(MetricSpout.FIELDS));
     eventSpout = new FeederSpout(new Fields("event"));
     final AlarmEventForwarder alarmEventForwarder = mock(AlarmEventForwarder.class);
 

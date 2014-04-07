@@ -61,6 +61,7 @@ public class MetricFilteringBolt extends BaseRichBolt {
   private static final long serialVersionUID = 1096706128973976599L;
   private static final Map<MetricDefinition, List<String>> METRIC_DEFS = new ConcurrentHashMap<>();
   private static final Object SENTINAL = new Object();
+  public static final String[] FIELDS = new String[] { "metricDefinition", "metric" };
 
   private transient Logger LOG;
   private DataSourceFactory dbConfig;
@@ -77,7 +78,7 @@ public class MetricFilteringBolt extends BaseRichBolt {
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
-    declarer.declare(new Fields("metricDefinition", "metric"));
+    declarer.declare(new Fields(FIELDS));
   }
 
   @Override

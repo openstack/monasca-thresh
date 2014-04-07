@@ -4,6 +4,7 @@ import backtype.storm.spout.SpoutOutputCollector;
 import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Values;
+
 import com.hpcloud.mon.MetricSpoutConfig;
 import com.hpcloud.mon.common.model.metric.MetricEnvelope;
 import com.hpcloud.mon.common.model.metric.MetricEnvelopes;
@@ -15,6 +16,8 @@ public class MetricSpout extends KafkaSpout {
     private static final Logger LOG = LoggerFactory.getLogger(MetricSpout.class);
 
     private static final long serialVersionUID = 744004533863562119L;
+
+    public static final String[] FIELDS = new String[] { "metricDefinition", "metric" };
 
     public MetricSpout(MetricSpoutConfig metricSpoutConfig) {
         super(metricSpoutConfig.kafkaConsumerConfiguration);
@@ -37,6 +40,6 @@ public class MetricSpout extends KafkaSpout {
 
     @Override
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
-        declarer.declare(new Fields("metricDefinition", "metric"));
+        declarer.declare(new Fields(FIELDS));
     }
 }

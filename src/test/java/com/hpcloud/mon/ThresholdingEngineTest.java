@@ -37,6 +37,7 @@ import com.hpcloud.mon.domain.service.SubAlarmDAO;
 import com.hpcloud.mon.domain.service.SubAlarmMetricDefinition;
 import com.hpcloud.mon.infrastructure.thresholding.AlarmEventForwarder;
 import com.hpcloud.mon.infrastructure.thresholding.MetricAggregationBolt;
+import com.hpcloud.mon.infrastructure.thresholding.MetricSpout;
 import com.hpcloud.streaming.storm.TopologyTestCase;
 import com.hpcloud.util.Injector;
 import com.hpcloud.util.Serialization;
@@ -124,7 +125,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     threshConfig.kafkaProducerConfig = Serialization.fromJson("{\"KafkaProducerConfiguration\":{\"topic\":\"alarm-state-transitions\",\"metadataBrokerList\":\"192.168.10.10:9092\",\"requestRequiredAcks\":1,\"requestTimeoutMs\":10000,\"producerType\":\"sync\",\"serializerClass\":\"kafka.serializer.StringEncoder\",\"keySerializerClass\":\"\",\"partitionerClass\":\"\",\"compressionCodec\":\"none\",\"compressedTopics\":\"\",\"messageSendMaxRetries\":3,\"retryBackoffMs\":100,\"topicMetadataRefreshIntervalMs\":600000,\"queueBufferingMaxMs\":5000,\"queueBufferingMaxMessages\":10000,\"queueEnqueueTimeoutMs\":-1,\"batchNumMessages\":200,\"sendBufferBytes\":102400,\"clientId\":\"Threshold_Engine\"}}");
     Config stormConfig = new Config();
     stormConfig.setMaxTaskParallelism(1);
-    metricSpout = new FeederSpout(new Fields("metricDefinition", "metric"));
+    metricSpout = new FeederSpout(new Fields(MetricSpout.FIELDS));
     eventSpout = new FeederSpout(new Fields("event"));
     alarmEventForwarder = mock(AlarmEventForwarder.class);
     Injector.registerModules(new TopologyModule(threshConfig, stormConfig,

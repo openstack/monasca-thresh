@@ -45,6 +45,12 @@ public class EventProcessingBolt extends BaseRichBolt {
   /** Stream for metric and sub-alarm specific events. */
   public static final String METRIC_SUB_ALARM_EVENT_STREAM_ID = "metric-sub-alarm-events";
 
+  public static final String[] ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType", "alarmId"};
+  public static final String[] METRIC_ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType",
+      "metricDefinition", "subAlarmId"};
+  public static final String[] METRIC_SUB_ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType",
+      "metricDefinition", "subAlarm"};
+
   public static final String CREATED = "created";
   public static final String DELETED = "deleted";
   public static final String UPDATED = "updated";
@@ -54,11 +60,9 @@ public class EventProcessingBolt extends BaseRichBolt {
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
-    declarer.declareStream(ALARM_EVENT_STREAM_ID, new Fields("eventType", "alarmId"));
-    declarer.declareStream(METRIC_ALARM_EVENT_STREAM_ID, new Fields("eventType",
-        "metricDefinition", "subAlarmId"));
-    declarer.declareStream(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Fields("eventType",
-        "metricDefinition", "subAlarm"));
+    declarer.declareStream(ALARM_EVENT_STREAM_ID, new Fields(ALARM_EVENT_STREAM_FIELDS));
+    declarer.declareStream(METRIC_ALARM_EVENT_STREAM_ID, new Fields(METRIC_ALARM_EVENT_STREAM_FIELDS));
+    declarer.declareStream(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Fields(METRIC_SUB_ALARM_EVENT_STREAM_FIELDS));
   }
 
   @Override

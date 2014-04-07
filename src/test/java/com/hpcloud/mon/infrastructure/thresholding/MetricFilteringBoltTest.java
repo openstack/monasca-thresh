@@ -124,12 +124,12 @@ public class MetricFilteringBoltTest {
     }
 
     private void sendMetricsAndVerify(final OutputCollector collector1,
-            final MetricFilteringBolt bolt1, VerificationMode never) {
+            final MetricFilteringBolt bolt1, VerificationMode howMany) {
         for (final SubAlarm subAlarm : subAlarms) {
             final Tuple tuple = createMetricTuple(subAlarm);
             bolt1.execute(tuple);
             verify(collector1, times(1)).ack(tuple);
-            verify(collector1, never).emit(tuple, tuple.getValues());
+            verify(collector1, howMany).emit(tuple, tuple.getValues());
         }
     }
 
@@ -183,7 +183,7 @@ public class MetricFilteringBoltTest {
 
     private Tuple createMetricDefinitionTuple(final SubAlarm subAlarm) {
         final MkTupleParam tupleParam = new MkTupleParam();
-        tupleParam.setFields("eventType", "metricDefinition", "subAlarm");
+        tupleParam.setFields(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_FIELDS);
         tupleParam.setStream(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID);
         final Tuple tuple = Testing.testTuple(Arrays.asList(EventProcessingBolt.CREATED,
                 subAlarm.getExpression().getMetricDefinition(), subAlarm), tupleParam);
@@ -192,7 +192,7 @@ public class MetricFilteringBoltTest {
 
     private Tuple createMetricDefinitionDeletionTuple(final SubAlarm subAlarm) {
         final MkTupleParam tupleParam = new MkTupleParam();
-        tupleParam.setFields("eventType", "metricDefinition", "subAlarm");
+        tupleParam.setFields(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_FIELDS);
         tupleParam.setStream(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID);
         final Tuple tuple = Testing.testTuple(Arrays.asList(EventProcessingBolt.DELETED,
                 subAlarm.getExpression().getMetricDefinition(), subAlarm.getId()), tupleParam);
@@ -202,7 +202,7 @@ public class MetricFilteringBoltTest {
 
     private Tuple createMetricTuple(final SubAlarm subAlarm) {
         final MkTupleParam tupleParam = new MkTupleParam();
-        tupleParam.setFields("metricDefinition", "metric");
+        tupleParam.setFields(MetricFilteringBolt.FIELDS);
         tupleParam.setStream(Streams.DEFAULT_STREAM_ID);
         MetricDefinition metricDefinition = subAlarm.getExpression().getMetricDefinition();
         final Metric metric = new Metric(metricDefinition, System.currentTimeMillis()/1000, 42.0);

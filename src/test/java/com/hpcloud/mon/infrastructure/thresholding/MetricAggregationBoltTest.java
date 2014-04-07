@@ -121,7 +121,7 @@ public class MetricAggregationBoltTest {
 
   public void validateMetricDefAdded() {
     MkTupleParam tupleParam = new MkTupleParam();
-    tupleParam.setFields("eventType", "metricDefinition", "subAlarm");
+    tupleParam.setFields(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_FIELDS);
     tupleParam.setStream(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID);
 
     assertNull(bolt.subAlarmStatsRepos.get(metricDef1));
@@ -134,7 +134,7 @@ public class MetricAggregationBoltTest {
 
   public void validateMetricDefDeleted() {
     MkTupleParam tupleParam = new MkTupleParam();
-    tupleParam.setFields("eventType", "metricDefinition", "alarmId");
+    tupleParam.setFields(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_FIELDS);
     tupleParam.setStream(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID);
     bolt.getOrCreateSubAlarmStatsRepo(metricDef1);
 
