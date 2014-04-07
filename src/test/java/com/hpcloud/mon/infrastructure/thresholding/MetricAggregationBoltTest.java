@@ -5,14 +5,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.reset;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -20,10 +20,13 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import backtype.storm.Constants;
 import backtype.storm.Testing;
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;
 import backtype.storm.testing.MkTupleParam;
+import backtype.storm.tuple.Tuple;
+import backtype.storm.tuple.Values;
 
 import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
@@ -33,6 +36,7 @@ import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.model.SubAlarmStats;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
 import com.hpcloud.mon.domain.service.SubAlarmStatsRepository;
+import com.hpcloud.streaming.storm.Streams;
 
 /**
  * @author Jonathan Halterman
@@ -42,22 +46,27 @@ public class MetricAggregationBoltTest {
   private MetricAggregationBolt bolt;
   private TopologyContext context;
   private OutputCollector collector;
-  private List<AlarmSubExpression> subExpressions;
-  private Map<MetricDefinition, SubAlarm> subAlarms;
+  private List<SubAlarm> subAlarms;
   private SubAlarm subAlarm1;
   private SubAlarm subAlarm2;
+  private SubAlarm subAlarm3;
   private AlarmSubExpression subExpr1;
   private AlarmSubExpression subExpr2;
+  private AlarmSubExpression subExpr3;
   private MetricDefinition metricDef1;
   private MetricDefinition metricDef2;
+  private MetricDefinition metricDef3;
 
   @BeforeClass
   protected void beforeClass() {
+    // Other tests set this and that can cause problems when the test is run from Maven
+    System.clearProperty(MetricAggregationBolt.TICK_TUPLE_SECONDS_KEY);
     subExpr1 = AlarmSubExpression.of("avg(hpcs.compute.cpu{id=5}, 60) >= 90 times 3");
-    subExpr2 = AlarmSubExpression.of("avg(hpcs.compute.mem{id=5}, 60) >= 90 times 3");
-    subExpressions = Arrays.asList(subExpr1, subExpr2);
+    subExpr2 = AlarmSubExpression.of("avg(hpcs.compute.mem{id=5}, 60) >= 90");
+    subExpr3 = AlarmSubExpression.of("avg(hpcs.compute.mem{id=5}, 60) >= 96");
     metricDef1 = subExpr1.getMetricDefinition();
     metricDef2 = subExpr2.getMetricDefinition();
+    metricDef3 = subExpr3.getMetricDefinition();
   }
 
   @BeforeMethod
@@ -65,15 +74,22 @@ public class MetricAggregationBoltTest {
     // Fixtures
     subAlarm1 = new SubAlarm("123", "1", subExpr1, AlarmState.OK);
     subAlarm2 = new SubAlarm("456", "1", subExpr2, AlarmState.OK);
-    subAlarms = new HashMap<>();
-    subAlarms.put(subExpr1.getMetricDefinition(), subAlarm1);
-    subAlarms.put(subExpr2.getMetricDefinition(), subAlarm2);
+    subAlarm3 = new SubAlarm("789", "2", subExpr3, AlarmState.ALARM);
+    subAlarms = new ArrayList<>();
+    subAlarms.add(subAlarm1);
+    subAlarms.add(subAlarm2);
+    subAlarms.add(subAlarm3);
 
     final SubAlarmDAO dao = mock(SubAlarmDAO.class);
     when(dao.find(any(MetricDefinition.class))).thenAnswer(new Answer<List<SubAlarm>>() {
       @Override
       public List<SubAlarm> answer(InvocationOnMock invocation) throws Throwable {
-        return Arrays.asList(subAlarms.get((MetricDefinition) invocation.getArguments()[0]));
+        final MetricDefinition metricDef = (MetricDefinition) invocation.getArguments()[0];
+        final List<SubAlarm> result = new ArrayList<>();
+        for (final SubAlarm subAlarm : subAlarms)
+          if (subAlarm.getExpression().getMetricDefinition().equals(metricDef))
+            result.add(subAlarm);
+        return result;
       }
     });
 
@@ -98,26 +114,52 @@ public class MetricAggregationBoltTest {
     assertEquals(alarmData.getStats().getValue(t1), 45.0);
   }
 
-  @SuppressWarnings("unchecked")
   public void shouldEvaluateAlarms() {
-    for (AlarmSubExpression subExp : subExpressions)
-      bolt.getOrCreateSubAlarmStatsRepo(subExp.getMetricDefinition());
+    // Ensure subAlarm2 and subAlarm3 map to the samme Metric Definition
+    assertEquals(metricDef3, metricDef2);
 
-    // Given
+    bolt.execute(createMetricTuple(metricDef2, null));
+
+    // Send metrics for subAlarm1
     long t1 = System.currentTimeMillis() / 1000;
-    bolt.aggregateValues(metricDef1, new Metric(metricDef1.name, metricDef1.dimensions, t1, 100));
-    bolt.aggregateValues(metricDef1, new Metric(metricDef1.name, metricDef1.dimensions, t1 -= 60, 95));
-    bolt.aggregateValues(metricDef1, new Metric(metricDef1.name, metricDef1.dimensions, t1 -= 60, 88));
+    bolt.execute(createMetricTuple(metricDef1, new Metric(metricDef1, t1, 100)));
+    bolt.execute(createMetricTuple(metricDef1, new Metric(metricDef1, t1 -= 60, 95)));
+    bolt.execute(createMetricTuple(metricDef1, new Metric(metricDef1, t1 -= 60, 88)));
 
-    bolt.evaluateAlarmsAndSlideWindows();
+    final Tuple tickTuple = createTickTuple();
+    bolt.execute(tickTuple);
+
+    assertEquals(subAlarm1.getState(), AlarmState.OK);
     assertEquals(subAlarm2.getState(), AlarmState.UNDETERMINED);
+    assertEquals(subAlarm3.getState(), AlarmState.UNDETERMINED);
 
-    bolt.aggregateValues(metricDef1, new Metric(metricDef1.name, metricDef1.dimensions, t1, 99));
+    verify(collector, times(1)).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
+    verify(collector, times(1)).emit(new Values(subAlarm3.getAlarmId(), subAlarm3));
+    // Have to reset the mock so it can tell the difference when subAlarm2 and subAlarm3 are emitted again.
+    reset(collector);
 
-    bolt.evaluateAlarmsAndSlideWindows();
+System.out.println("Last two metrics");
+    bolt.execute(createMetricTuple(metricDef1, new Metric(metricDef1, t1, 99)));
+    bolt.execute(createMetricTuple(metricDef2, new Metric(metricDef2, System.currentTimeMillis() / 1000, 94)));
+System.out.println("Evaluating sub alarms");
+    bolt.execute(tickTuple);
+System.out.println("Done Evaluating sub alarms");
+
     assertEquals(subAlarm1.getState(), AlarmState.ALARM);
-    verify(collector, times(2)).emit(any(List.class));
+    assertEquals(subAlarm2.getState(), AlarmState.ALARM);
+    assertEquals(subAlarm3.getState(), AlarmState.OK);
+    verify(collector, times(1)).emit(new Values(subAlarm1.getAlarmId(), subAlarm1));
+    verify(collector, times(1)).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
+    verify(collector, times(1)).emit(new Values(subAlarm3.getAlarmId(), subAlarm3));
   }
+
+private Tuple createTickTuple() {
+    final MkTupleParam tupleParam = new MkTupleParam();
+    tupleParam.setComponent(Constants.SYSTEM_COMPONENT_ID);
+    tupleParam.setStream(Constants.SYSTEM_TICK_STREAM_ID);
+    final Tuple tickTuple = Testing.testTuple(Arrays.asList(), tupleParam);
+    return tickTuple;
+}
 
   public void validateMetricDefAdded() {
     MkTupleParam tupleParam = new MkTupleParam();
@@ -150,5 +192,13 @@ public class MetricAggregationBoltTest {
     SubAlarmStatsRepository data = bolt.getOrCreateSubAlarmStatsRepo(metricDef1);
     assertNotNull(data);
     assertEquals(bolt.getOrCreateSubAlarmStatsRepo(metricDef1), data);
+  }
+
+  private Tuple createMetricTuple(final MetricDefinition metricDef,
+        final Metric metric) {
+    final MkTupleParam tupleParam = new MkTupleParam();
+    tupleParam.setFields(MetricFilteringBolt.FIELDS);
+    tupleParam.setStream(Streams.DEFAULT_STREAM_ID);
+    return Testing.testTuple(Arrays.asList(metricDef, metric), tupleParam);
   }
 }
