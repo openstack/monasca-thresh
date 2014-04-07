@@ -32,6 +32,7 @@ import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.service.AlarmDAO;
 import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
+import com.hpcloud.mon.domain.service.SubAlarmMetricDefinition;
 import com.hpcloud.mon.infrastructure.thresholding.AlarmEventForwarder;
 import com.hpcloud.mon.infrastructure.thresholding.MetricAggregationBolt;
 import com.hpcloud.streaming.storm.TopologyTestCase;
@@ -100,7 +101,10 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
     });
 
     metricDefinitionDAO = mock(MetricDefinitionDAO.class);
-    List<MetricDefinition> metricDefs = Arrays.asList(cpuMetricDef, memMetricDef, customMetricDef);
+    final List<SubAlarmMetricDefinition> metricDefs = Arrays.asList(
+            new SubAlarmMetricDefinition(createCpuSubAlarm().getId(), cpuMetricDef),
+            new SubAlarmMetricDefinition(createMemSubAlarm().getId(), memMetricDef),
+            new SubAlarmMetricDefinition(createCustomSubAlarm().getId(), customMetricDef));
     when(metricDefinitionDAO.findForAlarms()).thenReturn(metricDefs);
 
     // Bindings

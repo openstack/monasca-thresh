@@ -34,6 +34,7 @@ import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.service.AlarmDAO;
 import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
+import com.hpcloud.mon.domain.service.SubAlarmMetricDefinition;
 import com.hpcloud.mon.infrastructure.thresholding.AlarmEventForwarder;
 import com.hpcloud.mon.infrastructure.thresholding.MetricAggregationBolt;
 import com.hpcloud.streaming.storm.TopologyTestCase;
@@ -84,20 +85,25 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     });
 
     subAlarmDAO = mock(SubAlarmDAO.class);
+    final SubAlarm cpuMetricDefSubAlarm = new SubAlarm("123", TEST_ALARM_ID, expression.getSubExpressions().get(0));
+    final SubAlarm memMetricDefSubAlarm = new SubAlarm("456", TEST_ALARM_ID, expression.getSubExpressions().get(1));
     when(subAlarmDAO.find(any(MetricDefinition.class))).thenAnswer(new Answer<List<SubAlarm>>() {
       @Override
       public List<SubAlarm> answer(InvocationOnMock invocation) throws Throwable {
         MetricDefinition metricDef = (MetricDefinition) invocation.getArguments()[0];
-        if (metricDef.equals(cpuMetricDef))
-          return Arrays.asList(new SubAlarm("123", TEST_ALARM_ID, expression.getSubExpressions().get(0)));
-        else if (metricDef.equals(memMetricDef))
-          return Arrays.asList(new SubAlarm("456", TEST_ALARM_ID, expression.getSubExpressions().get(1)));
+        if (metricDef.equals(cpuMetricDef)) {
+            return Arrays.asList(cpuMetricDefSubAlarm);
+        } else if (metricDef.equals(memMetricDef)) {
+            return Arrays.asList(memMetricDefSubAlarm);
+        }
         return Collections.emptyList();
       }
     });
 
     metricDefinitionDAO = mock(MetricDefinitionDAO.class);
-    List<MetricDefinition> metricDefs = Arrays.asList(cpuMetricDef, memMetricDef);
+    final List<SubAlarmMetricDefinition> metricDefs = Arrays.asList(
+            new SubAlarmMetricDefinition(cpuMetricDefSubAlarm.getId(), cpuMetricDef),
+            new SubAlarmMetricDefinition(memMetricDefSubAlarm.getId(), memMetricDef));
     when(metricDefinitionDAO.findForAlarms()).thenReturn(metricDefs);
 
     // Bindings
