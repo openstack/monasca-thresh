@@ -1,22 +1,22 @@
 package com.hpcloud.mon.domain.service;
 
-import com.hpcloud.mon.common.model.metric.MetricDefinition;
+import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantId;
 
 public class SubAlarmMetricDefinition {
     private final String subAlarmId;
-    private final MetricDefinition metricDefinition;
+    private final MetricDefinitionAndTenantId metricDefinitionAndTenantId;
 
     public SubAlarmMetricDefinition(String subAlarmId,
-            MetricDefinition metricDefinition) {
+            MetricDefinitionAndTenantId metricDefinitionAndTenantId) {
         this.subAlarmId = subAlarmId;
-        this.metricDefinition = metricDefinition;
+        this.metricDefinitionAndTenantId = metricDefinitionAndTenantId;
     }
 
     public String getSubAlarmId() {
         return subAlarmId;
     }
 
-    public MetricDefinition getMetricDefinition() {
-        return metricDefinition;
+    public MetricDefinitionAndTenantId getMetricDefinitionAndTenantId() {
+        return metricDefinitionAndTenantId;
     }
 }

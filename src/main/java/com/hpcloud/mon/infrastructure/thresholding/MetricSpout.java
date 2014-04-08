@@ -8,6 +8,7 @@ import backtype.storm.tuple.Values;
 import com.hpcloud.mon.MetricSpoutConfig;
 import com.hpcloud.mon.common.model.metric.MetricEnvelope;
 import com.hpcloud.mon.common.model.metric.MetricEnvelopes;
+import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantId;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +18,8 @@ public class MetricSpout extends KafkaSpout {
 
     private static final long serialVersionUID = 744004533863562119L;
 
-    public static final String[] FIELDS = new String[] { "metricDefinition", "metric" };
+    public static final String[] FIELDS = new String[] { "metricDefinitionAndTenantId", "metric" };
+    public static final String DEFAULT_TENANT_ID = "TENANT_ID_NOT_SET";
 
     public MetricSpout(MetricSpoutConfig metricSpoutConfig) {
         super(metricSpoutConfig.kafkaConsumerConfiguration);
@@ -35,7 +37,12 @@ public class MetricSpout extends KafkaSpout {
             LOG.warn("Error parsing MetricEnvelope", re);
             return;
         }
-        collector.emit(new Values(metricEnvelope.metric.definition(), metricEnvelope.metric));
+        String tenantId = (String)metricEnvelope.meta.get("tenantId");
+        if (tenantId == null) {
+            LOG.error("No tenantId so using default tenantId {} for Metric {}", DEFAULT_TENANT_ID, metricEnvelope.metric);
+            tenantId = DEFAULT_TENANT_ID;
+        }
+        collector.emit(new Values(new MetricDefinitionAndTenantId(metricEnvelope.metric.definition(), tenantId), metricEnvelope.metric));
     }
 
     @Override

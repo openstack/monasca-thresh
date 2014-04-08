@@ -16,7 +16,7 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
-import com.hpcloud.mon.common.model.metric.MetricDefinition;
+import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantId;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
@@ -31,16 +31,16 @@ import com.hpcloud.util.Injector;
  * alarm. Receives metric alarm and metric sub-alarm events to update metric definitions.
  *
  * METRIC_DEFS table is shared between any bolts in the same worker process so that all of the
- * Metric Definitions for existing SubAlarms only have to be read once and because it is not
+ * MetricDefinitionAndTenantIds for existing SubAlarms only have to be read once and because it is not
  * possible to predict which bolt gets which Metrics so all Bolts know about all starting
- * MetricDefinitions.
+ * MetricDefinitionAndTenantIds.
  * 
  * The current topology uses shuffleGrouping for the incoming Metrics and allGrouping for the
  * events. So, any Bolt may get any Metric so the METRIC_DEFS table must be kept up to date
- * for all MetricDefinitions.
+ * for all MetricDefinitionAndTenantIds.
  * 
- * The METRIC_DEFS table contains a List of SubAlarms IDs that reference the same MetricDefinition
- * so if a SubAlarm is deleted, the MetricDefinition will only be deleted if no more SubAlarms
+ * The METRIC_DEFS table contains a List of SubAlarms IDs that reference the same MetricDefinitionAndTenantId
+ * so if a SubAlarm is deleted, the MetricDefinitionAndTenantId will only be deleted if no more SubAlarms
  * reference it. Incrementing and decrementing the count is done under the static lock SENTINAL
  * to ensure it is correct across all Bolts sharing the same METRIC_DEFS table. The
  * amount of adds and deletes will be very small compared to the number of Metrics so it shouldn't
@@ -48,20 +48,20 @@ import com.hpcloud.util.Injector;
  * 
  * <ul>
  * <li>Input: MetricDefinition metricDefinition, Metric metric
- * <li>Input metric-alarm-events: String eventType, MetricDefinition metricDefinition, String
+ * <li>Input metric-alarm-events: String eventType, MetricDefinitionAndTenantId metricDefinitionAndTenantId, String
  * alarmId
- * <li>Input metric-sub-alarm-events: String eventType, MetricDefinition metricDefinition, SubAlarm
+ * <li>Input metric-sub-alarm-events: String eventType, MetricDefinitionAndTenantId metricDefinitionAndTenantId, SubAlarm
  * subAlarm
- * <li>Output: MetricDefinition metricDefinition, Metric metric
+ * <li>Output: MetricDefinitionAndTenantId metricDefinitionAndTenantId, Metric metric
  * </ul>
  * 
  * @author Jonathan Halterman
  */
 public class MetricFilteringBolt extends BaseRichBolt {
   private static final long serialVersionUID = 1096706128973976599L;
-  private static final Map<MetricDefinition, List<String>> METRIC_DEFS = new ConcurrentHashMap<>();
+  private static final Map<MetricDefinitionAndTenantId, List<String>> METRIC_DEFS = new ConcurrentHashMap<>();
   private static final Object SENTINAL = new Object();
-  public static final String[] FIELDS = new String[] { "metricDefinition", "metric" };
+  public static final String[] FIELDS = new String[] { "metricDefinitionAndTenantId", "metric" };
 
   private transient Logger LOG;
   private DataSourceFactory dbConfig;
@@ -83,27 +83,27 @@ public class MetricFilteringBolt extends BaseRichBolt {
 
   @Override
   public void execute(Tuple tuple) {
-      LOG.debug("tuple: {}", tuple);
+    LOG.debug("tuple: {}", tuple);
     try {
       if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-        MetricDefinition metricDef = (MetricDefinition) tuple.getValue(0);
+        MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) tuple.getValue(0);
 
-        LOG.debug("metric definition: {}", metricDef);
-        if (METRIC_DEFS.containsKey(metricDef))
+        LOG.debug("metric definition and tenant id: {}", metricDefinitionAndTenantId);
+        if (METRIC_DEFS.containsKey(metricDefinitionAndTenantId))
           collector.emit(tuple, tuple.getValues());
       } else {
         String eventType = tuple.getString(0);
-        MetricDefinition metricDefinition = (MetricDefinition) tuple.getValue(1);
+        MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) tuple.getValue(1);
 
-        LOG.debug("Received {} for {}", eventType, metricDefinition);
+        LOG.debug("Received {} for {}", eventType, metricDefinitionAndTenantId);
         if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
           if (EventProcessingBolt.DELETED.equals(eventType))
-            removeSubAlarm(metricDefinition, tuple.getString(2));
+            removeSubAlarm(metricDefinitionAndTenantId, tuple.getString(2));
         } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
           if (EventProcessingBolt.CREATED.equals(eventType))
             synchronized(SENTINAL) {
               final SubAlarm subAlarm = (SubAlarm) tuple.getValue(2);
-              addMetricDef(metricDefinition, subAlarm.getId());
+              addMetricDef(metricDefinitionAndTenantId, subAlarm.getId());
             }
         }
       }
@@ -114,12 +114,12 @@ public class MetricFilteringBolt extends BaseRichBolt {
     }
   }
 
-  private void removeSubAlarm(MetricDefinition metricDefinition, String subAlarmId) {
+  private void removeSubAlarm(MetricDefinitionAndTenantId metricDefinitionAndTenantId, String subAlarmId) {
     synchronized(SENTINAL) {
-      final List<String> count = METRIC_DEFS.get(metricDefinition);
-      if (count != null) {
-        if (count.remove(subAlarmId) && count.isEmpty()) {
-           METRIC_DEFS.remove(metricDefinition);
+      final List<String> subAlarmIds = METRIC_DEFS.get(metricDefinitionAndTenantId);
+      if (subAlarmIds != null) {
+        if (subAlarmIds.remove(subAlarmId) && subAlarmIds.isEmpty()) {
+           METRIC_DEFS.remove(metricDefinitionAndTenantId);
         }
       }
     }
@@ -142,21 +142,21 @@ public class MetricFilteringBolt extends BaseRichBolt {
       synchronized (SENTINAL) {
         if (METRIC_DEFS.isEmpty()) {
           for (SubAlarmMetricDefinition subAlarmMetricDef : metricDefDAO.findForAlarms()) {
-            addMetricDef(subAlarmMetricDef.getMetricDefinition(), subAlarmMetricDef.getSubAlarmId());
+            addMetricDef(subAlarmMetricDef.getMetricDefinitionAndTenantId(), subAlarmMetricDef.getSubAlarmId());
           }
           // Iterate again to ensure we only emit each metricDef once
-          for (MetricDefinition metricDef : METRIC_DEFS.keySet())
-            collector.emit(new Values(metricDef, null));
+          for (MetricDefinitionAndTenantId metricDefinitionAndTenantId : METRIC_DEFS.keySet())
+            collector.emit(new Values(metricDefinitionAndTenantId, null));
         }
       }
     }
   }
 
-  private void addMetricDef(MetricDefinition metricDef, String subAlarmId) {
-    List<String> subAlarmIds = METRIC_DEFS.get(metricDef);
+  private void addMetricDef(MetricDefinitionAndTenantId metricDefinitionAndTenantId, String subAlarmId) {
+    List<String> subAlarmIds = METRIC_DEFS.get(metricDefinitionAndTenantId);
     if (subAlarmIds == null) {
       subAlarmIds = new LinkedList<>();
-      METRIC_DEFS.put(metricDef, subAlarmIds);
+      METRIC_DEFS.put(metricDefinitionAndTenantId, subAlarmIds);
     }
     else if (subAlarmIds.contains(subAlarmId))
       return; // Make sure it only gets added once. Multiple bolts process the same AlarmCreatedEvent

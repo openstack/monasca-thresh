@@ -14,6 +14,7 @@ import com.hpcloud.mon.common.model.alarm.AggregateFunction;
 import com.hpcloud.mon.common.model.alarm.AlarmOperator;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
+import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantId;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
 import com.hpcloud.persistence.SqlStatements;
@@ -29,12 +30,12 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
    * table, grouping by the dimension id and counting them to ensure that the number of matched
    * dimensions equals the number of actual dimensions in the table for the subscription.
    */
-  private static final String FIND_BY_METRIC_DEF_SQL = "select sa.* from sub_alarm sa, sub_alarm_dimension d "
+  private static final String FIND_BY_METRIC_DEF_SQL = "select sa.* from sub_alarm sa, alarm a, sub_alarm_dimension d "
       + "join (%s) v on d.dimension_name = v.dimension_name and d.value = v.value "
-      + "where sa.id = d.sub_alarm_id and sa.metric_name = :metric_name "
+      + "where sa.id = d.sub_alarm_id and sa.metric_name = :metric_name and a.tenant_id = :tenant_id and a.id = sa.alarm_id and a.deleted_at is null "
       + "group by d.sub_alarm_id having count(d.sub_alarm_id) = %s";
   private static final String FIND_BY_METRIC_DEF_NO_DIMS_SQL = "select * from sub_alarm sa where sa.metric_name = :metric_name "
-      + "and (select count(*) from sub_alarm_dimension where sub_alarm_id = sa.id) = 0";
+      + "and a.tenant_id = :tenant_id and a.id = sa.alarm_id and a.deleted_at is null and (select count(*) from sub_alarm_dimension where sub_alarm_id = sa.id) = 0";
 
   private final DBI db;
 
@@ -44,11 +45,12 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
   }
 
   @Override
-  public List<SubAlarm> find(MetricDefinition metricDefinition) {
+  public List<SubAlarm> find(MetricDefinitionAndTenantId metricDefinitionTenantId) {
     Handle h = db.open();
 
     try {
-      String sql = null;
+      final MetricDefinition metricDefinition = metricDefinitionTenantId.metricDefinition;
+      final String sql;
       if (metricDefinition.dimensions == null || metricDefinition.dimensions.isEmpty())
         sql = FIND_BY_METRIC_DEF_NO_DIMS_SQL;
       else {
@@ -59,7 +61,7 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
       }
 
       Query<Map<String, Object>> query = h.createQuery(sql).bind("metric_name",
-          metricDefinition.name);
+          metricDefinition.name).bind("tenant_id", metricDefinitionTenantId.tenantId);
       List<Map<String, Object>> rows = query.list();
 
       List<SubAlarm> subAlarms = new ArrayList<SubAlarm>(rows.size());

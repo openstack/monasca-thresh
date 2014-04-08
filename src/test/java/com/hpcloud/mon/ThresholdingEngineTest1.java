@@ -28,6 +28,7 @@ import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.Metric;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.mon.domain.model.Alarm;
+import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantId;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.service.AlarmDAO;
 import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
@@ -47,6 +48,8 @@ import com.hpcloud.util.Injector;
  */
 @Test(groups = "integration")
 public class ThresholdingEngineTest1 extends TopologyTestCase {
+  private static final String JOE_TENANT_ID = "joe";
+  private static final String BOB_TENANT_ID = "bob";
   private FeederSpout metricSpout;
   private FeederSpout eventSpout;
   private AlarmDAO alarmDAO;
@@ -77,20 +80,21 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
       @Override
       public Alarm answer(InvocationOnMock invocation) throws Throwable {
         if (invocation.getArguments()[0].equals("1"))
-          return new Alarm("1", "bob", "test-alarm", "Descr of test-alarm", expression, Arrays.asList(createCpuSubAlarm(),
+          return new Alarm("1", BOB_TENANT_ID, "test-alarm", "Descr of test-alarm", expression, Arrays.asList(createCpuSubAlarm(),
               createMemSubAlarm()), AlarmState.OK);
         else if (invocation.getArguments()[0].equals("2"))
-          return new Alarm("2", "joe", "joes-alarm", "Descr of joes-alarm", customExpression,
+          return new Alarm("2", JOE_TENANT_ID, "joes-alarm", "Descr of joes-alarm", customExpression,
               Arrays.asList(createCustomSubAlarm()), AlarmState.OK);
         return null;
       }
     });
 
     subAlarmDAO = mock(SubAlarmDAO.class);
-    when(subAlarmDAO.find(any(MetricDefinition.class))).thenAnswer(new Answer<List<SubAlarm>>() {
+    when(subAlarmDAO.find(any(MetricDefinitionAndTenantId.class))).thenAnswer(new Answer<List<SubAlarm>>() {
       @Override
       public List<SubAlarm> answer(InvocationOnMock invocation) throws Throwable {
-        MetricDefinition metricDef = (MetricDefinition) invocation.getArguments()[0];
+        MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) invocation.getArguments()[0];
+        MetricDefinition metricDef = metricDefinitionAndTenantId.metricDefinition;
         if (metricDef.equals(cpuMetricDef))
           return Arrays.asList(createCpuSubAlarm());
         else if (metricDef.equals(memMetricDef))
@@ -103,9 +107,12 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
 
     metricDefinitionDAO = mock(MetricDefinitionDAO.class);
     final List<SubAlarmMetricDefinition> metricDefs = Arrays.asList(
-            new SubAlarmMetricDefinition(createCpuSubAlarm().getId(), cpuMetricDef),
-            new SubAlarmMetricDefinition(createMemSubAlarm().getId(), memMetricDef),
-            new SubAlarmMetricDefinition(createCustomSubAlarm().getId(), customMetricDef));
+            new SubAlarmMetricDefinition(createCpuSubAlarm().getId(),
+                    new MetricDefinitionAndTenantId(cpuMetricDef, BOB_TENANT_ID)),
+            new SubAlarmMetricDefinition(createMemSubAlarm().getId(),
+                    new MetricDefinitionAndTenantId(memMetricDef, BOB_TENANT_ID)),
+            new SubAlarmMetricDefinition(createCustomSubAlarm().getId(),
+                    new MetricDefinitionAndTenantId(customMetricDef, JOE_TENANT_ID)));
     when(metricDefinitionDAO.findForAlarms()).thenReturn(metricDefs);
 
     // Bindings
@@ -152,20 +159,20 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
 
     while (true) {
       long time = System.currentTimeMillis();
-      metricSpout.feed(new Values(cpuMetricDef, new Metric(cpuMetricDef.name,
+      metricSpout.feed(new Values(new MetricDefinitionAndTenantId(cpuMetricDef, BOB_TENANT_ID), new Metric(cpuMetricDef.name,
           cpuMetricDef.dimensions, time, count % 10 == 0 ? 555 : 1)));
-      metricSpout.feed(new Values(memMetricDef, new Metric(memMetricDef.name,
+      metricSpout.feed(new Values(new MetricDefinitionAndTenantId(memMetricDef, BOB_TENANT_ID), new Metric(memMetricDef.name,
               cpuMetricDef.dimensions, time, count % 10 == 0 ? 555 : 1)));
-      metricSpout.feed(new Values(customMetricDef, new Metric(customMetricDef.name,
+      metricSpout.feed(new Values(new MetricDefinitionAndTenantId(customMetricDef, JOE_TENANT_ID), new Metric(customMetricDef.name,
               cpuMetricDef.dimensions, time, count % 20 == 0 ? 1 : 123)));
 
       if (count % 5 == 0) {
         Object event = null;
         if (++eventCounter % 2 == 0)
-          event = new AlarmDeletedEvent("joe", "2",
+          event = new AlarmDeletedEvent(JOE_TENANT_ID, "2",
               ImmutableMap.<String, MetricDefinition>builder().put("444", customMetricDef).build());
         else
-          event = new AlarmCreatedEvent("joe", "2", "foo", customSubExpression.getExpression(),
+          event = new AlarmCreatedEvent(JOE_TENANT_ID, "2", "foo", customSubExpression.getExpression(),
               ImmutableMap.<String, AlarmSubExpression>builder()
                   .put("444", customSubExpression)
                   .build());

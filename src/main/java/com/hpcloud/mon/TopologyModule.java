@@ -110,20 +110,20 @@ public class TopologyModule extends AbstractModule {
     builder.setBolt("aggregation-bolt",
         new MetricAggregationBolt(config.database, config.sporadicMetricNamespaces),
         config.aggregationBoltThreads)
-        .fieldsGrouping("filtering-bolt", new Fields("metricDefinition"))
+        .fieldsGrouping("filtering-bolt", new Fields(MetricFilteringBolt.FIELDS[0]))
         .fieldsGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID,
-            new Fields("metricDefinition"))
+            new Fields(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_FIELDS[1]))
         .fieldsGrouping("event-bolt", EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID,
-            new Fields("metricDefinition"))
+            new Fields(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_FIELDS[1]))
         .setNumTasks(config.aggregationBoltTasks);
 
     // Aggregation / Event -> Thresholding
     builder.setBolt("thresholding-bolt",
         new AlarmThresholdingBolt(config.database),
         config.thresholdingBoltThreads)
-        .fieldsGrouping("aggregation-bolt", new Fields("alarmId"))
+        .fieldsGrouping("aggregation-bolt", new Fields(MetricAggregationBolt.FIELDS[0]))
         .fieldsGrouping("event-bolt", EventProcessingBolt.ALARM_EVENT_STREAM_ID,
-            new Fields("alarmId"))
+            new Fields(EventProcessingBolt.ALARM_EVENT_STREAM_FIELDS[1]))
         .setNumTasks(config.thresholdingBoltTasks);
 
     return builder.createTopology();

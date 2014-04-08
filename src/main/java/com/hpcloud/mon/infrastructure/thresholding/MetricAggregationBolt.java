@@ -19,7 +19,7 @@ import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
 import com.hpcloud.mon.common.model.metric.Metric;
-import com.hpcloud.mon.common.model.metric.MetricDefinition;
+import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantId;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.model.SubAlarmStats;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
@@ -52,8 +52,9 @@ import com.hpcloud.util.Injector;
 public class MetricAggregationBolt extends BaseRichBolt {
   private static final long serialVersionUID = 5624314196838090726L;
   public static final String TICK_TUPLE_SECONDS_KEY = "maas.aggregation.tick.seconds";
+  public static final String[] FIELDS = new String[] { "alarmId", "subAlarm" };
 
-  final Map<MetricDefinition, SubAlarmStatsRepository> subAlarmStatsRepos = new HashMap<MetricDefinition, SubAlarmStatsRepository>();
+  final Map<MetricDefinitionAndTenantId, SubAlarmStatsRepository> subAlarmStatsRepos = new HashMap<>();
   private transient Logger LOG;
   private DataSourceFactory dbConfig;
   private transient SubAlarmDAO subAlarmDAO;
@@ -73,7 +74,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
-    declarer.declare(new Fields("alarmId", "subAlarm"));
+    declarer.declare(new Fields(FIELDS));
   }
 
   @Override
@@ -84,21 +85,21 @@ public class MetricAggregationBolt extends BaseRichBolt {
         evaluateAlarmsAndSlideWindows();
       } else {
         if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-          MetricDefinition metricDefinition = (MetricDefinition) tuple.getValue(0);
+          MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) tuple.getValue(0);
           Metric metric = (Metric) tuple.getValueByField("metric");
-          aggregateValues(metricDefinition, metric);
+          aggregateValues(metricDefinitionAndTenantId, metric);
         } else {
           String eventType = tuple.getString(0);
-          MetricDefinition metricDefinition = (MetricDefinition) tuple.getValue(1);
+          MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) tuple.getValue(1);
 
           if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
             String subAlarmId = tuple.getString(2);
             if (EventProcessingBolt.DELETED.equals(eventType))
-              handleAlarmDeleted(metricDefinition, subAlarmId);
+              handleAlarmDeleted(metricDefinitionAndTenantId, subAlarmId);
           } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
             SubAlarm subAlarm = (SubAlarm) tuple.getValue(2);
             if (EventProcessingBolt.CREATED.equals(eventType))
-              handleAlarmCreated(metricDefinition, subAlarm);
+              handleAlarmCreated(metricDefinitionAndTenantId, subAlarm);
           }
         }
       }
@@ -135,17 +136,17 @@ public class MetricAggregationBolt extends BaseRichBolt {
   /**
    * Aggregates values for the {@code metric} that are within the periods defined for the alarm.
    */
-  void aggregateValues(MetricDefinition metricDefinition, Metric metric) {
-    SubAlarmStatsRepository subAlarmStatsRepo = getOrCreateSubAlarmStatsRepo(metricDefinition);
+  void aggregateValues(MetricDefinitionAndTenantId metricDefinitionAndTenantId, Metric metric) {
+    SubAlarmStatsRepository subAlarmStatsRepo = getOrCreateSubAlarmStatsRepo(metricDefinitionAndTenantId);
     if (subAlarmStatsRepo == null || metric == null)
       return;
 
     for (SubAlarmStats stats : subAlarmStatsRepo.get()) {
       if (stats.getStats().addValue(metric.value, metric.timestamp))
         LOG.trace("Aggregated value {} at {} for {}. Updated {}", metric.value, metric.timestamp,
-            metricDefinition, stats.getStats());
+            metricDefinitionAndTenantId, stats.getStats());
       else
-        LOG.warn("Invalid metric timestamp {} for {}, {}", metric.timestamp, metricDefinition,
+        LOG.warn("Invalid metric timestamp {} for {}, {}", metric.timestamp, metricDefinitionAndTenantId,
             stats.getStats());
     }
   }
@@ -168,24 +169,24 @@ public class MetricAggregationBolt extends BaseRichBolt {
   }
 
   /**
-   * Returns an existing or newly created SubAlarmStatsRepository for the {@code metricDefinition}.
+   * Returns an existing or newly created SubAlarmStatsRepository for the {@code metricDefinitionAndTenantId}.
    * Newly created SubAlarmStatsRepositories are initialized with stats whose view ends one minute
    * from now.
    */
-  SubAlarmStatsRepository getOrCreateSubAlarmStatsRepo(MetricDefinition metricDefinition) {
-    SubAlarmStatsRepository subAlarmStatsRepo = subAlarmStatsRepos.get(metricDefinition);
+  SubAlarmStatsRepository getOrCreateSubAlarmStatsRepo(MetricDefinitionAndTenantId metricDefinitionAndTenantId) {
+    SubAlarmStatsRepository subAlarmStatsRepo = subAlarmStatsRepos.get(metricDefinitionAndTenantId);
     if (subAlarmStatsRepo == null) {
-      List<SubAlarm> subAlarms = subAlarmDAO.find(metricDefinition);
+      List<SubAlarm> subAlarms = subAlarmDAO.find(metricDefinitionAndTenantId);
       if (subAlarms.isEmpty())
-        LOG.warn("Failed to find sub alarms for {}", metricDefinition);
+        LOG.warn("Failed to find sub alarms for {}", metricDefinitionAndTenantId);
       else {
-        LOG.debug("Creating SubAlarmStats for {}", metricDefinition);
+        LOG.debug("Creating SubAlarmStats for {}", metricDefinitionAndTenantId);
         for (SubAlarm subAlarm : subAlarms)
-          // TODO should treat metric def name previx like a namespace
-          subAlarm.setSporadicMetric(sporadicMetricNamespaces.contains(metricDefinition.name));
+          // TODO should treat metric def name prefix like a namespace
+          subAlarm.setSporadicMetric(sporadicMetricNamespaces.contains(metricDefinitionAndTenantId.metricDefinition.name));
         long viewEndTimestamp = (System.currentTimeMillis() / 1000) + evaluationTimeOffset;
         subAlarmStatsRepo = new SubAlarmStatsRepository(subAlarms, viewEndTimestamp);
-        subAlarmStatsRepos.put(metricDefinition, subAlarmStatsRepo);
+        subAlarmStatsRepos.put(metricDefinitionAndTenantId, subAlarmStatsRepo);
       }
     }
 
@@ -193,11 +194,11 @@ public class MetricAggregationBolt extends BaseRichBolt {
   }
 
   /**
-   * Adds the {@code subAlarm} subAlarmStatsRepo for the {@code metricDefinition}.
+   * Adds the {@code subAlarm} subAlarmStatsRepo for the {@code metricDefinitionAndTenantId}.
    */
-  void handleAlarmCreated(MetricDefinition metricDefinition, SubAlarm subAlarm) {
+  void handleAlarmCreated(MetricDefinitionAndTenantId metricDefinitionAndTenantId, SubAlarm subAlarm) {
     LOG.debug("Received AlarmCreatedEvent for {}", subAlarm);
-    SubAlarmStatsRepository subAlarmStatsRepo = getOrCreateSubAlarmStatsRepo(metricDefinition);
+    SubAlarmStatsRepository subAlarmStatsRepo = getOrCreateSubAlarmStatsRepo(metricDefinitionAndTenantId);
     if (subAlarmStatsRepo == null)
       return;
 
@@ -207,15 +208,15 @@ public class MetricAggregationBolt extends BaseRichBolt {
 
   /**
    * Removes the sub-alarm for the {@code subAlarmId} from the subAlarmStatsRepo for the
-   * {@code metricDefinition}.
+   * {@code metricDefinitionAndTenantId}.
    */
-  void handleAlarmDeleted(MetricDefinition metricDefinition, String subAlarmId) {
+  void handleAlarmDeleted(MetricDefinitionAndTenantId metricDefinitionAndTenantId, String subAlarmId) {
     LOG.debug("Received AlarmDeletedEvent for subAlarm id {}", subAlarmId);
-    SubAlarmStatsRepository subAlarmStatsRepo = subAlarmStatsRepos.get(metricDefinition);
+    SubAlarmStatsRepository subAlarmStatsRepo = subAlarmStatsRepos.get(metricDefinitionAndTenantId);
     if (subAlarmStatsRepo != null) {
       subAlarmStatsRepo.remove(subAlarmId);
       if (subAlarmStatsRepo.isEmpty())
-        subAlarmStatsRepos.remove(metricDefinition);
+        subAlarmStatsRepos.remove(metricDefinitionAndTenantId);
     }
   }
 }

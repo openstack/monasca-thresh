@@ -32,6 +32,7 @@ import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.Metric;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
+import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantId;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.model.SubAlarmStats;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
@@ -43,6 +44,7 @@ import com.hpcloud.streaming.storm.Streams;
  */
 @Test
 public class MetricAggregationBoltTest {
+  private static final String TENANT_ID = "42";
   private MetricAggregationBolt bolt;
   private TopologyContext context;
   private OutputCollector collector;
@@ -81,13 +83,13 @@ public class MetricAggregationBoltTest {
     subAlarms.add(subAlarm3);
 
     final SubAlarmDAO dao = mock(SubAlarmDAO.class);
-    when(dao.find(any(MetricDefinition.class))).thenAnswer(new Answer<List<SubAlarm>>() {
+    when(dao.find(any(MetricDefinitionAndTenantId.class))).thenAnswer(new Answer<List<SubAlarm>>() {
       @Override
       public List<SubAlarm> answer(InvocationOnMock invocation) throws Throwable {
-        final MetricDefinition metricDef = (MetricDefinition) invocation.getArguments()[0];
+        final MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) invocation.getArguments()[0];
         final List<SubAlarm> result = new ArrayList<>();
         for (final SubAlarm subAlarm : subAlarms)
-          if (subAlarm.getExpression().getMetricDefinition().equals(metricDef))
+          if (subAlarm.getExpression().getMetricDefinition().equals(metricDefinitionAndTenantId.metricDefinition))
             result.add(subAlarm);
         return result;
       }
@@ -102,15 +104,15 @@ public class MetricAggregationBoltTest {
   public void shouldAggregateValues() {
     long t1 = System.currentTimeMillis() / 1000;
 
-    bolt.aggregateValues(metricDef1, new Metric(metricDef1.name, metricDef1.dimensions, t1, 100));
-    bolt.aggregateValues(metricDef1, new Metric(metricDef1.name, metricDef1.dimensions, t1, 80));
-    bolt.aggregateValues(metricDef2, new Metric(metricDef2.name, metricDef2.dimensions, t1, 50));
-    bolt.aggregateValues(metricDef2, new Metric(metricDef2.name, metricDef2.dimensions, t1, 40));
+    bolt.aggregateValues(new MetricDefinitionAndTenantId(metricDef1, TENANT_ID), new Metric(metricDef1.name, metricDef1.dimensions, t1, 100));
+    bolt.aggregateValues(new MetricDefinitionAndTenantId(metricDef1, TENANT_ID), new Metric(metricDef1.name, metricDef1.dimensions, t1, 80));
+    bolt.aggregateValues(new MetricDefinitionAndTenantId(metricDef2, TENANT_ID), new Metric(metricDef2.name, metricDef2.dimensions, t1, 50));
+    bolt.aggregateValues(new MetricDefinitionAndTenantId(metricDef2, TENANT_ID), new Metric(metricDef2.name, metricDef2.dimensions, t1, 40));
 
-    SubAlarmStats alarmData = bolt.getOrCreateSubAlarmStatsRepo(metricDef1).get("123");
+    SubAlarmStats alarmData = bolt.getOrCreateSubAlarmStatsRepo(new MetricDefinitionAndTenantId(metricDef1, TENANT_ID)).get("123");
     assertEquals(alarmData.getStats().getValue(t1), 90.0);
 
-    alarmData = bolt.getOrCreateSubAlarmStatsRepo(metricDef2).get("456");
+    alarmData = bolt.getOrCreateSubAlarmStatsRepo(new MetricDefinitionAndTenantId(metricDef2, TENANT_ID)).get("456");
     assertEquals(alarmData.getStats().getValue(t1), 45.0);
   }
 
@@ -166,32 +168,34 @@ private Tuple createTickTuple() {
     tupleParam.setFields(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_FIELDS);
     tupleParam.setStream(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID);
 
-    assertNull(bolt.subAlarmStatsRepos.get(metricDef1));
+    MetricDefinitionAndTenantId metricDefinitionAndTenantId = new MetricDefinitionAndTenantId(metricDef1, TENANT_ID);
+    assertNull(bolt.subAlarmStatsRepos.get(metricDefinitionAndTenantId));
 
     bolt.execute(Testing.testTuple(Arrays.asList(EventProcessingBolt.CREATED,
-        metricDef1, new SubAlarm("123", "1", subExpr1)), tupleParam));
+            metricDefinitionAndTenantId, new SubAlarm("123", "1", subExpr1)), tupleParam));
 
-    assertNotNull(bolt.subAlarmStatsRepos.get(metricDef1).get("123"));
+    assertNotNull(bolt.subAlarmStatsRepos.get(metricDefinitionAndTenantId).get("123"));
   }
 
   public void validateMetricDefDeleted() {
     MkTupleParam tupleParam = new MkTupleParam();
     tupleParam.setFields(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_FIELDS);
     tupleParam.setStream(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID);
-    bolt.getOrCreateSubAlarmStatsRepo(metricDef1);
+    MetricDefinitionAndTenantId metricDefinitionAndTenantId = new MetricDefinitionAndTenantId(metricDef1, TENANT_ID);
+    bolt.getOrCreateSubAlarmStatsRepo(metricDefinitionAndTenantId);
 
-    assertNotNull(bolt.subAlarmStatsRepos.get(metricDef1).get("123"));
+    assertNotNull(bolt.subAlarmStatsRepos.get(metricDefinitionAndTenantId).get("123"));
 
     bolt.execute(Testing.testTuple(
-        Arrays.asList(EventProcessingBolt.DELETED, metricDef1, "123"), tupleParam));
+        Arrays.asList(EventProcessingBolt.DELETED, metricDefinitionAndTenantId, "123"), tupleParam));
 
-    assertNull(bolt.subAlarmStatsRepos.get(metricDef1));
+    assertNull(bolt.subAlarmStatsRepos.get(metricDefinitionAndTenantId));
   }
 
   public void shouldGetOrCreateSameMetricData() {
-    SubAlarmStatsRepository data = bolt.getOrCreateSubAlarmStatsRepo(metricDef1);
+    SubAlarmStatsRepository data = bolt.getOrCreateSubAlarmStatsRepo(new MetricDefinitionAndTenantId(metricDef1, TENANT_ID));
     assertNotNull(data);
-    assertEquals(bolt.getOrCreateSubAlarmStatsRepo(metricDef1), data);
+    assertEquals(bolt.getOrCreateSubAlarmStatsRepo(new MetricDefinitionAndTenantId(metricDef1, TENANT_ID)), data);
   }
 
   private Tuple createMetricTuple(final MetricDefinition metricDef,
@@ -199,6 +203,6 @@ private Tuple createTickTuple() {
     final MkTupleParam tupleParam = new MkTupleParam();
     tupleParam.setFields(MetricFilteringBolt.FIELDS);
     tupleParam.setStream(Streams.DEFAULT_STREAM_ID);
-    return Testing.testTuple(Arrays.asList(metricDef, metric), tupleParam);
+    return Testing.testTuple(Arrays.asList(new MetricDefinitionAndTenantId(metricDef, TENANT_ID), metric), tupleParam);
   }
 }

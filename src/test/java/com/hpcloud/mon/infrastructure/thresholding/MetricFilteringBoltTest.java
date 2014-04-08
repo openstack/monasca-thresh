@@ -5,7 +5,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
 import static org.testng.Assert.assertEquals;
 
 import java.util.ArrayList;
@@ -30,6 +29,7 @@ import com.hpcloud.mon.common.model.alarm.AlarmExpression;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.Metric;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
+import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantId;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
 import com.hpcloud.mon.domain.service.SubAlarmMetricDefinition;
@@ -39,6 +39,7 @@ import com.hpcloud.streaming.storm.Streams;
 public class MetricFilteringBoltTest {
     private List<SubAlarm> subAlarms;
     private List<SubAlarm> duplicateMetricSubAlarms;
+    private final static String TEST_TENANT_ID = "42";
 
     @BeforeMethod
     protected void beforeMethod() {
@@ -78,7 +79,7 @@ public class MetricFilteringBoltTest {
         if (willEmit) {
             // Validate the prepare emits the initial Metric Definitions
             for (final SubAlarmMetricDefinition metricDefinition : initialMetricDefinitions) {
-                verify(collector, times(1)).emit(new Values(metricDefinition.getMetricDefinition(), null));
+                verify(collector, times(1)).emit(new Values(metricDefinition.getMetricDefinitionAndTenantId(), null));
             }
         }
         return bolt;
@@ -138,7 +139,7 @@ public class MetricFilteringBoltTest {
         final List<SubAlarmMetricDefinition> initialMetricDefinitions = new ArrayList<>(subAlarms.size());
         for (final SubAlarm subAlarm : subAlarms) {
             initialMetricDefinitions.add(new SubAlarmMetricDefinition(subAlarm.getId(),
-                    subAlarm.getExpression().getMetricDefinition()));
+                    new MetricDefinitionAndTenantId(subAlarm.getExpression().getMetricDefinition(), TEST_TENANT_ID)));
         }
         final OutputCollector collector1 = mock(OutputCollector.class);
 
@@ -186,7 +187,9 @@ public class MetricFilteringBoltTest {
         tupleParam.setFields(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_FIELDS);
         tupleParam.setStream(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID);
         final Tuple tuple = Testing.testTuple(Arrays.asList(EventProcessingBolt.CREATED,
-                subAlarm.getExpression().getMetricDefinition(), subAlarm), tupleParam);
+                new MetricDefinitionAndTenantId(
+                        subAlarm.getExpression().getMetricDefinition(), TEST_TENANT_ID),
+                subAlarm), tupleParam);
         return tuple;
     }
 
@@ -195,7 +198,9 @@ public class MetricFilteringBoltTest {
         tupleParam.setFields(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_FIELDS);
         tupleParam.setStream(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID);
         final Tuple tuple = Testing.testTuple(Arrays.asList(EventProcessingBolt.DELETED,
-                subAlarm.getExpression().getMetricDefinition(), subAlarm.getId()), tupleParam);
+                new MetricDefinitionAndTenantId(
+                        subAlarm.getExpression().getMetricDefinition(), TEST_TENANT_ID),
+                subAlarm.getId()), tupleParam);
 
         return tuple;
     }
@@ -206,7 +211,8 @@ public class MetricFilteringBoltTest {
         tupleParam.setStream(Streams.DEFAULT_STREAM_ID);
         MetricDefinition metricDefinition = subAlarm.getExpression().getMetricDefinition();
         final Metric metric = new Metric(metricDefinition, System.currentTimeMillis()/1000, 42.0);
-        final Tuple tuple = Testing.testTuple(Arrays.asList(metricDefinition, metric), tupleParam);
+        final Tuple tuple = Testing.testTuple(Arrays.asList(
+                new MetricDefinitionAndTenantId(metricDefinition, TEST_TENANT_ID), metric), tupleParam);
         return tuple;
     }
 }

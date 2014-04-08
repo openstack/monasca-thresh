@@ -34,12 +34,14 @@ import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.mon.domain.model.Alarm;
+import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantId;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.streaming.storm.Streams;
 
 @Test
 public class EventProcessingBoltTest {
 
+    private static final String TENANT_ID = "AAAAABBBBBBCCCCC";
     private EventProcessingBolt bolt;
     private OutputCollector collector;
     private AlarmExpression alarmExpression;
@@ -56,7 +58,6 @@ public class EventProcessingBoltTest {
         bolt.prepare(config, context, collector);
 
         final String alarmId = "111111112222222222233333333334";
-        final String tenantId = "AAAAABBBBBBCCCCC";
         final String name = "Test CPU Alarm";
         final String description = "Description of " + name;
         final String expression = "avg(hpcs.compute.cpu{instance_id=123,device=42}, 1) > 5 " +
@@ -64,7 +65,7 @@ public class EventProcessingBoltTest {
               "and max(hpcs.compute.load{instance_id=123,device=42}) > 5";
         alarmExpression = new AlarmExpression(expression);
         subAlarms = createSubAlarms(alarmId, alarmExpression);
-        alarm = new Alarm(alarmId, tenantId, name, description, alarmExpression, subAlarms, AlarmState.UNDETERMINED);
+        alarm = new Alarm(alarmId, TENANT_ID, name, description, alarmExpression, subAlarms, AlarmState.UNDETERMINED);
     }
 
     private List<SubAlarm> createSubAlarms(final String alarmId,
@@ -125,7 +126,9 @@ public class EventProcessingBoltTest {
 
     private void verifyDeletedSubAlarm(final SubAlarm subAlarm) {
         verify(collector, times(1)).emit(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID,
-            new Values(EventProcessingBolt.DELETED, subAlarm.getExpression().getMetricDefinition(), subAlarm.getId()));
+            new Values(EventProcessingBolt.DELETED,
+                    new MetricDefinitionAndTenantId(
+                            subAlarm.getExpression().getMetricDefinition(), TENANT_ID), subAlarm.getId()));
     }
 
     public static AlarmUpdatedEvent createAlarmUpdatedEvent(final Alarm alarm,
@@ -209,7 +212,9 @@ public class EventProcessingBoltTest {
 
     private void verifyAddedSubAlarm(final SubAlarm subAlarm) {
         verify(collector, times(1)).emit(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID,
-            new Values(EventProcessingBolt.CREATED, subAlarm.getExpression().getMetricDefinition(), subAlarm));
+            new Values(EventProcessingBolt.CREATED,
+                    new MetricDefinitionAndTenantId(
+                            subAlarm.getExpression().getMetricDefinition(), TENANT_ID), subAlarm));
     }
 
    private static Map<String, AlarmSubExpression> createAlarmSubExpressionMap(

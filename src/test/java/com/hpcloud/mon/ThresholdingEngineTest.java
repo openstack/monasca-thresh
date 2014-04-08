@@ -30,6 +30,7 @@ import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.metric.Metric;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.mon.domain.model.Alarm;
+import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantId;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.service.AlarmDAO;
 import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
@@ -88,10 +89,11 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     subAlarmDAO = mock(SubAlarmDAO.class);
     final SubAlarm cpuMetricDefSubAlarm = new SubAlarm("123", TEST_ALARM_ID, expression.getSubExpressions().get(0));
     final SubAlarm memMetricDefSubAlarm = new SubAlarm("456", TEST_ALARM_ID, expression.getSubExpressions().get(1));
-    when(subAlarmDAO.find(any(MetricDefinition.class))).thenAnswer(new Answer<List<SubAlarm>>() {
+    when(subAlarmDAO.find(any(MetricDefinitionAndTenantId.class))).thenAnswer(new Answer<List<SubAlarm>>() {
       @Override
       public List<SubAlarm> answer(InvocationOnMock invocation) throws Throwable {
-        MetricDefinition metricDef = (MetricDefinition) invocation.getArguments()[0];
+        MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) invocation.getArguments()[0];
+        MetricDefinition metricDef = metricDefinitionAndTenantId.metricDefinition;
         if (metricDef.equals(cpuMetricDef)) {
             return Arrays.asList(cpuMetricDefSubAlarm);
         } else if (metricDef.equals(memMetricDef)) {
@@ -103,8 +105,10 @@ public class ThresholdingEngineTest extends TopologyTestCase {
 
     metricDefinitionDAO = mock(MetricDefinitionDAO.class);
     final List<SubAlarmMetricDefinition> metricDefs = Arrays.asList(
-            new SubAlarmMetricDefinition(cpuMetricDefSubAlarm.getId(), cpuMetricDef),
-            new SubAlarmMetricDefinition(memMetricDefSubAlarm.getId(), memMetricDef));
+            new SubAlarmMetricDefinition(cpuMetricDefSubAlarm.getId(),
+                    new MetricDefinitionAndTenantId(cpuMetricDef, TEST_ALARM_TENANT_ID)),
+            new SubAlarmMetricDefinition(memMetricDefSubAlarm.getId(),
+                    new MetricDefinitionAndTenantId(memMetricDef, TEST_ALARM_TENANT_ID)));
     when(metricDefinitionDAO.findForAlarms()).thenReturn(metricDefs);
 
     // Bindings
@@ -173,9 +177,9 @@ public class ThresholdingEngineTest extends TopologyTestCase {
         System.out.println("Feeding metrics...");
 
         long time = System.currentTimeMillis() / 1000;
-        metricSpout.feed(new Values(cpuMetricDef, new Metric(cpuMetricDef.name,
+        metricSpout.feed(new Values(new MetricDefinitionAndTenantId(cpuMetricDef, TEST_ALARM_TENANT_ID), new Metric(cpuMetricDef.name,
                 cpuMetricDef.dimensions, time, (double) (++goodValueCount == 15 ? 1 : 555))));
-        metricSpout.feed(new Values(memMetricDef, new Metric(memMetricDef.name,
+        metricSpout.feed(new Values(new MetricDefinitionAndTenantId(memMetricDef, TEST_ALARM_TENANT_ID), new Metric(memMetricDef.name,
                 memMetricDef.dimensions, time, (double) (goodValueCount == 15 ? 1 : 555))));
 
         if (--feedCount == 0)
