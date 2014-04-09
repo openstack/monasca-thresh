@@ -127,10 +127,23 @@ public class MetricFilteringBoltTest {
     private void sendMetricsAndVerify(final OutputCollector collector1,
             final MetricFilteringBolt bolt1, VerificationMode howMany) {
         for (final SubAlarm subAlarm : subAlarms) {
-            final Tuple tuple = createMetricTuple(subAlarm);
-            bolt1.execute(tuple);
-            verify(collector1, times(1)).ack(tuple);
-            verify(collector1, howMany).emit(tuple, tuple.getValues());
+            // First do a MetricDefinition that is an exact match
+            final MetricDefinition metricDefinition = subAlarm.getExpression().getMetricDefinition();
+            final Tuple exactTuple = createMetricTuple(metricDefinition, new Metric(metricDefinition, System.currentTimeMillis()/1000, 42.0));
+            bolt1.execute(exactTuple);
+            verify(collector1, times(1)).ack(exactTuple);
+            verify(collector1, howMany).emit(exactTuple, exactTuple.getValues());
+
+            // Now do a MetricDefinition with an extra dimension that should still match the SubAlarm
+            final Map<String, String> extraDimensions = new HashMap<>(metricDefinition.dimensions);
+            extraDimensions.put("group", "group_a");
+            final MetricDefinition inexactMetricDef = new MetricDefinition(metricDefinition.name, extraDimensions);
+            Metric inexactMetric = new Metric(inexactMetricDef, System.currentTimeMillis()/1000, 42.0);
+            final Tuple inexactTuple = createMetricTuple(metricDefinition, inexactMetric);
+            bolt1.execute(inexactTuple);
+            verify(collector1, times(1)).ack(inexactTuple);
+            // We want the MetricDefinitionAndTenantId from the exact tuple, but the inexactMetric
+            verify(collector1, howMany).emit(inexactTuple, new Values(exactTuple.getValue(0), inexactMetric));
         }
     }
 
@@ -205,13 +218,11 @@ public class MetricFilteringBoltTest {
         return tuple;
     }
 
-    private Tuple createMetricTuple(final SubAlarm subAlarm) {
+    private Tuple createMetricTuple(final MetricDefinition metricDefinition,
+            final Metric metric) {
         final MkTupleParam tupleParam = new MkTupleParam();
         tupleParam.setFields(MetricFilteringBolt.FIELDS);
-        tupleParam.setStream(Streams.DEFAULT_STREAM_ID);
-        MetricDefinition metricDefinition = subAlarm.getExpression().getMetricDefinition();
-        final Metric metric = new Metric(metricDefinition, System.currentTimeMillis()/1000, 42.0);
-        final Tuple tuple = Testing.testTuple(Arrays.asList(
+        tupleParam.setStream(Streams.DEFAULT_STREAM_ID);        final Tuple tuple = Testing.testTuple(Arrays.asList(
                 new MetricDefinitionAndTenantId(metricDefinition, TEST_TENANT_ID), metric), tupleParam);
         return tuple;
     }

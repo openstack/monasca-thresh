@@ -8,8 +8,10 @@ import static org.mockito.Mockito.doAnswer;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -172,6 +174,8 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     int waitCount = 0;
     int feedCount = 5;
     int goodValueCount = 0;
+    final Map<String, String> extraMemMetricDefDimensions = new HashMap<>(memMetricDef.dimensions);
+    extraMemMetricDefDimensions.put("Group", "group A");
     for (int i = 1; i < 40 && alarmsSent == 0; i++) {
       if (feedCount > 0) {
         System.out.println("Feeding metrics...");
@@ -180,7 +184,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
         metricSpout.feed(new Values(new MetricDefinitionAndTenantId(cpuMetricDef, TEST_ALARM_TENANT_ID), new Metric(cpuMetricDef.name,
                 cpuMetricDef.dimensions, time, (double) (++goodValueCount == 15 ? 1 : 555))));
         metricSpout.feed(new Values(new MetricDefinitionAndTenantId(memMetricDef, TEST_ALARM_TENANT_ID), new Metric(memMetricDef.name,
-                memMetricDef.dimensions, time, (double) (goodValueCount == 15 ? 1 : 555))));
+                extraMemMetricDefDimensions, time, (double) (goodValueCount == 15 ? 1 : 555))));
 
         if (--feedCount == 0)
           waitCount = 3;
