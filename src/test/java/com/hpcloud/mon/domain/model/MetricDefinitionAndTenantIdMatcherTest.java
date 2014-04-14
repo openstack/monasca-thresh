@@ -15,6 +15,8 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
+import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantIdMatcher.DimensionPair;
+import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantIdMatcher.DimensionSet;
 
 @Test
 public class MetricDefinitionAndTenantIdMatcherTest {
@@ -73,6 +75,23 @@ public class MetricDefinitionAndTenantIdMatcherTest {
         assertTrue(matcher.isEmpty());
         final MetricDefinitionAndTenantId toMatch = new MetricDefinitionAndTenantId(metricDef, tenantId);
 
+        final Map<String, String> nullDimensions = new HashMap<>(dimensions);
+        nullDimensions.put(HOST, null);
+        final MetricDefinitionAndTenantId nullMatch = new MetricDefinitionAndTenantId(
+                new MetricDefinition(CPU_METRIC_NAME, nullDimensions), tenantId);
+        matcher.add(nullMatch);
+        assertTrue(matcher.match(nullMatch, matches));
+        assertEqualsNoOrder(matches.toArray(), new MetricDefinitionAndTenantId[] {
+            nullMatch});
+
+        final Map<String, String> noDimensions = new HashMap<>();
+        final MetricDefinitionAndTenantId noMatch = new MetricDefinitionAndTenantId(
+                new MetricDefinition(CPU_METRIC_NAME, noDimensions), tenantId);
+        matcher.add(noMatch);
+        assertTrue(matcher.match(noMatch, matches));
+        assertEqualsNoOrder(matches.toArray(), new MetricDefinitionAndTenantId[] {
+            noMatch});
+
         final Map<String, String> hostDimensions = new HashMap<>();
         hostDimensions.put(HOST, dimensions.get(HOST));
         final MetricDefinitionAndTenantId hostMatch = new MetricDefinitionAndTenantId(
@@ -87,16 +106,22 @@ public class MetricDefinitionAndTenantIdMatcherTest {
 
         assertTrue(matcher.match(toMatch, matches));
         assertEqualsNoOrder(matches.toArray(), new MetricDefinitionAndTenantId[] {
-            hostMatch, groupMatch});
+            noMatch, hostMatch, groupMatch});
         matches.clear();
 
         matcher.add(toMatch);
         assertTrue(matcher.match(toMatch, matches));
         assertEqualsNoOrder(matches.toArray(), new MetricDefinitionAndTenantId[] {
-            hostMatch, groupMatch, toMatch});
+            noMatch, hostMatch, groupMatch, toMatch});
         matches.clear();
 
         matcher.remove(groupMatch);
+        assertTrue(matcher.match(toMatch, matches));
+        assertEqualsNoOrder(matches.toArray(), new MetricDefinitionAndTenantId[] {
+            noMatch, hostMatch, toMatch});
+        matches.clear();
+
+        matcher.remove(noMatch);
         assertTrue(matcher.match(toMatch, matches));
         assertEqualsNoOrder(matches.toArray(), new MetricDefinitionAndTenantId[] {
             hostMatch, toMatch});
@@ -124,20 +149,60 @@ public class MetricDefinitionAndTenantIdMatcherTest {
         matcher.remove(hostMatch);
 
         matcher.remove(loadMetric);
-        assertTrue(matcher.isEmpty());
-
-        // I don't really expect nulls values for the dimensions, but make sure it doesn't throw an exception
-        final Map<String, String> nullDimensions = new HashMap<>(dimensions);
-        nullDimensions.put(HOST, null);
-        final MetricDefinitionAndTenantId nullMatch = new MetricDefinitionAndTenantId(
-                new MetricDefinition(CPU_METRIC_NAME, nullDimensions), tenantId);
-        matcher.add(nullMatch);
-        assertTrue(matcher.match(nullMatch, matches));
-        assertEqualsNoOrder(matches.toArray(), new MetricDefinitionAndTenantId[] {
-            nullMatch});
-        assertFalse(matcher.match(toMatch, matches));
-
         matcher.remove(nullMatch);
         assertTrue(matcher.isEmpty());
+        assertFalse(matcher.match(toMatch, matches));
+    }
+
+    public void shouldCreatePossiblePairs() {
+        final Map<String, String> dimensions = new HashMap<>();
+        DimensionSet[] actual = matcher.createPossibleDimensionPairs(new MetricDefinition(CPU_METRIC_NAME, dimensions));
+        DimensionSet[] expected = { new DimensionSet() };
+        assertEqualsNoOrder(actual, expected);
+
+        dimensions.put("1", "a");
+        actual = matcher.createPossibleDimensionPairs(new MetricDefinition(CPU_METRIC_NAME, dimensions));
+        expected = new DimensionSet[] { new DimensionSet(), new DimensionSet(new DimensionPair("1", "a")) };
+        assertEqualsNoOrder(actual, expected);
+
+        dimensions.put("2", "b");
+        actual = matcher.createPossibleDimensionPairs(new MetricDefinition(CPU_METRIC_NAME, dimensions));
+        expected = new DimensionSet[] { new DimensionSet(), new DimensionSet(new DimensionPair("1", "a")),
+                       new DimensionSet(new DimensionPair("2", "b")),
+                       new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("2", "b")) };
+        assertEqualsNoOrder(actual, expected);
+
+        dimensions.put("3", "c");
+        actual = matcher.createPossibleDimensionPairs(new MetricDefinition(CPU_METRIC_NAME, dimensions));
+        expected = new DimensionSet[] { new DimensionSet(),
+                       new DimensionSet(new DimensionPair("1", "a")),
+                       new DimensionSet(new DimensionPair("2", "b")),
+                       new DimensionSet(new DimensionPair("3", "c")),
+                       new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("2", "b")),
+                       new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("3", "c")),
+                       new DimensionSet(new DimensionPair("2", "b"), new DimensionPair("3", "c")),
+                       new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("2", "b"), new DimensionPair("3", "c"))
+        };
+
+        dimensions.put("4", "d");
+        actual = matcher.createPossibleDimensionPairs(new MetricDefinition(CPU_METRIC_NAME, dimensions));
+        expected = new DimensionSet[] { new DimensionSet(),
+                       new DimensionSet(new DimensionPair("1", "a")),
+                       new DimensionSet(new DimensionPair("2", "b")),
+                       new DimensionSet(new DimensionPair("3", "c")),
+                       new DimensionSet(new DimensionPair("4", "d")),
+                       new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("2", "b")),
+                       new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("3", "c")),
+                       new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("4", "d")),
+                       new DimensionSet(new DimensionPair("2", "b"), new DimensionPair("3", "c")),
+                       new DimensionSet(new DimensionPair("2", "b"), new DimensionPair("4", "d")),
+                       new DimensionSet(new DimensionPair("3", "c"), new DimensionPair("4", "d")),
+                       new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("2", "b"), new DimensionPair("3", "c")),
+                       new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("2", "b"), new DimensionPair("4", "d")),
+                       new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("3", "c"), new DimensionPair("4", "d")),
+                       new DimensionSet(new DimensionPair("2", "b"), new DimensionPair("3", "c"), new DimensionPair("4", "d")),
+                       new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("2", "b"), new DimensionPair("3", "c"), new DimensionPair("4", "d"))
+        };
+        assertEqualsNoOrder(actual, expected);
     }
 }
