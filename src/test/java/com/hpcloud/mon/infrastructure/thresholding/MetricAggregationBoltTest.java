@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.reset;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotEquals;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 
@@ -117,7 +118,7 @@ public class MetricAggregationBoltTest {
   }
 
   public void shouldEvaluateAlarms() {
-    // Ensure subAlarm2 and subAlarm3 map to the samme Metric Definition
+    // Ensure subAlarm2 and subAlarm3 map to the same Metric Definition
     assertEquals(metricDef3, metricDef2);
 
     bolt.execute(createMetricTuple(metricDef2, null));
@@ -140,12 +141,9 @@ public class MetricAggregationBoltTest {
     // Have to reset the mock so it can tell the difference when subAlarm2 and subAlarm3 are emitted again.
     reset(collector);
 
-System.out.println("Last two metrics");
     bolt.execute(createMetricTuple(metricDef1, new Metric(metricDef1, t1, 99)));
     bolt.execute(createMetricTuple(metricDef2, new Metric(metricDef2, System.currentTimeMillis() / 1000, 94)));
-System.out.println("Evaluating sub alarms");
     bolt.execute(tickTuple);
-System.out.println("Done Evaluating sub alarms");
 
     assertEquals(subAlarm1.getState(), AlarmState.ALARM);
     assertEquals(subAlarm2.getState(), AlarmState.ALARM);
@@ -155,13 +153,37 @@ System.out.println("Done Evaluating sub alarms");
     verify(collector, times(1)).emit(new Values(subAlarm3.getAlarmId(), subAlarm3));
   }
 
-private Tuple createTickTuple() {
+  public void shouldSendUndeterminedIfStateChanges() {
+
+    assertNotEquals(AlarmState.UNDETERMINED, subAlarm2.getState());
+    bolt.execute(createMetricTuple(metricDef2, null));
+
+    final Tuple tickTuple = createTickTuple();
+    bolt.execute(tickTuple);
+
+    assertEquals(AlarmState.UNDETERMINED, subAlarm2.getState());
+    verify(collector, times(1)).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
+  }
+
+  public void shouldSendUndeterminedOnStartup() {
+
+    subAlarm2.setNoState(true);
+    subAlarm2.setState(AlarmState.UNDETERMINED);
+    bolt.execute(createMetricTuple(metricDef2, null));
+
+    final Tuple tickTuple = createTickTuple();
+    bolt.execute(tickTuple);
+
+    verify(collector, times(1)).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
+  }
+
+  private Tuple createTickTuple() {
     final MkTupleParam tupleParam = new MkTupleParam();
     tupleParam.setComponent(Constants.SYSTEM_COMPONENT_ID);
     tupleParam.setStream(Constants.SYSTEM_TICK_STREAM_ID);
     final Tuple tickTuple = Testing.testTuple(Arrays.asList(), tupleParam);
     return tickTuple;
-}
+  }
 
   public void validateMetricDefAdded() {
     MkTupleParam tupleParam = new MkTupleParam();

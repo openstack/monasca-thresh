@@ -76,7 +76,7 @@ public class EventProcessingBolt extends BaseRichBolt {
       else if (event instanceof AlarmDeletedEvent)
         handle((AlarmDeletedEvent) event);
       else if (event instanceof AlarmUpdatedEvent)
-          handle((AlarmUpdatedEvent) event);
+        handle((AlarmUpdatedEvent) event);
     } catch (Exception e) {
       LOG.error("Error processing tuple {}", tuple, e);
     } finally {
