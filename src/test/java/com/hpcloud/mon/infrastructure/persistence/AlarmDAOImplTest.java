@@ -29,7 +29,7 @@ public class AlarmDAOImplTest {
   private static final String ALARM_ID = "123";
   private static String ALARM_NAME = "90% CPU";
   private static String ALARM_DESCR = "Description for " + ALARM_NAME;
-  private static Boolean ALARM_ENABLED = Boolean.FALSE;
+  private static Boolean ALARM_ENABLED = Boolean.TRUE;
 
   private DBI db;
   private Handle handle;
@@ -55,7 +55,7 @@ public class AlarmDAOImplTest {
     handle.execute("truncate table sub_alarm_dimension");
     handle.execute("truncate table alarm_action");
 
-    String sql = String.format("insert into alarm (id, tenant_id, name, description, expression, state, enabled, created_at, updated_at) "
+    String sql = String.format("insert into alarm (id, tenant_id, name, description, expression, state, actions_enabled, created_at, updated_at) "
         + "values ('%s', '%s', '%s', '%s', 'avg(hpcs.compute{disk=vda, instance_id=123, metric_name=cpu}) > 10', 'UNDETERMINED', %d, NOW(), NOW())",
         ALARM_ID, TENANT_ID, ALARM_NAME, ALARM_DESCR, ALARM_ENABLED ? 1 : 0);
     handle.execute(sql);
@@ -72,7 +72,7 @@ public class AlarmDAOImplTest {
     String expr = "avg(hpcs.compute{disk=vda, instance_id=123, metric_name=cpu}) > 10";
     Alarm expected = new Alarm(ALARM_ID, TENANT_ID, ALARM_NAME, ALARM_DESCR, AlarmExpression.of(expr),
         Arrays.asList(new SubAlarm("111", ALARM_ID, AlarmSubExpression.of(expr))),
-        AlarmState.UNDETERMINED, Boolean.FALSE);
+        AlarmState.UNDETERMINED, Boolean.TRUE);
 
     Alarm alarm = dao.findById(ALARM_ID);
 

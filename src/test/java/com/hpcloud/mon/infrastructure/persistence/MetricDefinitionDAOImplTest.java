@@ -50,8 +50,8 @@ public class MetricDefinitionDAOImplTest {
   protected void beforeMethod() {
     cleanUp();
 
-    handle.execute("insert into alarm (id, tenant_id, name, description, expression, state, enabled, created_at, updated_at) "
-            + "values ('123', '" + TENANT_ID + "', 'Test Alarm', 'Test Alarm Description', 'Not real expr', 'OK', '1', NOW(), NOW())");
+    handle.execute("insert into alarm (id, tenant_id, name, description, expression, state, created_at, updated_at) "
+            + "values ('123', '" + TENANT_ID + "', 'Test Alarm', 'Test Alarm Description', 'Not real expr', 'OK', NOW(), NOW())");
 
     handle.execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, state, created_at, updated_at) "
         + "values ('111', '123', 'AVG', 'cpu', 'GT', 10, 60, 1, 'OK', NOW(), NOW())");
@@ -97,14 +97,6 @@ public class MetricDefinitionDAOImplTest {
     List<SubAlarmMetricDefinition> found = dao.findForAlarms();
     for (final SubAlarmMetricDefinition toFind : expected)
       assertTrue(found.contains(toFind), "Did not find " + toFind);
-  }
-
-  public void shouldNotFindDisabledAlarms() {
-      handle.execute("update alarm set enabled=0 where id in ('123')");
-
-      List<SubAlarmMetricDefinition> found = dao.findForAlarms();
-      for (final SubAlarmMetricDefinition toFind : expected)
-          assertFalse(found.contains(toFind), "Should not have found " + toFind);
   }
 
   public void shouldNotFindDeletedAlarms() {

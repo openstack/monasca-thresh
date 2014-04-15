@@ -184,10 +184,6 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
             alarm = alarmDAO.findById(alarmId);
             if (alarm == null)
                 LOG.error("Failed to locate alarm for id {}", alarmId);
-            else if (!alarm.isEnabled()) {
-                LOG.warn("Ignoring Alarm {} named '{}' because it is disabled", alarmId, alarm.getName());
-                return null;
-            }
             else {
                 for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
                     subAlarm.setNoState(true);

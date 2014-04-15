@@ -23,14 +23,14 @@ public class Alarm extends AbstractEntity {
   private AlarmExpression expression;
   private Map<String, SubAlarm> subAlarms;
   private AlarmState state;
-  private boolean enabled = true;
+  private boolean actionsEnabled = true;
   private String stateChangeReason;
 
   public Alarm() {
   }
 
   public Alarm(String id, String tenantId, String name, String description, AlarmExpression expression,
-      List<SubAlarm> subAlarms, AlarmState state, boolean enabled) {
+      List<SubAlarm> subAlarms, AlarmState state, boolean actionsEnabled) {
     this.id = id;
     this.tenantId = tenantId;
     this.name = name;
@@ -38,7 +38,7 @@ public class Alarm extends AbstractEntity {
     this.expression = expression;
     setSubAlarms(subAlarms);
     this.state = state;
-    this.enabled = enabled;
+    this.actionsEnabled = actionsEnabled;
   }
 
   static String buildStateChangeReason(AlarmState alarmState, List<String> subAlarmExpressions) {
@@ -67,6 +67,8 @@ public class Alarm extends AbstractEntity {
       return false;
     if (state != other.state)
       return false;
+    if (actionsEnabled != other.actionsEnabled)
+        return false;
     if (!compareObjects(subAlarms, other.subAlarms))
       return false;
     if (!compareObjects(tenantId, other.tenantId))
@@ -153,8 +155,8 @@ public class Alarm extends AbstractEntity {
     return state;
   }
 
-  public boolean isEnabled() {
-    return enabled;
+  public boolean isActionsEnabled() {
+    return actionsEnabled;
   }
 
   public String getStateChangeReason() {
@@ -181,6 +183,7 @@ public class Alarm extends AbstractEntity {
     result = prime * result + ((name == null) ? 0 : name.hashCode());
     result = prime * result + ((state == null) ? 0 : state.hashCode());
     result = prime * result + ((subAlarms == null) ? 0 : subAlarms.hashCode());
+    result = prime * result + (actionsEnabled ? 1783 : 0);
     result = prime * result + ((tenantId == null) ? 0 : tenantId.hashCode());
     return result;
   }
@@ -201,8 +204,8 @@ public class Alarm extends AbstractEntity {
     this.state = state;
   }
 
-  public void setEnabled(boolean enabled) {
-    this.enabled = enabled;
+  public void setActionsEnabled(boolean actionsEnabled) {
+    this.actionsEnabled = actionsEnabled;
   }
 
   public void setSubAlarms(List<SubAlarm> subAlarms) {
@@ -217,8 +220,8 @@ public class Alarm extends AbstractEntity {
 
   @Override
   public String toString() {
-    return String.format("Alarm [tenantId=%s, name=%s, description=%s, state=%s]", tenantId,
-            name, description, state);
+    return String.format("Alarm [tenantId=%s, name=%s, description=%s, state=%s, actionsEnabled=%s]", tenantId,
+            name, description, state, actionsEnabled);
   }
 
   public void updateSubAlarm(SubAlarm subAlarm) {

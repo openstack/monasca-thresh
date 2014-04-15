@@ -51,14 +51,14 @@ public class SubAlarmDAOImplTest {
     handle.execute("truncate table sub_alarm_dimension");
 
     // These don't have the real Alarm expression because it doesn't matter for this test
-    handle.execute("insert into alarm (id, tenant_id, name, description, expression, state, enabled, created_at, updated_at) "
-            + "values ('123', '" + TENANT_ID + "', 'Test Alarm', 'Test Alarm Description', 'Not real expr', 'OK', '1', NOW(), NOW())");
-    handle.execute("insert into alarm (id, tenant_id, name, description, expression, state, enabled, created_at, updated_at) "
-            + "values ('234', '" + TENANT_ID + "', 'Test Alarm2', 'Test Alarm2 Description', 'Not real expr', 'OK', '1', NOW(), NOW())");
-    handle.execute("insert into alarm (id, tenant_id, name, description, expression, state, enabled, created_at, updated_at) "
-            + "values ('345', '" + TENANT_ID + "', 'Test Alarm3', 'Test Alarm3 Description', 'Not real expr', 'OK', '1', NOW(), NOW())");
-    handle.execute("insert into alarm (id, tenant_id, name, description, expression, state, enabled, created_at, updated_at) "
-            + "values ('456', '" + TENANT_ID + "', 'Test Alarm4', 'Test Alarm4 Description', 'Not real expr', 'OK', '1', NOW(), NOW())");
+    handle.execute("insert into alarm (id, tenant_id, name, description, expression, state, created_at, updated_at) "
+            + "values ('123', '" + TENANT_ID + "', 'Test Alarm', 'Test Alarm Description', 'Not real expr', 'OK', NOW(), NOW())");
+    handle.execute("insert into alarm (id, tenant_id, name, description, expression, state, created_at, updated_at) "
+            + "values ('234', '" + TENANT_ID + "', 'Test Alarm2', 'Test Alarm2 Description', 'Not real expr', 'OK', NOW(), NOW())");
+    handle.execute("insert into alarm (id, tenant_id, name, description, expression, state, created_at, updated_at) "
+            + "values ('345', '" + TENANT_ID + "', 'Test Alarm3', 'Test Alarm3 Description', 'Not real expr', 'OK', NOW(), NOW())");
+    handle.execute("insert into alarm (id, tenant_id, name, description, expression, state, created_at, updated_at) "
+            + "values ('456', '" + TENANT_ID + "', 'Test Alarm4', 'Test Alarm4 Description', 'Not real expr', 'OK', NOW(), NOW())");
 
     handle.execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, created_at, updated_at) "
         + "values ('111', '123', 'AVG', 'cpu', 'GT', 10, 60, 1, NOW(), NOW())");
@@ -105,17 +105,6 @@ public class SubAlarmDAOImplTest {
     subAlarms = dao.find(new MetricDefinitionAndTenantId(AlarmSubExpression.of("avg(cpu{instance_id=666,az=1}) > 10").getMetricDefinition(), badTenantId));
     assertEquals(subAlarms.size(), 0);
   }
-
-  public void shouldNotFindDisabledAlarm() {
-      handle.execute("update alarm set enabled=0 where id='123' or id='456'");
-
-      final String badTenantId = TENANT_ID;
-      List<SubAlarm> subAlarms = dao.find(new MetricDefinitionAndTenantId(AlarmSubExpression.of("avg(cpu{instance_id=555,az=1}) > 10").getMetricDefinition(), badTenantId));
-      assertEquals(subAlarms.size(), 0);
-
-      subAlarms = dao.find(new MetricDefinitionAndTenantId(new MetricDefinition("cpu", null), TENANT_ID));
-      assertEquals(subAlarms.size(), 0);
-    }
 
   public void shouldFindWithSubject() {
     List<SubAlarm> expected = Arrays.asList(new SubAlarm(
