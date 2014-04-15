@@ -81,10 +81,10 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
       public Alarm answer(InvocationOnMock invocation) throws Throwable {
         if (invocation.getArguments()[0].equals("1"))
           return new Alarm("1", BOB_TENANT_ID, "test-alarm", "Descr of test-alarm", expression, Arrays.asList(createCpuSubAlarm(),
-              createMemSubAlarm()), AlarmState.OK);
+              createMemSubAlarm()), AlarmState.OK, Boolean.TRUE);
         else if (invocation.getArguments()[0].equals("2"))
           return new Alarm("2", JOE_TENANT_ID, "joes-alarm", "Descr of joes-alarm", customExpression,
-              Arrays.asList(createCustomSubAlarm()), AlarmState.OK);
+              Arrays.asList(createCustomSubAlarm()), AlarmState.OK, Boolean.TRUE);
         return null;
       }
     });

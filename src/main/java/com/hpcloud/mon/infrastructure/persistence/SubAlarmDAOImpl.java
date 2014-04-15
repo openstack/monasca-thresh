@@ -32,10 +32,10 @@ public class SubAlarmDAOImpl implements SubAlarmDAO {
    */
   private static final String FIND_BY_METRIC_DEF_SQL = "select sa.* from sub_alarm sa, alarm a, sub_alarm_dimension d "
       + "join (%s) v on d.dimension_name = v.dimension_name and d.value = v.value "
-      + "where sa.id = d.sub_alarm_id and sa.metric_name = :metric_name and a.tenant_id = :tenant_id and a.id = sa.alarm_id and a.deleted_at is null "
+      + "where sa.id = d.sub_alarm_id and sa.metric_name = :metric_name and a.tenant_id = :tenant_id and a.id = sa.alarm_id and a.enabled=1 and a.deleted_at is null "
       + "group by d.sub_alarm_id having count(d.sub_alarm_id) = %s";
-  private static final String FIND_BY_METRIC_DEF_NO_DIMS_SQL = "select * from sub_alarm sa where sa.metric_name = :metric_name "
-      + "and a.tenant_id = :tenant_id and a.id = sa.alarm_id and a.deleted_at is null and (select count(*) from sub_alarm_dimension where sub_alarm_id = sa.id) = 0";
+  private static final String FIND_BY_METRIC_DEF_NO_DIMS_SQL = "select sa.* from sub_alarm sa, alarm a where sa.metric_name = :metric_name "
+      + "and a.tenant_id = :tenant_id and a.id = sa.alarm_id and a.enabled=1 and a.deleted_at is null and (select count(*) from sub_alarm_dimension where sub_alarm_id = sa.id) = 0";
 
   private final DBI db;
 

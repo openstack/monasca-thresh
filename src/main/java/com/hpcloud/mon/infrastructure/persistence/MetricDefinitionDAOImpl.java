@@ -23,7 +23,7 @@ import com.hpcloud.mon.domain.service.SubAlarmMetricDefinition;
 public class MetricDefinitionDAOImpl implements MetricDefinitionDAO {
   private static final String METRIC_DEF_SQL = "select sa.id, a.tenant_id, sa.metric_name, sad.dimensions from alarm as a, sub_alarm as sa "
       + "left join (select sub_alarm_id, group_concat(dimension_name, '=', value) as dimensions from sub_alarm_dimension group by sub_alarm_id) as sad on sa.id = sad.sub_alarm_id "
-      + "where a.id = sa.alarm_id and a.deleted_at is null";
+      + "where a.id = sa.alarm_id and a.enabled=1 and a.deleted_at is null";
 
   private final DBI db;
 

@@ -1,7 +1,6 @@
 package com.hpcloud.mon.infrastructure.persistence;
 
 import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNotEquals;
 
 import java.nio.charset.Charset;
 import java.util.Arrays;
@@ -14,7 +13,6 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Resources;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
@@ -63,41 +61,37 @@ public class SubAlarmDAOImplTest {
             + "values ('456', '" + TENANT_ID + "', 'Test Alarm4', 'Test Alarm4 Description', 'Not real expr', 'OK', '1', NOW(), NOW())");
 
     handle.execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, created_at, updated_at) "
-        + "values ('111', '123', 'AVG', 'hpcs.compute', 'GT', 10, 60, 1, NOW(), NOW())");
+        + "values ('111', '123', 'AVG', 'cpu', 'GT', 10, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('111', 'instance_id', '555')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'az', '1')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'instance_uuid', '555')");
-    handle.execute("insert into sub_alarm_dimension values ('111', 'metric_name', 'cpu')");
 
     handle.execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, created_at, updated_at) "
-        + "values ('222', '234', 'AVG', 'hpcs.compute', 'GT', 10, 60, 1, NOW(), NOW())");
+        + "values ('222', '234', 'AVG', 'cpu', 'GT', 10, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('222', 'instance_id', '666')");
     handle.execute("insert into sub_alarm_dimension values ('222', 'az', '1')");
     handle.execute("insert into sub_alarm_dimension values ('222', 'instance_uuid', '666')");
-    handle.execute("insert into sub_alarm_dimension values ('222', 'metric_name', 'cpu')");
 
     handle.execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, created_at, updated_at) "
-        + "values ('333', '345', 'AVG', 'hpcs.compute', 'GT', 10, 60, 1, NOW(), NOW())");
+        + "values ('333', '345', 'AVG', 'disk', 'GT', 10, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('333', 'instance_id', '777')");
     handle.execute("insert into sub_alarm_dimension values ('333', 'az', '1')");
     handle.execute("insert into sub_alarm_dimension values ('333', 'instance_uuid', '777')");
-    handle.execute("insert into sub_alarm_dimension values ('333', 'metric_name', 'disk')");
     handle.execute("insert into sub_alarm_dimension values ('333', 'device', 'vda')");
 
     handle.execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, created_at, updated_at) "
-        + "values ('444', '456', 'AVG', 'hpcs.compute', 'GT', 10, 60, 1, NOW(), NOW())");
-    handle.execute("insert into sub_alarm_dimension values ('444', 'metric_name', 'cpu')");
+        + "values ('444', '456', 'AVG', 'cpu', 'GT', 10, 60, 1, NOW(), NOW())");
   }
 
   public void shouldFind() {
     List<SubAlarm> expected = Arrays.asList(new SubAlarm("111", "123",
-        AlarmSubExpression.of("avg(hpcs.compute{instance_id=555,az=1,metric_name=cpu}) > 10"),
+        AlarmSubExpression.of("avg(cpu{instance_id=555,az=1}) > 10"),
         AlarmState.UNDETERMINED));
     List<SubAlarm> subAlarms = dao.find(new MetricDefinitionAndTenantId(expected.get(0).getExpression().getMetricDefinition(), TENANT_ID));
     assertEquals(subAlarms, expected);
 
     expected = Arrays.asList(new SubAlarm("222", "234",
-        AlarmSubExpression.of("avg(hpcs.compute{instance_id=666,az=1,metric_name=cpu}) > 10"),
+        AlarmSubExpression.of("avg(cpu{instance_id=666,az=1}) > 10"),
         AlarmState.UNDETERMINED));
     subAlarms = dao.find(new MetricDefinitionAndTenantId(expected.get(0).getExpression().getMetricDefinition(), TENANT_ID));
     assertEquals(subAlarms, expected);
@@ -105,28 +99,38 @@ public class SubAlarmDAOImplTest {
 
   public void shouldNotFind() {
     final String badTenantId = TENANT_ID + "42";
-    List<SubAlarm> subAlarms = dao.find(new MetricDefinitionAndTenantId(AlarmSubExpression.of("avg(hpcs.compute{instance_id=555,az=1,metric_name=cpu}) > 10").getMetricDefinition(), badTenantId));
+    List<SubAlarm> subAlarms = dao.find(new MetricDefinitionAndTenantId(AlarmSubExpression.of("avg(cpu{instance_id=555,az=1}) > 10").getMetricDefinition(), badTenantId));
     assertEquals(subAlarms.size(), 0);
 
-    subAlarms = dao.find(new MetricDefinitionAndTenantId(AlarmSubExpression.of("avg(hpcs.compute{instance_id=666,az=1,metric_name=cpu}) > 10").getMetricDefinition(), badTenantId));
+    subAlarms = dao.find(new MetricDefinitionAndTenantId(AlarmSubExpression.of("avg(cpu{instance_id=666,az=1}) > 10").getMetricDefinition(), badTenantId));
     assertEquals(subAlarms.size(), 0);
   }
+
+  public void shouldNotFindDisabledAlarm() {
+      handle.execute("update alarm set enabled=0 where id='123' or id='456'");
+
+      final String badTenantId = TENANT_ID;
+      List<SubAlarm> subAlarms = dao.find(new MetricDefinitionAndTenantId(AlarmSubExpression.of("avg(cpu{instance_id=555,az=1}) > 10").getMetricDefinition(), badTenantId));
+      assertEquals(subAlarms.size(), 0);
+
+      subAlarms = dao.find(new MetricDefinitionAndTenantId(new MetricDefinition("cpu", null), TENANT_ID));
+      assertEquals(subAlarms.size(), 0);
+    }
 
   public void shouldFindWithSubject() {
     List<SubAlarm> expected = Arrays.asList(new SubAlarm(
         "333",
         "345",
-        AlarmSubExpression.of("avg(hpcs.compute{instance_id=777,az=1,metric_name=disk,device=vda}) > 10"),
+        AlarmSubExpression.of("avg(disk{instance_id=777,az=1,device=vda}) > 10"),
         AlarmState.UNDETERMINED));
     List<SubAlarm> subAlarms = dao.find(new MetricDefinitionAndTenantId(expected.get(0).getExpression().getMetricDefinition(), TENANT_ID));
     assertEquals(subAlarms, expected);
   }
 
-  public void shouldFailFindForNullDimensions() {
+  public void shouldFindForNullDimensions() {
     List<SubAlarm> expected = Arrays.asList(new SubAlarm("444", "456",
-        AlarmSubExpression.of("avg(hpcs.compute{metric_name=cpu}) > 10"), AlarmState.UNDETERMINED));
-    List<SubAlarm> subAlarms = dao.find(new MetricDefinitionAndTenantId(new MetricDefinition("hpcs.compute",
-        new ImmutableMap.Builder<String, String>().put("metric_name", "cpu").build()), TENANT_ID));
-    assertNotEquals(subAlarms, expected);
+        AlarmSubExpression.of("avg(cpu{}) > 10"), AlarmState.UNDETERMINED));
+    List<SubAlarm> subAlarms = dao.find(new MetricDefinitionAndTenantId(new MetricDefinition("cpu", null), TENANT_ID));
+    assertEquals(subAlarms, expected);
   }
 }

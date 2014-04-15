@@ -21,6 +21,7 @@ public class AlarmTest {
   private static final String TEST_ALARM_TENANT_ID = "joe";
   private static final String TEST_ALARM_NAME = "test alarm";
   private static final String TEST_ALARM_DESCRIPTION = "Description of test alarm";
+  private static Boolean ALARM_ENABLED = Boolean.FALSE;
 
   public void shouldBeUndeterminedIfAnySubAlarmIsUndetermined() {
     AlarmExpression expr = new AlarmExpression(
@@ -29,7 +30,7 @@ public class AlarmTest {
         AlarmState.UNDETERMINED);
     SubAlarm subAlarm2 = new SubAlarm("456", TEST_ALARM_ID, expr.getSubExpressions().get(1), AlarmState.ALARM);
     Alarm alarm = new Alarm(TEST_ALARM_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME, TEST_ALARM_DESCRIPTION, expr,
-            Arrays.asList(subAlarm1, subAlarm2), AlarmState.UNDETERMINED);
+            Arrays.asList(subAlarm1, subAlarm2), AlarmState.UNDETERMINED, ALARM_ENABLED);
 
     assertFalse(alarm.evaluate());
     assertEquals(alarm.getState(), AlarmState.UNDETERMINED);
@@ -42,7 +43,7 @@ public class AlarmTest {
     SubAlarm subAlarm2 = new SubAlarm("456", TEST_ALARM_ID, expr.getSubExpressions().get(1));
 
     Alarm alarm = new Alarm(TEST_ALARM_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME, TEST_ALARM_DESCRIPTION,
-            expr, Arrays.asList(subAlarm1, subAlarm2), AlarmState.UNDETERMINED);
+            expr, Arrays.asList(subAlarm1, subAlarm2), AlarmState.UNDETERMINED, ALARM_ENABLED);
 
     assertFalse(alarm.evaluate());
     assertEquals(alarm.getState(), AlarmState.UNDETERMINED);
@@ -76,7 +77,7 @@ public class AlarmTest {
     SubAlarm subAlarm2 = new SubAlarm("456", TEST_ALARM_ID, expr.getSubExpressions().get(1));
 
     Alarm alarm = new Alarm(TEST_ALARM_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME, TEST_ALARM_DESCRIPTION,
-            expr, Arrays.asList(subAlarm1, subAlarm2), AlarmState.UNDETERMINED);
+            expr, Arrays.asList(subAlarm1, subAlarm2), AlarmState.UNDETERMINED, ALARM_ENABLED);
 
     assertFalse(alarm.evaluate());
     assertEquals(alarm.getState(), AlarmState.UNDETERMINED);

@@ -22,6 +22,7 @@ CREATE TABLE `sub_alarm` (
   `period` int(11) NOT NULL,
   `periods` int(11) NOT NULL,
   `state` varchar(20) NOT NULL,
+  `enabled` tinyint(1) NOT NULL,
   `created_at` datetime NOT NULL,
   `updated_at` datetime NOT NULL,
   PRIMARY KEY (`id`)

@@ -84,7 +84,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
       @Override
       public Alarm answer(InvocationOnMock invocation) throws Throwable {
         return new Alarm(TEST_ALARM_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME,
-                TEST_ALARM_DESCRIPTION, expression, subAlarmsFor(expression), AlarmState.OK);
+                TEST_ALARM_DESCRIPTION, expression, subAlarmsFor(expression), AlarmState.OK, Boolean.TRUE);
       }
     });
 

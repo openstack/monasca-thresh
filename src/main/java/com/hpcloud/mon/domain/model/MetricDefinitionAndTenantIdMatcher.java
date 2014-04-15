@@ -157,6 +157,8 @@ public class MetricDefinitionAndTenantIdMatcher {
         public boolean equals(Object obj) {
             if (this == obj)
                 return true;
+            if (obj == null)
+                return false;
             if (getClass() != obj.getClass())
                 return false;
             final DimensionSet other = (DimensionSet) obj;
@@ -207,6 +209,8 @@ public class MetricDefinitionAndTenantIdMatcher {
         public boolean equals(Object obj) {
             if (this == obj)
                 return true;
+            if (obj == null)
+                return false;
             if (getClass() != obj.getClass())
                 return false;
             DimensionPair other = (DimensionPair) obj;

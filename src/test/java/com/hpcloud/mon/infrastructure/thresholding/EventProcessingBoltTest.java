@@ -65,7 +65,8 @@ public class EventProcessingBoltTest {
               "and max(hpcs.compute.load{instance_id=123,device=42}) > 5";
         alarmExpression = new AlarmExpression(expression);
         subAlarms = createSubAlarms(alarmId, alarmExpression);
-        alarm = new Alarm(alarmId, TENANT_ID, name, description, alarmExpression, subAlarms, AlarmState.UNDETERMINED);
+        alarm = new Alarm(alarmId, TENANT_ID, name, description, alarmExpression, subAlarms,
+                AlarmState.UNDETERMINED, Boolean.TRUE);
     }
 
     private List<SubAlarm> createSubAlarms(final String alarmId,

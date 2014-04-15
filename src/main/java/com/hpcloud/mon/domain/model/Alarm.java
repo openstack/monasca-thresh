@@ -23,13 +23,14 @@ public class Alarm extends AbstractEntity {
   private AlarmExpression expression;
   private Map<String, SubAlarm> subAlarms;
   private AlarmState state;
+  private boolean enabled = true;
   private String stateChangeReason;
 
   public Alarm() {
   }
 
   public Alarm(String id, String tenantId, String name, String description, AlarmExpression expression,
-      List<SubAlarm> subAlarms, AlarmState state) {
+      List<SubAlarm> subAlarms, AlarmState state, boolean enabled) {
     this.id = id;
     this.tenantId = tenantId;
     this.name = name;
@@ -37,6 +38,7 @@ public class Alarm extends AbstractEntity {
     this.expression = expression;
     setSubAlarms(subAlarms);
     this.state = state;
+    this.enabled = enabled;
   }
 
   static String buildStateChangeReason(AlarmState alarmState, List<String> subAlarmExpressions) {
@@ -151,6 +153,10 @@ public class Alarm extends AbstractEntity {
     return state;
   }
 
+  public boolean isEnabled() {
+    return enabled;
+  }
+
   public String getStateChangeReason() {
     return stateChangeReason;
   }
@@ -193,6 +199,10 @@ public class Alarm extends AbstractEntity {
 
   public void setState(AlarmState state) {
     this.state = state;
+  }
+
+  public void setEnabled(boolean enabled) {
+    this.enabled = enabled;
   }
 
   public void setSubAlarms(List<SubAlarm> subAlarms) {
