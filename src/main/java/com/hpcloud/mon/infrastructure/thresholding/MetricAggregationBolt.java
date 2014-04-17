@@ -100,6 +100,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
             SubAlarm subAlarm = (SubAlarm) tuple.getValue(2);
             if (EventProcessingBolt.CREATED.equals(eventType))
               handleAlarmCreated(metricDefinitionAndTenantId, subAlarm);
+            else if (EventProcessingBolt.UPDATED.equals(eventType))
+              handleAlarmUpdated(metricDefinitionAndTenantId, subAlarm);
           }
         }
       }
@@ -198,6 +200,10 @@ public class MetricAggregationBolt extends BaseRichBolt {
    */
   void handleAlarmCreated(MetricDefinitionAndTenantId metricDefinitionAndTenantId, SubAlarm subAlarm) {
     LOG.debug("Received AlarmCreatedEvent for {}", subAlarm);
+    addSubAlarm(metricDefinitionAndTenantId, subAlarm);
+  }
+
+  private void addSubAlarm(MetricDefinitionAndTenantId metricDefinitionAndTenantId, SubAlarm subAlarm) {
     SubAlarmStatsRepository subAlarmStatsRepo = getOrCreateSubAlarmStatsRepo(metricDefinitionAndTenantId);
     if (subAlarmStatsRepo == null)
       return;
@@ -207,6 +213,39 @@ public class MetricAggregationBolt extends BaseRichBolt {
   }
 
   /**
+   * Adds the {@code subAlarm} subAlarmStatsRepo for the {@code metricDefinition}.
+   *
+   * MetricDefinition can't have changed, just how it is evaluated
+   */
+  void handleAlarmUpdated(MetricDefinitionAndTenantId metricDefinitionAndTenantId, SubAlarm subAlarm) {
+    LOG.debug("Received AlarmUpdatedEvent for {}", subAlarm);
+    // Clear the old SubAlarm, but save the SubAlarm state
+    final SubAlarmStatsRepository oldSubAlarmStatsRepo = subAlarmStatsRepos.get(metricDefinitionAndTenantId);
+    if (oldSubAlarmStatsRepo == null) {
+      LOG.error("Did not find SubAlarmStatsRepository for MetricDefinition {}", metricDefinitionAndTenantId);
+    }
+    else {
+      final SubAlarmStats oldSubAlarmStats = oldSubAlarmStatsRepo.get(subAlarm.getId());
+      if (oldSubAlarmStats == null)
+        LOG.error("Did not find existing SubAlarm {} in SubAlarmStatsRepository", subAlarm);
+      else {
+        final SubAlarm oldSubAlarm = oldSubAlarmStats.getSubAlarm();
+        subAlarm.setState(oldSubAlarm.getState());
+        subAlarm.setNoState(true); // Doesn't hurt to send too many state changes, just too few
+        if (oldSubAlarm.isCompatible(subAlarm)) {
+            LOG.debug("Changing SubAlarm {} to SubAlarm {} and keeping measurements", oldSubAlarm, subAlarm);
+            oldSubAlarmStats.updateSubAlarm(subAlarm);
+            return;
+        }
+        // Have to completely change the SubAlarmStats
+        LOG.debug("Changing SubAlarm {} to SubAlarm {} and flushing measurements", oldSubAlarm, subAlarm);
+        oldSubAlarmStatsRepo.remove(subAlarm.getId());
+      }
+    }
+    addSubAlarm(metricDefinitionAndTenantId, subAlarm);
+  }
+
+/**
    * Removes the sub-alarm for the {@code subAlarmId} from the subAlarmStatsRepo for the
    * {@code metricDefinitionAndTenantId}.
    */

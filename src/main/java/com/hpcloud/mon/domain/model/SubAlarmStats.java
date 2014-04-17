@@ -20,7 +20,7 @@ public class SubAlarmStats {
   private static final int UNDETERMINED_COEFFICIENT = 2;
 
   private final int slotWidth;
-  private final SubAlarm subAlarm;
+  private SubAlarm subAlarm;
   private final SlidingWindowStats stats;
   /** The number of times we can observe an empty window before transitioning to UNDETERMINED state. */
   final int emptyWindowObservationThreshold;
@@ -124,5 +124,14 @@ public class SubAlarmStats {
     }
 
     return false;
+  }
+
+  /**
+   * This MUST only be used for compatible SubAlarms, i.e. where
+   * this.subAlarm.isCompatible(subAlarm) is true 
+   * @param subAlarm
+   */
+  public void updateSubAlarm(final SubAlarm subAlarm) {
+      this.subAlarm = subAlarm;
   }
 }

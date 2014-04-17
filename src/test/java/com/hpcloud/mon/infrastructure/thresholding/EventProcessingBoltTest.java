@@ -4,15 +4,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
 import java.util.UUID;
 
 import org.testng.annotations.BeforeMethod;
@@ -25,7 +21,6 @@ import backtype.storm.testing.MkTupleParam;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
-import com.google.common.collect.Sets;
 import com.hpcloud.mon.common.event.AlarmCreatedEvent;
 import com.hpcloud.mon.common.event.AlarmDeletedEvent;
 import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
@@ -121,7 +116,7 @@ public class EventProcessingBoltTest {
             verifyDeletedSubAlarm(subAlarm);
         }
         verify(collector, times(1)).emit(EventProcessingBolt.ALARM_EVENT_STREAM_ID,
-                new Values(EventProcessingBolt.DELETED, event.alarmId));
+                new Values(EventProcessingBolt.DELETED, event.alarmId, event));
         verify(collector, times(1)).ack(tuple);
     }
 
@@ -133,87 +128,76 @@ public class EventProcessingBoltTest {
     }
 
     public static AlarmUpdatedEvent createAlarmUpdatedEvent(final Alarm alarm,
-                                                            final AlarmExpression updatedAlarmExpression) {
+                                                            final AlarmExpression updatedAlarmExpression, List<SubAlarm> updatedSubAlarms) {
         final Alarm updatedAlarm = new Alarm();
         updatedAlarm.setId(alarm.getId());
         updatedAlarm.setTenantId(alarm.getTenantId());
         updatedAlarm.setName(alarm.getName());
         updatedAlarm.setExpression(updatedAlarmExpression.getExpression());
-        Entry<Map<String, AlarmSubExpression>, Map<String, AlarmSubExpression>> entry =
-                oldAndNewSubExpressionsFor(createAlarmSubExpressionMap(alarm), updatedAlarmExpression);
+        updatedAlarm.setDescription(alarm.getDescription());
+        updatedAlarm.setState(alarm.getState());
 
-        final Map<String, AlarmSubExpression> newAlarmSubExpressions = entry.getValue();
-        Map<String, AlarmSubExpression> changedSubExpressions = new HashMap<>();
+        final List<SubAlarm> toDelete = new ArrayList<>(alarm.getSubAlarms());
+        final Map<String, AlarmSubExpression> newAlarmSubExpressions = new HashMap<>();
+        final Map<String, AlarmSubExpression> updatedSubExpressions = new HashMap<>();
+        for (final SubAlarm newSubAlarm : updatedSubAlarms) {
+            final SubAlarm oldSubAlarm = alarm.getSubAlarm(newSubAlarm.getId());
+            if (oldSubAlarm == null) {
+                newAlarmSubExpressions.put(newSubAlarm.getId(), newSubAlarm.getExpression());
+            }
+            else {
+                toDelete.remove(oldSubAlarm);
+                if (!newSubAlarm.getExpression().equals(oldSubAlarm.getExpression())) {
+                    updatedSubExpressions.put(newSubAlarm.getId(), newSubAlarm.getExpression());
+                }
+            }
+        }
+        final Map<String, AlarmSubExpression> deletedSubExpressions = new HashMap<>(toDelete.size());
+        for (final SubAlarm oldSubAlarm : toDelete) {
+            deletedSubExpressions.put(oldSubAlarm.getId(), oldSubAlarm.getExpression());
+        }
         final AlarmUpdatedEvent event = new AlarmUpdatedEvent(updatedAlarm.getTenantId(), updatedAlarm.getId(),
-              updatedAlarm.getName(), updatedAlarm.getAlarmExpression().getExpression(), alarm.getState(), true, entry.getKey(),
-              changedSubExpressions, newAlarmSubExpressions);
+              updatedAlarm.getName(), updatedAlarm.getDescription(), updatedAlarm.getAlarmExpression().getExpression(), alarm.getState(), true, deletedSubExpressions,
+              updatedSubExpressions, newAlarmSubExpressions);
         return event;
     }
 
     public void testAlarmUpdatedEvent() {
         final String updatedExpression = "avg(hpcs.compute.cpu{instance_id=123,device=42}, 1) > 5 " +
-                "and max(hpcs.compute.newMem{instance_id=123,device=42}) > 80 " +
+                "and max(hpcs.compute.Mem{instance_id=123,device=42}) > 90 " +
                 "and max(hpcs.compute.newLoad{instance_id=123,device=42}) > 5";
+
         final AlarmExpression updatedAlarmExpression = new AlarmExpression(updatedExpression);
-        final AlarmUpdatedEvent event = createAlarmUpdatedEvent(alarm, updatedAlarmExpression);
-        final Tuple tuple = createTuple(event);
-        bolt.execute(tuple);
-        verify(collector, times(1)).emit(EventProcessingBolt.ALARM_EVENT_STREAM_ID,
-                new Values(EventProcessingBolt.UPDATED, event.alarmId));
 
         final List<SubAlarm> updatedSubAlarms = new ArrayList<>();
-        final Map<String, AlarmSubExpression> oldAlarmSubExpressionMap = createAlarmSubExpressionMap(alarm);
-        for (final AlarmSubExpression alarmExpression : updatedAlarmExpression.getSubExpressions()) {
-            String id = find(oldAlarmSubExpressionMap, alarmExpression);
-            if (id == null) {
-                id = find(event.newAlarmSubExpressions, alarmExpression);
-            }
-            final SubAlarm subAlarm = new SubAlarm(id, alarm.getId(), alarmExpression);
-            updatedSubAlarms.add(subAlarm);
-        }
+        updatedSubAlarms.add(subAlarms.get(0));
+        updatedSubAlarms.add(new SubAlarm(subAlarms.get(1).getId(), alarm.getId(), updatedAlarmExpression.getSubExpressions().get(1)));
+        updatedSubAlarms.add(new SubAlarm(UUID.randomUUID().toString(), alarm.getId(), updatedAlarmExpression.getSubExpressions().get(2)));
 
-        verifyDeletedSubAlarm(subAlarms.get(1));
-        verifyDeletedSubAlarm(subAlarms.get(2));
-        verifyAddedSubAlarm(updatedSubAlarms.get(1));
-        verifyAddedSubAlarm(updatedSubAlarms.get(2));
+        final AlarmUpdatedEvent event = createAlarmUpdatedEvent(alarm, updatedAlarmExpression, updatedSubAlarms);
+
+        final Tuple tuple = createTuple(event);
+        bolt.execute(tuple);
         verify(collector, times(1)).ack(tuple);
-    }
 
-    private String find(
-            final Map<String, AlarmSubExpression> newAlarmSubExpressions,
-            final AlarmSubExpression alarmExpression) {
-        String id = null;
-        for (Entry<String, AlarmSubExpression> entry2 : newAlarmSubExpressions.entrySet()) {
-            if (entry2.getValue().equals(alarmExpression)) {
-                id = entry2.getKey();
-                break;
-            }
-        }
-        return id;
-    }
-
-    private static Entry<Map<String, AlarmSubExpression>, Map<String, AlarmSubExpression>> oldAndNewSubExpressionsFor(
-            Map<String, AlarmSubExpression> oldSubAlarms,
-            final AlarmExpression alarmExpression) {
-        Set<AlarmSubExpression> oldSet = new HashSet<>(oldSubAlarms.values());
-        Set<AlarmSubExpression> newSet = new HashSet<>(alarmExpression.getSubExpressions());
-
-        // Filter old sub expressions
-        Set<AlarmSubExpression> oldExpressions = Sets.difference(oldSet, newSet);
-        oldSubAlarms.values().retainAll(oldExpressions);
-
-        // Identify new sub expressions
-        Map<String, AlarmSubExpression> newSubAlarms = new HashMap<>();
-        Set<AlarmSubExpression> newExpressions = Sets.difference(newSet, oldSet);
-        for (AlarmSubExpression expression : newExpressions)
-            newSubAlarms.put(UUID.randomUUID().toString(), expression);
-
-        return new SimpleEntry<>(oldSubAlarms, newSubAlarms);
+        verifyDeletedSubAlarm(subAlarms.get(2));
+        verifyUpdatedSubAlarm(updatedSubAlarms.get(1));
+        verifyAddedSubAlarm(updatedSubAlarms.get(2));
+        verify(collector, times(1)).emit(EventProcessingBolt.ALARM_EVENT_STREAM_ID,
+                new Values(EventProcessingBolt.UPDATED, event.alarmId, event));
     }
 
     private void verifyAddedSubAlarm(final SubAlarm subAlarm) {
+        sendSubAlarm(subAlarm, EventProcessingBolt.CREATED);
+    }
+
+    private void verifyUpdatedSubAlarm(final SubAlarm subAlarm) {
+        sendSubAlarm(subAlarm, EventProcessingBolt.UPDATED);
+    }
+
+    private void sendSubAlarm(final SubAlarm subAlarm, String eventType) {
         verify(collector, times(1)).emit(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID,
-            new Values(EventProcessingBolt.CREATED,
+            new Values(eventType,
                     new MetricDefinitionAndTenantId(
                             subAlarm.getExpression().getMetricDefinition(), TENANT_ID), subAlarm));
     }

@@ -46,7 +46,7 @@ public class EventProcessingBolt extends BaseRichBolt {
   /** Stream for metric and sub-alarm specific events. */
   public static final String METRIC_SUB_ALARM_EVENT_STREAM_ID = "metric-sub-alarm-events";
 
-  public static final String[] ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType", "alarmId"};
+  public static final String[] ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType", "alarmId", "alarm"};
   public static final String[] METRIC_ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType",
       "metricDefinitionAndTenantId", "subAlarmId"};
   public static final String[] METRIC_SUB_ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType",
@@ -99,8 +99,17 @@ public class EventProcessingBolt extends BaseRichBolt {
   }
 
   private void sendAddSubAlarm(String alarmId, String subAlarmId, String tenantId, AlarmSubExpression alarmSubExpression) {
+      sendSubAlarm(CREATED, alarmId, subAlarmId, tenantId, alarmSubExpression);
+  }
+
+  private void sendUpdateSubAlarm(String alarmId, String subAlarmId, String tenantId, AlarmSubExpression alarmSubExpression) {
+      sendSubAlarm(UPDATED, alarmId, subAlarmId, tenantId, alarmSubExpression);
+  }
+
+  private void sendSubAlarm(String eventType, String alarmId, String subAlarmId, String tenantId,
+        AlarmSubExpression alarmSubExpression) {
     MetricDefinition metricDef = alarmSubExpression.getMetricDefinition();
-    collector.emit(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Values(CREATED, new MetricDefinitionAndTenantId(metricDef, tenantId),
+    collector.emit(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Values(eventType, new MetricDefinitionAndTenantId(metricDef, tenantId),
           new SubAlarm(subAlarmId, alarmId, alarmSubExpression)));
   }
 
@@ -109,7 +118,7 @@ public class EventProcessingBolt extends BaseRichBolt {
       sendDeletedSubAlarm(entry.getKey(), event.tenantId, entry.getValue());
     }
 
-    collector.emit(ALARM_EVENT_STREAM_ID, new Values(DELETED, event.alarmId));
+    collector.emit(ALARM_EVENT_STREAM_ID, new Values(DELETED, event.alarmId, event));
   }
 
   private void sendDeletedSubAlarm(String subAlarmId, String tenantId, MetricDefinition metricDef) {
@@ -121,9 +130,12 @@ public class EventProcessingBolt extends BaseRichBolt {
     for (Map.Entry<String, AlarmSubExpression> entry : event.oldAlarmSubExpressions.entrySet()) {
       sendDeletedSubAlarm(entry.getKey(), event.tenantId, entry.getValue().getMetricDefinition());
     }
+    for (Map.Entry<String, AlarmSubExpression> entry : event.changedSubExpressions.entrySet()) {
+        sendUpdateSubAlarm(event.alarmId, entry.getKey(), event.tenantId, entry.getValue());
+     }
     for (Map.Entry<String, AlarmSubExpression> entry : event.newAlarmSubExpressions.entrySet()) {
        sendAddSubAlarm(event.alarmId, entry.getKey(), event.tenantId, entry.getValue());
     }
-    collector.emit(ALARM_EVENT_STREAM_ID, new Values(UPDATED, event.alarmId));
+    collector.emit(ALARM_EVENT_STREAM_ID, new Values(UPDATED, event.alarmId, event));
   }
 }

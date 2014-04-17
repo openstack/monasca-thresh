@@ -104,6 +104,7 @@ public class MetricFilteringBolt extends BaseRichBolt {
         MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) tuple.getValue(1);
 
         LOG.debug("Received {} for {}", eventType, metricDefinitionAndTenantId);
+        // UPDATED events can be ignored because the MetricDefinitionAndTenantId doesn't change
         if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
           if (EventProcessingBolt.DELETED.equals(eventType))
             removeSubAlarm(metricDefinitionAndTenantId, tuple.getString(2));

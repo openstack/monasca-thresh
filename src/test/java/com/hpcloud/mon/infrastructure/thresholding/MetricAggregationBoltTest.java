@@ -10,6 +10,8 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotEquals;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.assertFalse;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,6 +31,7 @@ import backtype.storm.testing.MkTupleParam;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
+import com.hpcloud.mon.common.model.alarm.AlarmOperator;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.Metric;
@@ -197,6 +200,72 @@ public class MetricAggregationBoltTest {
             metricDefinitionAndTenantId, new SubAlarm("123", "1", subExpr1)), tupleParam));
 
     assertNotNull(bolt.subAlarmStatsRepos.get(metricDefinitionAndTenantId).get("123"));
+  }
+
+  public void validateMetricDefUpdatedThreshold() {
+    final SubAlarmStats stats = updateEnsureMeasurementsKept(subExpr2, "avg(hpcs.compute.mem{id=5}, 60) >= 80");
+    assertEquals(stats.getSubAlarm().getExpression().getThreshold(), 80.0);
+  }
+
+  public void validateMetricDefUpdatedOperator() {
+    final SubAlarmStats stats = updateEnsureMeasurementsKept(subExpr2, "avg(hpcs.compute.mem{id=5}, 60) < 80");
+    assertEquals(stats.getSubAlarm().getExpression().getOperator(), AlarmOperator.LT);
+  }
+
+  private SubAlarmStats updateEnsureMeasurementsKept(AlarmSubExpression subExpr,
+        String newSubExpression) {
+    final SubAlarmStats stats = updateSubAlarmsStats(subExpr, newSubExpression);
+    final double[] values = stats.getStats().getWindowValues();
+    assertFalse(Double.isNaN(values[0])); // Ensure old measurements weren't flushed
+    return stats;
+  }
+
+  public void validateMetricDefReplacedFunction() {
+    final SubAlarmStats stats = updateEnsureMeasurementsFlushed(subExpr2, "max(hpcs.compute.mem{id=5}, 60) < 80");
+    assertEquals(stats.getSubAlarm().getExpression().getOperator(), AlarmOperator.LT);
+  }
+
+  public void validateMetricDefReplacedPeriods() {
+    final SubAlarmStats stats = updateEnsureMeasurementsFlushed(subExpr2, "avg(hpcs.compute.mem{id=5}, 60) >= 80 times 7");
+    assertEquals(stats.getSubAlarm().getExpression().getPeriods(), 7);
+  }
+
+  public void validateMetricDefReplacedPeriod() {
+    final SubAlarmStats stats = updateEnsureMeasurementsFlushed(subExpr2, "avg(hpcs.compute.mem{id=5}, 120) >= 80");
+    assertEquals(stats.getSubAlarm().getExpression().getPeriod(), 120);
+  }
+
+  private SubAlarmStats updateEnsureMeasurementsFlushed(AlarmSubExpression subExpr,
+        String newSubExpression) {
+    final SubAlarmStats stats = updateSubAlarmsStats(subExpr, newSubExpression);
+    final double[] values = stats.getStats().getWindowValues();
+    assertTrue(Double.isNaN(values[0])); // Ensure old measurements were flushed
+    return stats;
+  }
+
+  private SubAlarmStats updateSubAlarmsStats(AlarmSubExpression subExpr,
+        String newSubExpression) {
+    final MkTupleParam tupleParam = new MkTupleParam();
+    tupleParam.setFields(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_FIELDS);
+    tupleParam.setStream(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID);
+
+    final MetricDefinitionAndTenantId metricDefinitionAndTenantId = new MetricDefinitionAndTenantId(subExpr.getMetricDefinition(), TENANT_ID);
+    assertNull(bolt.subAlarmStatsRepos.get(metricDefinitionAndTenantId));
+
+    bolt.execute(Testing.testTuple(Arrays.asList(EventProcessingBolt.CREATED,
+            metricDefinitionAndTenantId, new SubAlarm("123", "1", subExpr)), tupleParam));
+    final SubAlarmStats oldStats = bolt.subAlarmStatsRepos.get(metricDefinitionAndTenantId).get("123");
+    assertEquals(oldStats.getSubAlarm().getExpression().getThreshold(), 90.0);
+    assertTrue(oldStats.getStats().addValue(80.0, System.currentTimeMillis()/1000));
+    assertFalse(Double.isNaN(oldStats.getStats().getWindowValues()[0]));
+    assertNotNull(bolt.subAlarmStatsRepos.get(metricDefinitionAndTenantId).get("123"));
+
+    final AlarmSubExpression newExpr = AlarmSubExpression.of(newSubExpression);
+
+    bolt.execute(Testing.testTuple(Arrays.asList(EventProcessingBolt.UPDATED,
+            metricDefinitionAndTenantId, new SubAlarm("123", "1", newExpr)), tupleParam));
+
+    return bolt.subAlarmStatsRepos.get(metricDefinitionAndTenantId).get("123");
   }
 
   public void validateMetricDefDeleted() {

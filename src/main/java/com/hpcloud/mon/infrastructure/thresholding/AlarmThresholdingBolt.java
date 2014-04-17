@@ -14,7 +14,9 @@ import backtype.storm.tuple.Tuple;
 
 import com.hpcloud.mon.ThresholdingConfiguration;
 import com.hpcloud.mon.common.event.AlarmStateTransitionedEvent;
+import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
+import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.domain.model.Alarm;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.mon.domain.service.AlarmDAO;
@@ -42,7 +44,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
 
     private transient Logger LOG;
     private DataSourceFactory dbConfig;
-    private final Map<String, Alarm> alarms = new HashMap<String, Alarm>();
+    final Map<String, Alarm> alarms = new HashMap<String, Alarm>();
     private String alertExchange;
     private String alertRoutingKey;
     private transient AlarmDAO alarmDAO;
@@ -83,7 +85,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
                 if (EventProcessingBolt.DELETED.equals(eventType))
                     handleAlarmDeleted(alarmId);
                 else if (EventProcessingBolt.UPDATED.equals(eventType))
-                    handleAlarmUpdated(alarmId);
+                    handleAlarmUpdated(alarmId, (AlarmUpdatedEvent) tuple.getValue(2));
                 }
         } catch (Exception e) {
             LOG.error("Error processing tuple {}", tuple, e);
@@ -155,23 +157,52 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
         alarms.remove(alarmId);
     }
 
-    void handleAlarmUpdated(String alarmId) {
-    	// Just flush the Alarm from our cache so it gets read fresh from the database
-    	// when a sub alarm is received
-        LOG.debug("Received AlarmUpdatedEvent for alarm id {}", alarmId);
-        alarms.remove(alarmId);
-        final Alarm alarm = alarmDAO.findById(alarmId);
-        if (alarm == null)
-            LOG.error("Failed to locate alarm for id {}", alarmId);
-        else {
-            // TODO - Should the API be doing this? If so, does it also do the kafka event?
-            if (alarm.getState() != AlarmState.UNDETERMINED) {
-                final AlarmState initialState = alarm.getState();
-                alarm.setState(AlarmState.UNDETERMINED);
-                changeAlarmState(alarm, initialState, "Alarm updated by User");
-            }
-            alarms.put(alarmId, alarm);
+    void handleAlarmUpdated(String alarmId, AlarmUpdatedEvent alarmUpdatedEvent) {
+        final Alarm oldAlarm = alarms.get(alarmId);
+        if (oldAlarm == null) {
+            LOG.debug("Updated Alarm {} not loaded, ignoring");
+            return;
         }
+
+        oldAlarm.setName(alarmUpdatedEvent.alarmName);
+        oldAlarm.setDescription(alarmUpdatedEvent.alarmDescription);
+        oldAlarm.setExpression(alarmUpdatedEvent.alarmExpression);
+        oldAlarm.setState(alarmUpdatedEvent.alarmState);
+        oldAlarm.setActionsEnabled(alarmUpdatedEvent.alarmActionsEnabled);
+        
+        // Now handle the SubAlarms
+        // First remove the deleted SubAlarms so we don't have to consider them later
+        for (Map.Entry<String, AlarmSubExpression> entry : alarmUpdatedEvent.oldAlarmSubExpressions.entrySet()) {
+            LOG.debug("Removing deleted SubAlarm {}", entry.getValue());
+            if (!oldAlarm.removeSubAlarmById(entry.getKey()))
+                LOG.error("Did not find removed SubAlarm {}", entry.getValue());
+        }
+
+        // Reuse what we can from the changed SubAlarms
+        for (Map.Entry<String, AlarmSubExpression> entry : alarmUpdatedEvent.changedSubExpressions.entrySet()) {
+            final SubAlarm oldSubAlarm = oldAlarm.getSubAlarm(entry.getKey());
+            if (oldSubAlarm == null) {
+                LOG.error("Did not find changed SubAlarm {}", entry.getValue());
+                continue;
+            }
+            final SubAlarm newSubAlarm = new SubAlarm(entry.getKey(), oldAlarm.getId(), entry.getValue());
+            newSubAlarm.setState(oldSubAlarm.getState());
+            if (!oldSubAlarm.isCompatible(newSubAlarm)) {
+                newSubAlarm.setNoState(true);
+            }
+            LOG.debug("Changing SubAlarm from {} to {}", oldSubAlarm, newSubAlarm);
+            oldAlarm.updateSubAlarm(newSubAlarm);
+        }
+
+        // Add the new SubAlarms
+        for (Map.Entry<String, AlarmSubExpression> entry : alarmUpdatedEvent.newAlarmSubExpressions.entrySet()) {
+            final SubAlarm newSubAlarm = new SubAlarm(entry.getKey(), oldAlarm.getId(), entry.getValue());
+            newSubAlarm.setNoState(true);
+            LOG.debug("Adding SubAlarm {}", newSubAlarm);
+            oldAlarm.updateSubAlarm(newSubAlarm);
+        }
+
+        alarms.put(alarmId, oldAlarm);
     }
 
     String buildStateChangeReason() {

@@ -111,4 +111,23 @@ public class SubAlarm extends AbstractEntity implements Serializable {
         return String.format("SubAlarm [id=%s, alarmId=%s, expression=%s, state=%s noState=%s]", id, alarmId,
                 expression, state, noState);
     }
+
+    /**
+     * Determine if this SubAlarm and 'other' could reuse saved measurements. Only possible
+     * only operator and/or threshold are the only properties from the expression that are different
+     * @param other SubAlarm to compare to
+     * @return true if 'other' is "compatible", false otherwise
+     */
+    public boolean isCompatible(final SubAlarm other) {
+        if (!this.expression.getMetricDefinition().equals(other.expression.getMetricDefinition()))
+            return false;
+        if (!this.expression.getFunction().equals(other.expression.getFunction()))
+            return false;
+        if (this.expression.getPeriod() != other.expression.getPeriod())
+            return false;
+        if (this.expression.getPeriods() != other.expression.getPeriods())
+            return false;
+        // Operator and Threshold can vary
+        return true;
+    }
 }

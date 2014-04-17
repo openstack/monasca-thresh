@@ -227,4 +227,8 @@ public class Alarm extends AbstractEntity {
   public void updateSubAlarm(SubAlarm subAlarm) {
     subAlarms.put(subAlarm.getId(), subAlarm);
   }
+
+  public boolean removeSubAlarmById(String toDeleteId) {
+    return subAlarms.remove(toDeleteId) != null;
+  }
 }
