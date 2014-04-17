@@ -1,6 +1,5 @@
 package com.hpcloud.mon.infrastructure.thresholding;
 
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -70,7 +69,6 @@ public class MetricFilteringBolt extends BaseRichBolt {
   private DataSourceFactory dbConfig;
   private transient MetricDefinitionDAO metricDefDAO;
   private OutputCollector collector;
-  private List<MetricDefinitionAndTenantId> matches = new ArrayList<>();
 
   public MetricFilteringBolt(DataSourceFactory dbConfig) {
     this.dbConfig = dbConfig;
@@ -94,11 +92,11 @@ public class MetricFilteringBolt extends BaseRichBolt {
 
         LOG.debug("metric definition and tenant id: {}", metricDefinitionAndTenantId);
         // Check for exact matches as well as inexact matches
-        if (matcher.match(metricDefinitionAndTenantId, matches))
-            for (final MetricDefinitionAndTenantId match : matches)
-                // Must send with the MetricDefinitionAndTenantId that it matches, not one in the Metric although
-                // they may be the same
-                collector.emit(tuple, new Values(match, tuple.getValue(1)));
+        final List<MetricDefinitionAndTenantId> matches = matcher.match(metricDefinitionAndTenantId);
+        for (final MetricDefinitionAndTenantId match : matches)
+            // Must send with the MetricDefinitionAndTenantId that it matches, not one in the Metric although
+            // they may be the same
+            collector.emit(tuple, new Values(match, tuple.getValue(1)));
       } else {
         String eventType = tuple.getString(0);
         MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) tuple.getValue(1);

@@ -1,6 +1,8 @@
 package com.hpcloud.mon.domain.model;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +24,8 @@ public class MetricDefinitionAndTenantIdMatcher {
     final Map<String, Map<String, Map<DimensionSet, Object>>> byTenantId = new ConcurrentHashMap<>();
     private final static DimensionSet EMPTY_DIMENSION_SET = new DimensionSet(new DimensionPair[0]);
     private final static Object placeHolder = new Object();
+    @SuppressWarnings("unchecked")
+    private final static List<MetricDefinitionAndTenantId> EMPTY_LIST = Collections.EMPTY_LIST; 
 
     public void add(MetricDefinitionAndTenantId metricDefinitionAndTenantId) {
         Map<String, Map<DimensionSet, Object>> byMetricName = byTenantId.get(metricDefinitionAndTenantId.tenantId);
@@ -63,22 +67,24 @@ public class MetricDefinitionAndTenantIdMatcher {
         return result;
     }
 
-    public boolean match(final MetricDefinitionAndTenantId toMatch,
-                         final List<MetricDefinitionAndTenantId> matches) {
+    public List<MetricDefinitionAndTenantId> match(final MetricDefinitionAndTenantId toMatch) {
         final Map<String, Map<DimensionSet, Object>> byMetricName = byTenantId.get(toMatch.tenantId);
         if (byMetricName == null)
-            return false;
+            return EMPTY_LIST;
 
         final Map<DimensionSet, Object> byDimensionSet = byMetricName.get(toMatch.metricDefinition.name);
         if (byDimensionSet == null)
-            return false;
+            return EMPTY_LIST;
         final DimensionSet[] possibleDimensionSets = createPossibleDimensionPairs(toMatch.metricDefinition);
-        matches.clear();
+        List<MetricDefinitionAndTenantId> matches = null;
         for (final DimensionSet dimensionSet : possibleDimensionSets) {
-            if (byDimensionSet.containsKey(dimensionSet))
+            if (byDimensionSet.containsKey(dimensionSet)) {
+                if (matches == null)
+                    matches = new ArrayList<>();
                 matches.add(createFromDimensionSet(toMatch, dimensionSet));
+            }
         }
-        return !matches.isEmpty();
+        return matches == null ? EMPTY_LIST : matches;
     }
 
     private MetricDefinitionAndTenantId createFromDimensionSet(
