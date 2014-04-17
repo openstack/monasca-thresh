@@ -105,6 +105,7 @@ public class AlarmThresholdingBoltTest {
         final String alarmJson = "{\"alarm-transitioned\":{\"tenantId\":\"" + tenantId + "\"," +
 				"\"alarmId\":\"111111112222222222233333333334\",\"alarmName\":\"Test CPU Alarm\"," +
 				"\"alarmDescription\":\"Description of Alarm\",\"oldState\":\"OK\",\"newState\":\"ALARM\"," +
+				"\"actionsEnabled\":true," +
                 "\"stateChangeReason\":\"Thresholds were exceeded for the sub-alarms: [" + subAlarm.getExpression().getExpression() + "]\"," +
 				"\"timestamp\":1395587091}}";
 
@@ -116,7 +117,11 @@ public class AlarmThresholdingBoltTest {
         final Tuple clearTuple = createSubAlarmStateChangeTuple(alarmId, subAlarm);
 		bolt.execute(clearTuple);
 		verify(collector, times(1)).ack(clearTuple);
-		final String okJson = "{\"alarm-transitioned\":{\"tenantId\":\"AAAAABBBBBBCCCCC\",\"alarmId\":\"111111112222222222233333333334\",\"alarmName\":\"Test CPU Alarm\",\"alarmDescription\":\"Description of Alarm\",\"oldState\":\"ALARM\",\"newState\":\"OK\",\"stateChangeReason\":\"The alarm threshold(s) have not been exceeded\",\"timestamp\":1395587091}}";
+		final String okJson = "{\"alarm-transitioned\":{\"tenantId\":\"" + tenantId + "\"," + 
+                "\"alarmId\":\"111111112222222222233333333334\",\"alarmName\":\"Test CPU Alarm\"," +
+                "\"alarmDescription\":\"Description of Alarm\",\"oldState\":\"ALARM\",\"newState\":\"OK\"," +
+                "\"actionsEnabled\":true," +
+                "\"stateChangeReason\":\"The alarm threshold(s) have not been exceeded\",\"timestamp\":1395587091}}";
 		verify(alarmEventForwarder, times(1)).send(ALERTS_EXCHANGE, ALERT_ROUTING_KEY, okJson);
         verify(alarmDAO, times(1)).updateState(alarmId, AlarmState.OK);
 	}
