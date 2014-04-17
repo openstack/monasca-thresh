@@ -39,7 +39,6 @@ import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
 import com.hpcloud.mon.domain.service.SubAlarmMetricDefinition;
 import com.hpcloud.mon.infrastructure.thresholding.AlarmEventForwarder;
-import com.hpcloud.mon.infrastructure.thresholding.MetricAggregationBolt;
 import com.hpcloud.mon.infrastructure.thresholding.MetricSpout;
 import com.hpcloud.streaming.storm.TopologyTestCase;
 import com.hpcloud.util.Injector;
@@ -136,9 +135,6 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     alarmEventForwarder = mock(AlarmEventForwarder.class);
     Injector.registerModules(new TopologyModule(threshConfig, stormConfig,
         metricSpout, eventSpout, alarmEventForwarder));
-
-    // Evaluate alarm stats every 1 seconds
-    System.setProperty(MetricAggregationBolt.TICK_TUPLE_SECONDS_KEY, "1");
   }
 
   private List<SubAlarm> subAlarmsFor(AlarmExpression expression) {

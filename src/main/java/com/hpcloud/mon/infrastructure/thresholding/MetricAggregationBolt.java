@@ -165,7 +165,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
         if (subAlarmStats.evaluateAndSlideWindow(newWindowTimestamp)) {
           LOG.debug("Alarm state changed for {}", subAlarmStats);
           collector.emit(new Values(subAlarmStats.getSubAlarm().getAlarmId(),
-              subAlarmStats.getSubAlarm()));
+                  subAlarmStats.getSubAlarm()));
+          subAlarmStats.getSubAlarm().setNoState(false);
         }
       }
   }
@@ -183,9 +184,11 @@ public class MetricAggregationBolt extends BaseRichBolt {
         LOG.warn("Failed to find sub alarms for {}", metricDefinitionAndTenantId);
       else {
         LOG.debug("Creating SubAlarmStats for {}", metricDefinitionAndTenantId);
-        for (SubAlarm subAlarm : subAlarms)
+        for (SubAlarm subAlarm : subAlarms) {
           // TODO should treat metric def name prefix like a namespace
           subAlarm.setSporadicMetric(sporadicMetricNamespaces.contains(metricDefinitionAndTenantId.metricDefinition.name));
+          subAlarm.setNoState(true);
+        }
         long viewEndTimestamp = (System.currentTimeMillis() / 1000) + evaluationTimeOffset;
         subAlarmStatsRepo = new SubAlarmStatsRepository(subAlarms, viewEndTimestamp);
         subAlarmStatsRepos.put(metricDefinitionAndTenantId, subAlarmStatsRepo);
@@ -200,6 +203,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
    */
   void handleAlarmCreated(MetricDefinitionAndTenantId metricDefinitionAndTenantId, SubAlarm subAlarm) {
     LOG.debug("Received AlarmCreatedEvent for {}", subAlarm);
+    subAlarm.setNoState(true);
     addSubAlarm(metricDefinitionAndTenantId, subAlarm);
   }
 
