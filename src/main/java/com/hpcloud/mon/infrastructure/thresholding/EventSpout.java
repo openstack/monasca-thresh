@@ -1,5 +1,6 @@
 package com.hpcloud.mon.infrastructure.thresholding;
 
+import java.io.Serializable;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -35,7 +36,12 @@ public class EventSpout extends KafkaSpout {
         List<List<?>> events = deserializer.deserialize(message);
         if (events != null) {
             for (final List<?> event : events) {
-                collector.emit(new Values(event.get(0)));
+                final Object eventToSend = event.get(0);
+                if (!(eventToSend instanceof Serializable)) {
+                    LOG.error("Class {} is not Serializable: {}", eventToSend.getClass(), eventToSend);
+                    continue;
+                }
+                collector.emit(new Values(eventToSend));
             }
         }
     }
