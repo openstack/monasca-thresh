@@ -3,6 +3,7 @@ package com.hpcloud.mon.infrastructure.thresholding;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.reset;
@@ -126,6 +127,7 @@ public class MetricAggregationBoltTest {
 
     bolt.execute(createMetricTuple(metricDef2, null));
 
+
     // Send metrics for subAlarm1
     long t1 = System.currentTimeMillis() / 1000;
     bolt.execute(createMetricTuple(metricDef1, new Metric(metricDef1, t1, 100)));
@@ -134,6 +136,7 @@ public class MetricAggregationBoltTest {
 
     final Tuple tickTuple = createTickTuple();
     bolt.execute(tickTuple);
+    verify(collector, times(1)).ack(tickTuple);
 
     assertEquals(subAlarm1.getState(), AlarmState.OK);
     assertEquals(subAlarm2.getState(), AlarmState.UNDETERMINED);
@@ -147,6 +150,7 @@ public class MetricAggregationBoltTest {
     bolt.execute(createMetricTuple(metricDef1, new Metric(metricDef1, t1, 99)));
     bolt.execute(createMetricTuple(metricDef2, new Metric(metricDef2, System.currentTimeMillis() / 1000, 94)));
     bolt.execute(tickTuple);
+    verify(collector, times(1)).ack(tickTuple);
 
     assertEquals(subAlarm1.getState(), AlarmState.ALARM);
     assertEquals(subAlarm2.getState(), AlarmState.ALARM);
@@ -174,8 +178,19 @@ public class MetricAggregationBoltTest {
     subAlarm2.setState(AlarmState.UNDETERMINED);
     bolt.execute(createMetricTuple(metricDef2, null));
 
+    final MkTupleParam tupleParam = new MkTupleParam();
+    tupleParam.setStream(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM);
+    final Tuple lagTuple = Testing.testTuple(Arrays.asList(MetricAggregationBolt.METRICS_BEHIND), tupleParam);
+    bolt.execute(lagTuple);
+    verify(collector, times(1)).ack(lagTuple);
+
     final Tuple tickTuple = createTickTuple();
     bolt.execute(tickTuple);
+    verify(collector, times(1)).ack(tickTuple);
+    verify(collector, never()).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
+
+    bolt.execute(tickTuple);
+    verify(collector, times(2)).ack(tickTuple);
 
     verify(collector, times(1)).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
   }

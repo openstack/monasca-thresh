@@ -111,6 +111,7 @@ public class TopologyModule extends AbstractModule {
         new MetricAggregationBolt(config.database, config.sporadicMetricNamespaces),
         config.aggregationBoltThreads)
         .fieldsGrouping("filtering-bolt", new Fields(MetricFilteringBolt.FIELDS[0]))
+        .allGrouping("filtering-bolt", MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM)
         .fieldsGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID,
             new Fields(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_FIELDS[1]))
         .fieldsGrouping("event-bolt", EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID,

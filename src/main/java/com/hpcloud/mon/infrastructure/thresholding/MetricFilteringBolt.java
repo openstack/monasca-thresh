@@ -16,6 +16,7 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
+import com.hpcloud.mon.common.model.metric.Metric;
 import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantId;
 import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantIdMatcher;
 import com.hpcloud.mon.domain.model.SubAlarm;
@@ -60,15 +61,30 @@ import com.hpcloud.util.Injector;
  */
 public class MetricFilteringBolt extends BaseRichBolt {
   private static final long serialVersionUID = 1096706128973976599L;
+
+  public static final String MIN_LAG_VALUE_KEY = "com.hpcloud.mon.filtering.minLagValue";
+  public static final int MIN_LAG_VALUE_DEFAULT = 10;
+  public static final String MAX_LAG_MESSAGES_KEY = "com.hpcloud.mon.filtering.maxLagMessages";
+  public static final int MAX_LAG_MESSAGES_DEFAULT = 10;
+  public static final String LAG_MESSAGE_PERIOD_KEY = "com.hpcloud.mon.filtering.lagMessagePeriod";
+  public static final int LAG_MESSAGE_PERIOD_DEFAULT = 30;
+  public static final String[] FIELDS = new String[] { "metricDefinitionAndTenantId", "metric" };
+
+  private static final int MIN_LAG_VALUE = PropertyFinder.getIntProperty(MIN_LAG_VALUE_KEY, MIN_LAG_VALUE_DEFAULT, 0, Integer.MAX_VALUE);
+  private static final int MAX_LAG_MESSAGES = PropertyFinder.getIntProperty(MAX_LAG_MESSAGES_KEY, MAX_LAG_MESSAGES_DEFAULT, 0, Integer.MAX_VALUE);
+  private static final int LAG_MESSAGE_PERIOD = PropertyFinder.getIntProperty(LAG_MESSAGE_PERIOD_KEY, LAG_MESSAGE_PERIOD_DEFAULT, 1, 600);
   private static final Map<MetricDefinitionAndTenantId, List<String>> METRIC_DEFS = new ConcurrentHashMap<>();
   private static final MetricDefinitionAndTenantIdMatcher matcher = new MetricDefinitionAndTenantIdMatcher();
   private static final Object SENTINAL = new Object();
-  public static final String[] FIELDS = new String[] { "metricDefinitionAndTenantId", "metric" };
 
   private transient Logger LOG;
   private DataSourceFactory dbConfig;
   private transient MetricDefinitionDAO metricDefDAO;
   private OutputCollector collector;
+  private long minLag = Long.MAX_VALUE;
+  private long lastMinLagMessageSent = 0;
+  private long minLagMessageSent = 0;
+  private boolean lagging = true;
 
   public MetricFilteringBolt(DataSourceFactory dbConfig) {
     this.dbConfig = dbConfig;
@@ -81,6 +97,8 @@ public class MetricFilteringBolt extends BaseRichBolt {
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
     declarer.declare(new Fields(FIELDS));
+    declarer.declareStream(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM,
+            new Fields(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_FIELDS));
   }
 
   @Override
@@ -88,15 +106,15 @@ public class MetricFilteringBolt extends BaseRichBolt {
     LOG.debug("tuple: {}", tuple);
     try {
       if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-        MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) tuple.getValue(0);
+        final MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) tuple.getValue(0);
+        final Metric metric = (Metric)tuple.getValue(1);
+        checkLag(metric);
 
         LOG.debug("metric definition and tenant id: {}", metricDefinitionAndTenantId);
         // Check for exact matches as well as inexact matches
         final List<MetricDefinitionAndTenantId> matches = matcher.match(metricDefinitionAndTenantId);
         for (final MetricDefinitionAndTenantId match : matches)
-            // Must send with the MetricDefinitionAndTenantId that it matches, not one in the Metric although
-            // they may be the same
-            collector.emit(tuple, new Values(match, tuple.getValue(1)));
+            collector.emit(tuple, new Values(match, metric));
       } else {
         String eventType = tuple.getString(0);
         MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) tuple.getValue(1);
@@ -119,6 +137,30 @@ public class MetricFilteringBolt extends BaseRichBolt {
     } finally {
       collector.ack(tuple);
     }
+  }
+
+  private void checkLag(Metric metric) {
+    final long now = getCurrentSeconds();
+    final long lag = now - metric.timestamp;
+    if (lag < minLag)
+      minLag = lag;
+    if (lagging)
+      if (minLag <= MIN_LAG_VALUE) {
+        lagging = false;
+        LOG.info("Metrics no longer lagging, minLag = {}", minLag);
+      }
+      else if (minLagMessageSent >= MAX_LAG_MESSAGES) {
+          LOG.info("Waited for {} seconds for Metrics to catch up. Giving up. minLag = {}",
+                  MAX_LAG_MESSAGES * LAG_MESSAGE_PERIOD, minLag);
+          lagging = false;
+      }
+      else if ((now - lastMinLagMessageSent) >= LAG_MESSAGE_PERIOD) {
+          LOG.info("Sending {} message, minLag = {}", MetricAggregationBolt.METRICS_BEHIND, minLag);
+          collector.emit(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM,
+                        new Values(MetricAggregationBolt.METRICS_BEHIND));
+          lastMinLagMessageSent = now;
+          minLagMessageSent++;
+      }
   }
 
   private void removeSubAlarm(MetricDefinitionAndTenantId metricDefinitionAndTenantId, String subAlarmId) {
@@ -158,6 +200,15 @@ public class MetricFilteringBolt extends BaseRichBolt {
         }
       }
     }
+    // Not really when it was sent, but want to wait at least LAG_MESSAGE_PERIOD before sending a message
+    lastMinLagMessageSent = getCurrentSeconds();
+  }
+
+  /**
+   * Allow override of current time for testing.
+   */
+  protected long getCurrentSeconds() {
+    return System.currentTimeMillis() / 1000;
   }
 
   private void addMetricDef(MetricDefinitionAndTenantId metricDefinitionAndTenantId, String subAlarmId) {

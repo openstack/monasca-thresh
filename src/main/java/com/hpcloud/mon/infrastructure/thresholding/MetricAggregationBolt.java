@@ -51,8 +51,11 @@ import com.hpcloud.util.Injector;
  */
 public class MetricAggregationBolt extends BaseRichBolt {
   private static final long serialVersionUID = 5624314196838090726L;
-  public static final String TICK_TUPLE_SECONDS_KEY = "maas.aggregation.tick.seconds";
+  public static final String TICK_TUPLE_SECONDS_KEY = "com.hpcloud.mon.aggregation.tick.seconds";
   public static final String[] FIELDS = new String[] { "alarmId", "subAlarm" };
+  public static final String METRIC_AGGREGATION_CONTROL_STREAM = "MetricAggregationControl";
+  public static final String[] METRIC_AGGREGATION_CONTROL_FIELDS = new String[] { "directive" };
+  public static final String METRICS_BEHIND = "MetricsBehind";
 
   final Map<MetricDefinitionAndTenantId, SubAlarmStatsRepository> subAlarmStatsRepos = new HashMap<>();
   private transient Logger LOG;
@@ -62,6 +65,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
   private Set<String> sporadicMetricNamespaces = Collections.emptySet();
   private OutputCollector collector;
   private int evaluationTimeOffset;
+  private boolean upToDate = true;
 
   public MetricAggregationBolt(SubAlarmDAO subAlarmDAO) {
     this.subAlarmDAO = subAlarmDAO;
@@ -88,6 +92,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
           MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) tuple.getValue(0);
           Metric metric = (Metric) tuple.getValueByField("metric");
           aggregateValues(metricDefinitionAndTenantId, metric);
+        } else if (METRIC_AGGREGATION_CONTROL_STREAM.equals(tuple.getSourceStreamId())) {
+          processControl(tuple.getString(0));
         } else {
           String eventType = tuple.getString(0);
           MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) tuple.getValue(1);
@@ -110,6 +116,15 @@ public class MetricAggregationBolt extends BaseRichBolt {
     } finally {
       collector.ack(tuple);
     }
+  }
+
+  private void processControl(final String directive) {
+    if (METRICS_BEHIND.equals(directive)) {
+      LOG.debug("Received {}", directive);
+      this.upToDate = false;
+    }
+    else
+      LOG.error("Unknown directive '{}'", directive);
   }
 
   @Override
@@ -158,6 +173,11 @@ public class MetricAggregationBolt extends BaseRichBolt {
    * ago, then sliding the window to the current time.
    */
   void evaluateAlarmsAndSlideWindows() {
+    if (!upToDate) {
+        LOG.info("Not evaluating SubAlarms because Metrics are not up to date");
+        upToDate = true;
+        return;
+    }
     long newWindowTimestamp = System.currentTimeMillis() / 1000;
     for (SubAlarmStatsRepository subAlarmStatsRepo : subAlarmStatsRepos.values())
       for (SubAlarmStats subAlarmStats : subAlarmStatsRepo.get()) {

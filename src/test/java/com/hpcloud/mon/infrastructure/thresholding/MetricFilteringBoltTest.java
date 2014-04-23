@@ -66,11 +66,11 @@ public class MetricFilteringBoltTest {
         return result;
     }
 
-    private MetricFilteringBolt createBolt(List<SubAlarmMetricDefinition> initialMetricDefinitions,
+    private MockMetricFilteringBolt createBolt(List<SubAlarmMetricDefinition> initialMetricDefinitions,
                                            final OutputCollector collector, boolean willEmit) {
         final MetricDefinitionDAO dao = mock(MetricDefinitionDAO.class);
         when(dao.findForAlarms()).thenReturn(initialMetricDefinitions);
-        MetricFilteringBolt bolt = new MetricFilteringBolt(dao);
+        MockMetricFilteringBolt bolt = new MockMetricFilteringBolt(dao);
 
         final Map<String, String> config = new HashMap<>();
         final TopologyContext context = mock(TopologyContext.class);
@@ -83,6 +83,71 @@ public class MetricFilteringBoltTest {
             }
         }
         return bolt;
+    }
+
+    public void testLagging() {
+        final OutputCollector collector = mock(OutputCollector.class);
+
+        final MockMetricFilteringBolt bolt = createBolt(new ArrayList<SubAlarmMetricDefinition>(0), collector, true);
+
+        final long prepareTime = bolt.getCurrentSeconds();
+        final MetricDefinition metricDefinition = subAlarms.get(0).getExpression().getMetricDefinition();
+        final Tuple lateMetricTuple = createMetricTuple(metricDefinition, new Metric(metricDefinition, prepareTime, 42.0));
+        bolt.setCurrentSeconds(prepareTime + MetricFilteringBolt.LAG_MESSAGE_PERIOD_DEFAULT);
+        bolt.execute(lateMetricTuple);
+        verify(collector, times(1)).ack(lateMetricTuple);
+        verify(collector, times(1)).emit(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM,
+                new Values(MetricAggregationBolt.METRICS_BEHIND));
+        bolt.setCurrentSeconds(prepareTime + 2 * MetricFilteringBolt.LAG_MESSAGE_PERIOD_DEFAULT);
+        final Tuple metricTuple = createMetricTuple(metricDefinition, new Metric(metricDefinition, bolt.getCurrentSeconds() - MetricFilteringBolt.MIN_LAG_VALUE_DEFAULT, 42.0));
+        bolt.execute(metricTuple);
+        verify(collector, times(1)).ack(metricTuple);
+        verify(collector, times(1)).emit(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM,
+                new Values(MetricAggregationBolt.METRICS_BEHIND));
+    }
+
+    public void testLaggingTooLong() {
+        final OutputCollector collector = mock(OutputCollector.class);
+
+        final MockMetricFilteringBolt bolt = createBolt(new ArrayList<SubAlarmMetricDefinition>(0), collector, true);
+
+        long prepareTime = bolt.getCurrentSeconds();
+        final MetricDefinition metricDefinition = subAlarms.get(0).getExpression().getMetricDefinition();
+        // Fake sending metrics for MetricFilteringBolt.MAX_LAG_MESSAGES_DEFAULT * MetricFilteringBolt.LAG_MESSAGE_PERIOD_DEFAULT seconds
+        for (int i = 0; i < MetricFilteringBolt.MAX_LAG_MESSAGES_DEFAULT; i++) {
+            final Tuple lateMetricTuple = createMetricTuple(metricDefinition, new Metric(metricDefinition, prepareTime, 42.0));
+            bolt.setCurrentSeconds(prepareTime + MetricFilteringBolt.LAG_MESSAGE_PERIOD_DEFAULT);
+            bolt.execute(lateMetricTuple);
+            verify(collector, times(1)).ack(lateMetricTuple);
+            verify(collector, times(i + 1)).emit(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM,
+                    new Values(MetricAggregationBolt.METRICS_BEHIND));
+            prepareTime = bolt.getCurrentSeconds();
+        }
+        // One more
+        final Tuple metricTuple = createMetricTuple(metricDefinition, new Metric(metricDefinition, bolt.getCurrentSeconds() - MetricFilteringBolt.LAG_MESSAGE_PERIOD_DEFAULT, 42.0));
+        bolt.execute(metricTuple);
+        verify(collector, times(1)).ack(metricTuple);
+        // Won't be any more of these
+        verify(collector, times(MetricFilteringBolt.MAX_LAG_MESSAGES_DEFAULT)).emit(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM,
+                new Values(MetricAggregationBolt.METRICS_BEHIND));
+    }
+
+    private static class MockMetricFilteringBolt extends MetricFilteringBolt {
+        private static final long serialVersionUID = 1L;
+        private long currentSeconds = System.currentTimeMillis() / 1000;
+
+        public MockMetricFilteringBolt(MetricDefinitionDAO metricDefDAO) {
+            super(metricDefDAO);
+        }
+
+        @Override
+        protected long getCurrentSeconds() {
+            return currentSeconds;
+        }
+
+        public void setCurrentSeconds(final long currentSeconds) {
+            this.currentSeconds = currentSeconds;
+        }
     }
 
     public void testNoInitial() {
