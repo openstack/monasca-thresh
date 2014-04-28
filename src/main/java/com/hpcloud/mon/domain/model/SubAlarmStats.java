@@ -33,6 +33,7 @@ public class SubAlarmStats {
   public SubAlarmStats(SubAlarm subAlarm, TimeResolution timeResolution, long viewEndTimestamp) {
     slotWidth = subAlarm.getExpression().getPeriod();
     this.subAlarm = subAlarm;
+    this.subAlarm.setNoState(true);
     this.stats = new SlidingWindowStats(subAlarm.getExpression().getFunction().toStatistic(),
         timeResolution, slotWidth, subAlarm.getExpression().getPeriods(), FUTURE_SLOTS,
         viewEndTimestamp);
@@ -41,7 +42,7 @@ public class SubAlarmStats {
                                                        // convert to minutes
     emptyWindowObservationThreshold = periodMinutes * subAlarm.getExpression().getPeriods()
         * UNDETERMINED_COEFFICIENT;
-    emptyWindowObservations = emptyWindowObservationThreshold;
+    emptyWindowObservations = 0;
   }
 
   /**
@@ -89,8 +90,11 @@ public class SubAlarmStats {
     double[] values = stats.getViewValues();
     AlarmState initialState = subAlarm.getState();
     boolean thresholdExceeded = false;
+    boolean hasEmptyWindows = false;
     for (double value : values) {
-      if (!Double.isNaN(value)) {
+      if (Double.isNaN(value))
+        hasEmptyWindows = true;
+      else {
         emptyWindowObservations = 0;
 
         // Check if value is OK
@@ -99,17 +103,17 @@ public class SubAlarmStats {
             .evaluate(value, subAlarm.getExpression().getThreshold())) {
           if (AlarmState.OK.equals(initialState))
             return false;
-          subAlarm.setState(AlarmState.OK);
+          setSubAlarmState(AlarmState.OK);
           return true;
         } else
           thresholdExceeded = true;
       }
     }
 
-    if (thresholdExceeded) {
+    if (thresholdExceeded && !hasEmptyWindows) {
       if (AlarmState.ALARM.equals(initialState))
         return false;
-      subAlarm.setState(AlarmState.ALARM);
+      setSubAlarmState(AlarmState.ALARM);
       return true;
     }
 
@@ -119,12 +123,17 @@ public class SubAlarmStats {
     if ((emptyWindowObservations >= emptyWindowObservationThreshold) &&
          (subAlarm.isNoState() || !AlarmState.UNDETERMINED.equals(initialState)) &&
          !subAlarm.isSporadicMetric()) {
-         subAlarm.setState(AlarmState.UNDETERMINED);
+        setSubAlarmState(AlarmState.UNDETERMINED);
       return true;
     }
 
     return false;
   }
+
+private void setSubAlarmState(AlarmState newState) {
+    subAlarm.setState(newState);
+    subAlarm.setNoState(false);
+}
 
   /**
    * This MUST only be used for compatible SubAlarms, i.e. where

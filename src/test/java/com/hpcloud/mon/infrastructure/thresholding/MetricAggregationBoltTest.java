@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.reset;
 import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNotEquals;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
@@ -50,7 +49,7 @@ import com.hpcloud.streaming.storm.Streams;
 @Test
 public class MetricAggregationBoltTest {
   private static final String TENANT_ID = "42";
-  private MetricAggregationBolt bolt;
+  private MockMetricAggregationBolt bolt;
   private TopologyContext context;
   private OutputCollector collector;
   private List<SubAlarm> subAlarms;
@@ -79,9 +78,9 @@ public class MetricAggregationBoltTest {
   @BeforeMethod
   protected void beforeMethod() {
     // Fixtures
-    subAlarm1 = new SubAlarm("123", "1", subExpr1, AlarmState.OK);
-    subAlarm2 = new SubAlarm("456", "1", subExpr2, AlarmState.OK);
-    subAlarm3 = new SubAlarm("789", "2", subExpr3, AlarmState.ALARM);
+    subAlarm1 = new SubAlarm("123", "1", subExpr1, AlarmState.UNDETERMINED);
+    subAlarm2 = new SubAlarm("456", "1", subExpr2, AlarmState.UNDETERMINED);
+    subAlarm3 = new SubAlarm("789", "2", subExpr3, AlarmState.UNDETERMINED);
     subAlarms = new ArrayList<>();
     subAlarms.add(subAlarm1);
     subAlarms.add(subAlarm2);
@@ -100,7 +99,7 @@ public class MetricAggregationBoltTest {
       }
     });
 
-    bolt = new MetricAggregationBolt(dao);
+    bolt = new MockMetricAggregationBolt(dao);
     context = mock(TopologyContext.class);
     collector = mock(OutputCollector.class);
     bolt.prepare(null, context, collector);
@@ -127,7 +126,6 @@ public class MetricAggregationBoltTest {
 
     bolt.execute(createMetricTuple(metricDef2, null));
 
-
     // Send metrics for subAlarm1
     long t1 = System.currentTimeMillis() / 1000;
     bolt.execute(createMetricTuple(metricDef1, new Metric(metricDef1, t1, 100)));
@@ -142,12 +140,13 @@ public class MetricAggregationBoltTest {
     assertEquals(subAlarm2.getState(), AlarmState.UNDETERMINED);
     assertEquals(subAlarm3.getState(), AlarmState.UNDETERMINED);
 
-    verify(collector, times(1)).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
-    verify(collector, times(1)).emit(new Values(subAlarm3.getAlarmId(), subAlarm3));
+    verify(collector, times(1)).emit(new Values(subAlarm1.getAlarmId(), subAlarm1));
     // Have to reset the mock so it can tell the difference when subAlarm2 and subAlarm3 are emitted again.
     reset(collector);
 
+    // Drive subAlarm1 to ALARM
     bolt.execute(createMetricTuple(metricDef1, new Metric(metricDef1, t1, 99)));
+    // Drive subAlarm2 to ALARM and subAlarm3 to OK since they use the same MetricDefinition
     bolt.execute(createMetricTuple(metricDef2, new Metric(metricDef2, System.currentTimeMillis() / 1000, 94)));
     bolt.execute(tickTuple);
     verify(collector, times(1)).ack(tickTuple);
@@ -161,21 +160,33 @@ public class MetricAggregationBoltTest {
   }
 
   public void shouldSendUndeterminedIfStateChanges() {
-
-    assertNotEquals(AlarmState.UNDETERMINED, subAlarm2.getState());
+    long t1 = System.currentTimeMillis() / 1000;
+    bolt.setCurrentTime(t1);
     bolt.execute(createMetricTuple(metricDef2, null));
+    t1 += 1;
+    bolt.execute(createMetricTuple(metricDef2, new Metric(metricDef2, t1, 1.0)));
 
+    bolt.setCurrentTime(t1 += 60);
     final Tuple tickTuple = createTickTuple();
     bolt.execute(tickTuple);
+    assertEquals(subAlarm2.getState(), AlarmState.OK);
 
-    assertEquals(AlarmState.UNDETERMINED, subAlarm2.getState());
+    bolt.setCurrentTime(t1 += 60);
+    bolt.execute(tickTuple);
+    assertEquals(subAlarm2.getState(), AlarmState.OK);
+    verify(collector, times(1)).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
+
+    // Have to reset the mock so it can tell the difference when subAlarm2 is emitted again.
+    reset(collector);
+
+    bolt.setCurrentTime(t1 += 60);
+    bolt.execute(tickTuple);
+    assertEquals(subAlarm2.getState(), AlarmState.UNDETERMINED);
     verify(collector, times(1)).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
   }
 
   public void shouldSendUndeterminedOnStartup() {
 
-    subAlarm2.setNoState(true);
-    subAlarm2.setState(AlarmState.UNDETERMINED);
     bolt.execute(createMetricTuple(metricDef2, null));
 
     final MkTupleParam tupleParam = new MkTupleParam();
@@ -191,6 +202,11 @@ public class MetricAggregationBoltTest {
 
     bolt.execute(tickTuple);
     verify(collector, times(2)).ack(tickTuple);
+    verify(collector, never()).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
+
+    bolt.execute(tickTuple);
+    verify(collector, times(3)).ack(tickTuple);
+    assertEquals(subAlarm2.getState(), AlarmState.UNDETERMINED);
 
     verify(collector, times(1)).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
   }
@@ -310,5 +326,26 @@ public class MetricAggregationBoltTest {
     tupleParam.setFields(MetricFilteringBolt.FIELDS);
     tupleParam.setStream(Streams.DEFAULT_STREAM_ID);
     return Testing.testTuple(Arrays.asList(new MetricDefinitionAndTenantId(metricDef, TENANT_ID), metric), tupleParam);
+  }
+
+  private static class MockMetricAggregationBolt extends MetricAggregationBolt {
+    private static final long serialVersionUID = 1L;
+
+    private long currentTime;
+
+    public MockMetricAggregationBolt(SubAlarmDAO subAlarmDAO) {
+        super(subAlarmDAO);
+    }
+
+    @Override
+    protected long currentTimeSeconds() {
+      if (currentTime != 0)
+        return currentTime;
+      return super.currentTimeSeconds();
+    }
+
+    public void setCurrentTime(long currentTime) {
+      this.currentTime = currentTime;
+    }
   }
 }

@@ -72,7 +72,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
   public ThresholdingEngineTest() {
     // Fixtures
     final AlarmExpression expression = new AlarmExpression(
-        "max(hpcs.compute.cpu{id=5}) >= 3 or max(hpcs.compute.mem{id=5}) >= 5 times 2");
+        "max(cpu{id=5}) >= 3 or max(mem{id=5}) >= 5");
 
     cpuMetricDef = expression.getSubExpressions().get(0).getMetricDefinition();
     memMetricDef = expression.getSubExpressions().get(1).getMetricDefinition();

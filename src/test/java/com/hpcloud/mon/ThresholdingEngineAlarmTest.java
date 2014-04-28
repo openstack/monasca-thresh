@@ -171,15 +171,13 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
       }
     )
     .when(alarmEventForwarder).send(anyString(), anyString(), anyString());
-    int waitCount = 0;
-    int feedCount = 5;
     int goodValueCount = 0;
     boolean firstUpdate = true;
     boolean secondUpdate = true;
     final Alarm initialAlarm = new Alarm(TEST_ALARM_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME,
             TEST_ALARM_DESCRIPTION, expression, subAlarms, AlarmState.UNDETERMINED, Boolean.TRUE);
     final int expectedAlarms = expectedStates.length;
-    for (int i = 1; alarmsSent != expectedAlarms && i < 150; i++) {
+    for (int i = 1; alarmsSent != expectedAlarms && i < 300; i++) {
       if (i == 5) {
           final Map<String, AlarmSubExpression> exprs = createSubExpressionMap();
           final AlarmCreatedEvent event = new AlarmCreatedEvent(TEST_ALARM_TENANT_ID, TEST_ALARM_ID, TEST_ALARM_NAME,
@@ -222,31 +220,20 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
 
           System.out.printf("Send AlarmUpdatedEvent for expression %s%n", expression.getExpression());
       }
-      if (feedCount > 0) {
+      else {
         System.out.println("Feeding metrics...");
 
         long time = System.currentTimeMillis() / 1000;
         ++goodValueCount;
         for (final SubAlarm subAlarm : subAlarms) {
-            final MetricDefinitionAndTenantId metricDefinitionAndTenantId =
-                    new MetricDefinitionAndTenantId(subAlarm.getExpression().getMetricDefinition(), TEST_ALARM_TENANT_ID);
-            metricSpout.feed(new Values(metricDefinitionAndTenantId,
+          final MetricDefinitionAndTenantId metricDefinitionAndTenantId =
+                new MetricDefinitionAndTenantId(subAlarm.getExpression().getMetricDefinition(), TEST_ALARM_TENANT_ID);
+          metricSpout.feed(new Values(metricDefinitionAndTenantId,
                     new Metric(metricDefinitionAndTenantId.metricDefinition, time, (double) (goodValueCount == 15 ? 1 : 555))));
         }
-
-        if (--feedCount == 0)
-          waitCount = 3;
-
-        if (goodValueCount == 15)
-          goodValueCount = 0;
-      } else {
-        System.out.println("Waiting...");
-        if (--waitCount == 0)
-          feedCount = 5;
       }
-
       try {
-        Thread.sleep(1000);
+        Thread.sleep(500);
       } catch (InterruptedException e) {
         e.printStackTrace();
       }
