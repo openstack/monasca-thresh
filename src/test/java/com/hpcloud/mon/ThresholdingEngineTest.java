@@ -40,6 +40,7 @@ import com.hpcloud.mon.domain.service.SubAlarmDAO;
 import com.hpcloud.mon.domain.service.SubAlarmMetricDefinition;
 import com.hpcloud.mon.infrastructure.thresholding.AlarmEventForwarder;
 import com.hpcloud.mon.infrastructure.thresholding.MetricSpout;
+import com.hpcloud.mon.infrastructure.thresholding.ProducerModule;
 import com.hpcloud.streaming.storm.TopologyTestCase;
 import com.hpcloud.util.Injector;
 import com.hpcloud.util.Serialization;
@@ -134,7 +135,8 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     eventSpout = new FeederSpout(new Fields("event"));
     alarmEventForwarder = mock(AlarmEventForwarder.class);
     Injector.registerModules(new TopologyModule(threshConfig, stormConfig,
-        metricSpout, eventSpout, alarmEventForwarder));
+        metricSpout, eventSpout));
+    Injector.registerModules(new ProducerModule(alarmEventForwarder));
   }
 
   private List<SubAlarm> subAlarmsFor(AlarmExpression expression) {

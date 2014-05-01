@@ -65,6 +65,7 @@ public class ThresholdingEngine {
     protected void run() throws Exception {
         Config config = Injector.getInstance(Config.class);
         StormTopology topology = Injector.getInstance(StormTopology.class);
+        config.registerSerialization(com.hpcloud.mon.domain.model.SubAlarm.class);
 
         if (local) {
             LOG.info("submitting topology {} to local storm cluster", topologyName);

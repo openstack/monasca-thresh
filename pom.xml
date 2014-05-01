@@ -15,7 +15,7 @@
 
     <properties>
         <mon.common.version>1.0.0.41</mon.common.version>
-
+        <storm.version>0.9.1-incubating</storm.version>
         <skipITs>true</skipITs>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -82,7 +82,7 @@
         <dependency>
             <groupId>org.apache.storm</groupId>
             <artifactId>storm-core</artifactId>
-            <version>0.9.1-incubating</version>
+            <version>${storm.version}</version>
         </dependency>
         <dependency>
             <groupId>com.hpcloud</groupId>
@@ -219,6 +219,13 @@
                             </excludes>
                         </filter>
                     </filters>
+                    <artifactSet>
+                        <excludes>
+                            <exclude>junit:junit</exclude>
+                            <exclude>org.apache.storm:storm-core</exclude>
+                            <exclude>org.hamcrest:*</exclude>
+                        </excludes>
+                    </artifactSet>
                 </configuration>
                 <executions>
                     <execution>
@@ -264,6 +271,34 @@
                 </configuration>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>2.8</version>
+                <executions>
+                <execution>
+                    <id>copy</id>
+                    <phase>package</phase>
+                    <goals>
+                        <goal>copy</goal>
+                    </goals>
+                    <configuration>
+                        <artifactItems>
+                            <artifactItem>
+                                <groupId>org.apache.storm</groupId>
+                                <artifactId>storm-core</artifactId>
+                                <version>${storm.version}</version>
+                                <type>jar</type>
+                                <overWrite>false</overWrite>
+                            </artifactItem>
+                        </artifactItems>
+                        <outputDirectory>${project.build.directory}</outputDirectory>
+                        <overWriteReleases>false</overWriteReleases>
+                        <overWriteSnapshots>true</overWriteSnapshots>
+                      </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <artifactId>jdeb</artifactId>
                 <groupId>org.vafer</groupId>
                 <version>1.0.1</version>
@@ -284,8 +319,19 @@
                                 </data>
                                 <data>
                                     <type>file</type>
+                                    <src>${project.build.directory}/storm-core-${storm.version}.jar
+                                    </src>
+                                    <dst>/opt/mon/storm-core-${storm.version}.jar</dst>
+                                </data>
+                                <data>
+                                    <type>file</type>
                                     <src>${project.basedir}/src/deb/init/mon-thresh.conf</src>
                                     <dst>/etc/init/mon-thresh.conf</dst>
+                                </data>
+                                <data>
+                                    <type>file</type>
+                                    <src>${project.basedir}/src/main/resources/logback.xml</src>
+                                    <dst>/etc/mon/logback.xml</dst>
                                 </data>
                                 <data>
                                     <type>file</type>

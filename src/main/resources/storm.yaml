@@ -1,3 +1,0 @@
-topology.fall.back.on.java.serialization: true
-topology.kryo.register:
-  - com.hpcloud.mon.domain.model.SubAlarm

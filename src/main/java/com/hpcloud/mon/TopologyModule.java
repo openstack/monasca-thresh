@@ -10,11 +10,9 @@ import backtype.storm.tuple.Fields;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
-import com.hpcloud.mon.infrastructure.thresholding.AlarmEventForwarder;
 import com.hpcloud.mon.infrastructure.thresholding.AlarmThresholdingBolt;
 import com.hpcloud.mon.infrastructure.thresholding.EventProcessingBolt;
 import com.hpcloud.mon.infrastructure.thresholding.EventSpout;
-import com.hpcloud.mon.infrastructure.thresholding.KafkaAlarmEventForwarder;
 import com.hpcloud.mon.infrastructure.thresholding.MetricAggregationBolt;
 import com.hpcloud.mon.infrastructure.thresholding.MetricFilteringBolt;
 import com.hpcloud.mon.infrastructure.thresholding.MetricSpout;
@@ -31,19 +29,17 @@ public class TopologyModule extends AbstractModule {
   private Config stormConfig;
   private IRichSpout metricSpout;
   private IRichSpout eventSpout;
-  private AlarmEventForwarder alarmEventForwarder;
 
   public TopologyModule(ThresholdingConfiguration config) {
     this.config = config;
   }
 
   public TopologyModule(ThresholdingConfiguration threshConfig, Config stormConfig,
-      IRichSpout metricSpout, IRichSpout eventSpout, AlarmEventForwarder alarmEventForwarder) {
+      IRichSpout metricSpout, IRichSpout eventSpout) {
     this(threshConfig);
     this.stormConfig = stormConfig;
     this.metricSpout = metricSpout;
     this.eventSpout = eventSpout;
-    this.alarmEventForwarder = alarmEventForwarder;
   }
 
   @Override
@@ -61,11 +57,6 @@ public class TopologyModule extends AbstractModule {
     }
 
     return stormConfig;
-  }
-
-  @Provides
-  AlarmEventForwarder alarmEventForwarder() {
-    return alarmEventForwarder == null ? new KafkaAlarmEventForwarder(config.kafkaProducerConfig) : alarmEventForwarder;
   }
 
   @Provides
@@ -120,7 +111,7 @@ public class TopologyModule extends AbstractModule {
 
     // Aggregation / Event -> Thresholding
     builder.setBolt("thresholding-bolt",
-        new AlarmThresholdingBolt(config.database),
+        new AlarmThresholdingBolt(config.database, config.kafkaProducerConfig),
         config.thresholdingBoltThreads)
         .fieldsGrouping("aggregation-bolt", new Fields(MetricAggregationBolt.FIELDS[0]))
         .fieldsGrouping("event-bolt", EventProcessingBolt.ALARM_EVENT_STREAM_ID,

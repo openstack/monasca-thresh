@@ -12,6 +12,7 @@ import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 
+import com.hpcloud.configuration.KafkaProducerConfiguration;
 import com.hpcloud.mon.ThresholdingConfiguration;
 import com.hpcloud.mon.common.event.AlarmStateTransitionedEvent;
 import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
@@ -44,6 +45,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
 
     private transient Logger LOG;
     private DataSourceFactory dbConfig;
+    private KafkaProducerConfiguration producerConfiguration;
     final Map<String, Alarm> alarms = new HashMap<String, Alarm>();
     private String alertExchange;
     private String alertRoutingKey;
@@ -51,8 +53,10 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     private transient AlarmEventForwarder alarmEventForwarder;
     private OutputCollector collector;
 
-    public AlarmThresholdingBolt(DataSourceFactory dbConfig) {
+    public AlarmThresholdingBolt(DataSourceFactory dbConfig,
+                                 KafkaProducerConfiguration producerConfig) {
         this.dbConfig = dbConfig;
+        this.producerConfiguration = producerConfig;
     }
 
     public AlarmThresholdingBolt(final AlarmDAO alarmDAO,
@@ -108,6 +112,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
         	alarmDAO = Injector.getInstance(AlarmDAO.class);
         }
         if (alarmEventForwarder == null) {
+            Injector.registerIfNotBound(AlarmEventForwarder.class, new ProducerModule(this.producerConfiguration));
         	alarmEventForwarder = Injector.getInstance(AlarmEventForwarder.class);
         }
     }
