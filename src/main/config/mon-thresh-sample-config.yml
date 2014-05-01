@@ -1,5 +1,5 @@
-metricSpoutThreads: 1
-metricSpoutTasks: 1
+metricSpoutThreads: 2
+metricSpoutTasks: 2
 
 metricSpoutConfig:
 
@@ -29,8 +29,8 @@ metricSpoutConfig:
     zookeeperConnectionTimeoutMs : 6000
     zookeeperSyncTimeMs: 2000
 
-eventSpoutThreads: 1
-eventSpoutTasks: 1
+eventSpoutThreads: 2
+eventSpoutTasks: 2
 
 eventSpoutConfig:
   #Kafka settings.

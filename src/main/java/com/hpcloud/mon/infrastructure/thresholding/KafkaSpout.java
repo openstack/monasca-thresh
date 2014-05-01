@@ -53,6 +53,10 @@ public abstract class KafkaSpout extends BaseRichSpout {
         LOG.info(" topic = " + kafkaConsumerConfig.getTopic());
 
         Properties kafkaProperties = KafkaConsumerProperties.createKafkaProperties(kafkaConsumerConfig);
+        // Have to use a different consumer.id for each spout so use the storm taskId. Otherwise,
+        // zookeeper complains about a conflicted ephemeral node when there is more than one spout
+        // reading from a topic
+        kafkaProperties.setProperty("consumer.id", String.valueOf(context.getThisTaskId()));
         ConsumerConfig consumerConfig = new ConsumerConfig(kafkaProperties);
         this.consumerConnector = Consumer.createJavaConsumerConnector(consumerConfig);
     }
