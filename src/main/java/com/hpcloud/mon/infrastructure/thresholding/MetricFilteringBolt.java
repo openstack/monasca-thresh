@@ -154,6 +154,9 @@ public class MetricFilteringBolt extends BaseRichBolt {
                   MAX_LAG_MESSAGES * LAG_MESSAGE_PERIOD, minLag);
           lagging = false;
       }
+      else if (lastMinLagMessageSent == 0) {
+          lastMinLagMessageSent = now;
+      }
       else if ((now - lastMinLagMessageSent) >= LAG_MESSAGE_PERIOD) {
           LOG.info("Sending {} message, minLag = {}", MetricAggregationBolt.METRICS_BEHIND, minLag);
           collector.emit(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM,
@@ -200,8 +203,7 @@ public class MetricFilteringBolt extends BaseRichBolt {
         }
       }
     }
-    // Not really when it was sent, but want to wait at least LAG_MESSAGE_PERIOD before sending a message
-    lastMinLagMessageSent = getCurrentSeconds();
+    lastMinLagMessageSent = 0;
   }
 
   /**

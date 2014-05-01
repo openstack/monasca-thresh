@@ -92,10 +92,13 @@ public class MetricFilteringBoltTest {
 
         final long prepareTime = bolt.getCurrentSeconds();
         final MetricDefinition metricDefinition = subAlarms.get(0).getExpression().getMetricDefinition();
-        final Tuple lateMetricTuple = createMetricTuple(metricDefinition, new Metric(metricDefinition, prepareTime, 42.0));
-        bolt.setCurrentSeconds(prepareTime + MetricFilteringBolt.LAG_MESSAGE_PERIOD_DEFAULT);
+        final Tuple lateMetricTuple = createMetricTuple(metricDefinition, new Metric(metricDefinition, prepareTime - MetricFilteringBolt.LAG_MESSAGE_PERIOD_DEFAULT, 42.0));
         bolt.execute(lateMetricTuple);
         verify(collector, times(1)).ack(lateMetricTuple);
+        bolt.setCurrentSeconds(prepareTime + MetricFilteringBolt.LAG_MESSAGE_PERIOD_DEFAULT);
+        final Tuple lateMetricTuple2 = createMetricTuple(metricDefinition, new Metric(metricDefinition, prepareTime, 42.0));
+        bolt.execute(lateMetricTuple2);
+        verify(collector, times(1)).ack(lateMetricTuple2);
         verify(collector, times(1)).emit(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM,
                 new Values(MetricAggregationBolt.METRICS_BEHIND));
         bolt.setCurrentSeconds(prepareTime + 2 * MetricFilteringBolt.LAG_MESSAGE_PERIOD_DEFAULT);
@@ -114,13 +117,19 @@ public class MetricFilteringBoltTest {
         long prepareTime = bolt.getCurrentSeconds();
         final MetricDefinition metricDefinition = subAlarms.get(0).getExpression().getMetricDefinition();
         // Fake sending metrics for MetricFilteringBolt.MAX_LAG_MESSAGES_DEFAULT * MetricFilteringBolt.LAG_MESSAGE_PERIOD_DEFAULT seconds
-        for (int i = 0; i < MetricFilteringBolt.MAX_LAG_MESSAGES_DEFAULT; i++) {
+        boolean first = true;
+        // Need to send MetricFilteringBolt.MAX_LAG_MESSAGES_DEFAULT + 1 metrics because the lag message is not
+        // output on the first one.
+        for (int i = 0; i < MetricFilteringBolt.MAX_LAG_MESSAGES_DEFAULT + 1; i++) {
             final Tuple lateMetricTuple = createMetricTuple(metricDefinition, new Metric(metricDefinition, prepareTime, 42.0));
             bolt.setCurrentSeconds(prepareTime + MetricFilteringBolt.LAG_MESSAGE_PERIOD_DEFAULT);
             bolt.execute(lateMetricTuple);
             verify(collector, times(1)).ack(lateMetricTuple);
-            verify(collector, times(i + 1)).emit(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM,
+            if (!first) {
+                verify(collector, times(i)).emit(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM,
                     new Values(MetricAggregationBolt.METRICS_BEHIND));
+            }
+            first = false;
             prepareTime = bolt.getCurrentSeconds();
         }
         // One more
