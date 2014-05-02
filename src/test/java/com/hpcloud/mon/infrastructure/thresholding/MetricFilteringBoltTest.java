@@ -56,6 +56,7 @@ public class MetricFilteringBoltTest {
     private List<SubAlarm> subAlarms;
     private List<SubAlarm> duplicateMetricSubAlarms;
     private final static String TEST_TENANT_ID = "42";
+    private long metricTimestamp = System.currentTimeMillis()/1000; // Make sure the metric timestamp is always unique
 
     @BeforeMethod
     protected void beforeMethod() {
@@ -219,21 +220,21 @@ public class MetricFilteringBoltTest {
         for (final SubAlarm subAlarm : subAlarms) {
             // First do a MetricDefinition that is an exact match
             final MetricDefinition metricDefinition = subAlarm.getExpression().getMetricDefinition();
-            final Tuple exactTuple = createMetricTuple(metricDefinition, new Metric(metricDefinition, System.currentTimeMillis()/1000, 42.0));
+            final Tuple exactTuple = createMetricTuple(metricDefinition, new Metric(metricDefinition, metricTimestamp++, 42.0));
             bolt1.execute(exactTuple);
             verify(collector1, times(1)).ack(exactTuple);
-            verify(collector1, howMany).emit(exactTuple, exactTuple.getValues());
+            verify(collector1, howMany).emit(exactTuple.getValues());
 
             // Now do a MetricDefinition with an extra dimension that should still match the SubAlarm
             final Map<String, String> extraDimensions = new HashMap<>(metricDefinition.dimensions);
             extraDimensions.put("group", "group_a");
             final MetricDefinition inexactMetricDef = new MetricDefinition(metricDefinition.name, extraDimensions);
-            Metric inexactMetric = new Metric(inexactMetricDef, System.currentTimeMillis()/1000, 42.0);
+            Metric inexactMetric = new Metric(inexactMetricDef, metricTimestamp++, 42.0);
             final Tuple inexactTuple = createMetricTuple(metricDefinition, inexactMetric);
             bolt1.execute(inexactTuple);
             verify(collector1, times(1)).ack(inexactTuple);
             // We want the MetricDefinitionAndTenantId from the exact tuple, but the inexactMetric
-            verify(collector1, howMany).emit(inexactTuple, new Values(exactTuple.getValue(0), inexactMetric));
+            verify(collector1, howMany).emit(new Values(exactTuple.getValue(0), inexactMetric));
         }
     }
 

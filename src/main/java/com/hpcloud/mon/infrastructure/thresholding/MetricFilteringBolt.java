@@ -128,7 +128,7 @@ public class MetricFilteringBolt extends BaseRichBolt {
         // Check for exact matches as well as inexact matches
         final List<MetricDefinitionAndTenantId> matches = matcher.match(metricDefinitionAndTenantId);
         for (final MetricDefinitionAndTenantId match : matches)
-            collector.emit(tuple, new Values(match, metric));
+            collector.emit(new Values(match, metric));
       } else {
         String eventType = tuple.getString(0);
         MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) tuple.getValue(1);
