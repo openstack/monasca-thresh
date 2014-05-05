@@ -14,7 +14,7 @@
     </prerequisites>
 
     <properties>
-        <mon.common.version>1.0.0.43</mon.common.version>
+        <mon.common.version>1.0.0.48</mon.common.version>
         <storm.version>0.9.1-incubating</storm.version>
         <skipITs>true</skipITs>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -63,8 +63,8 @@
     </profiles>
 
     <dependencyManagement>
-        <!-- Resolve dependency mismatch between Dropwizard and Storm -->
         <dependencies>
+            <!-- Resolve dependency mismatch between Dropwizard and Storm -->
             <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
@@ -74,6 +74,17 @@
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-log4j12</artifactId>
                 <version>1.7.6</version>
+            </dependency>
+            <!-- Resolve dependency mismatch between Kafka and the newer version of scala in the library -->
+            <dependency>
+                <groupId>org.scala-lang</groupId>
+                <artifactId>scala-compiler</artifactId>
+                <version>2.9.2</version>
+            </dependency>
+            <dependency>
+                <groupId>org.scala-lang</groupId>
+                <artifactId>scala-library</artifactId>
+                <version>2.9.2</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

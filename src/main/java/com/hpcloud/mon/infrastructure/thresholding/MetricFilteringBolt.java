@@ -84,9 +84,9 @@ public class MetricFilteringBolt extends BaseRichBolt {
   public static final int LAG_MESSAGE_PERIOD_DEFAULT = 30;
   public static final String[] FIELDS = new String[] { "metricDefinitionAndTenantId", "metric" };
 
-  private static final int MIN_LAG_VALUE = PropertyFinder.getIntProperty(MIN_LAG_VALUE_KEY, MIN_LAG_VALUE_DEFAULT, 0, Integer.MAX_VALUE);
+  private static final int MIN_LAG_VALUE = 1000 * PropertyFinder.getIntProperty(MIN_LAG_VALUE_KEY, MIN_LAG_VALUE_DEFAULT, 0, Integer.MAX_VALUE);
   private static final int MAX_LAG_MESSAGES = PropertyFinder.getIntProperty(MAX_LAG_MESSAGES_KEY, MAX_LAG_MESSAGES_DEFAULT, 0, Integer.MAX_VALUE);
-  private static final int LAG_MESSAGE_PERIOD = PropertyFinder.getIntProperty(LAG_MESSAGE_PERIOD_KEY, LAG_MESSAGE_PERIOD_DEFAULT, 1, 600);
+  private static final int LAG_MESSAGE_PERIOD = 1000 * PropertyFinder.getIntProperty(LAG_MESSAGE_PERIOD_KEY, LAG_MESSAGE_PERIOD_DEFAULT, 1, 600);
   private static final Map<MetricDefinitionAndTenantId, List<String>> METRIC_DEFS = new ConcurrentHashMap<>();
   private static final MetricDefinitionAndTenantIdMatcher matcher = new MetricDefinitionAndTenantIdMatcher();
   private static final Object SENTINAL = new Object();
@@ -121,8 +121,9 @@ public class MetricFilteringBolt extends BaseRichBolt {
     try {
       if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
         final MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) tuple.getValue(0);
-        final Metric metric = (Metric)tuple.getValue(1);
-        checkLag(metric);
+        final Long timestamp = (Long)tuple.getValue(1);
+        final Metric metric = (Metric)tuple.getValue(2);
+        checkLag(timestamp);
 
         LOG.debug("metric definition and tenant id: {}", metricDefinitionAndTenantId);
         // Check for exact matches as well as inexact matches
@@ -153,31 +154,34 @@ public class MetricFilteringBolt extends BaseRichBolt {
     }
   }
 
-  private void checkLag(Metric metric) {
-    final long now = getCurrentSeconds();
-    final long lag = now - metric.timestamp;
+  private void checkLag(Long apiTimeStamp) {
+    if (!lagging)
+        return;
+    if ((apiTimeStamp == null) || (apiTimeStamp.longValue() == 0))
+      return; // Remove this code at some point, just to handle old metrics without a NPE
+    final long now = getCurrentTime();
+    final long lag = now - apiTimeStamp.longValue();
     if (lag < minLag)
       minLag = lag;
-    if (lagging)
-      if (minLag <= MIN_LAG_VALUE) {
-        lagging = false;
-        LOG.info("Metrics no longer lagging, minLag = {}", minLag);
-      }
-      else if (minLagMessageSent >= MAX_LAG_MESSAGES) {
-          LOG.info("Waited for {} seconds for Metrics to catch up. Giving up. minLag = {}",
+    if (minLag <= MIN_LAG_VALUE) {
+      lagging = false;
+      LOG.info("Metrics no longer lagging, minLag = {}", minLag);
+    }
+    else if (minLagMessageSent >= MAX_LAG_MESSAGES) {
+      LOG.info("Waited for {} seconds for Metrics to catch up. Giving up. minLag = {}",
                   MAX_LAG_MESSAGES * LAG_MESSAGE_PERIOD, minLag);
-          lagging = false;
-      }
-      else if (lastMinLagMessageSent == 0) {
-          lastMinLagMessageSent = now;
-      }
-      else if ((now - lastMinLagMessageSent) >= LAG_MESSAGE_PERIOD) {
-          LOG.info("Sending {} message, minLag = {}", MetricAggregationBolt.METRICS_BEHIND, minLag);
-          collector.emit(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM,
+        lagging = false;
+    }
+    else if (lastMinLagMessageSent == 0) {
+      lastMinLagMessageSent = now;
+    }
+    else if ((now - lastMinLagMessageSent) >= LAG_MESSAGE_PERIOD) {
+      LOG.info("Sending {} message, minLag = {}", MetricAggregationBolt.METRICS_BEHIND, minLag);
+      collector.emit(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM,
                         new Values(MetricAggregationBolt.METRICS_BEHIND));
-          lastMinLagMessageSent = now;
-          minLagMessageSent++;
-      }
+      lastMinLagMessageSent = now;
+      minLagMessageSent++;
+    }
   }
 
   private void removeSubAlarm(MetricDefinitionAndTenantId metricDefinitionAndTenantId, String subAlarmId) {
@@ -214,6 +218,11 @@ public class MetricFilteringBolt extends BaseRichBolt {
           // Iterate again to ensure we only emit each metricDef once
           for (MetricDefinitionAndTenantId metricDefinitionAndTenantId : METRIC_DEFS.keySet())
             collector.emit(new Values(metricDefinitionAndTenantId, null));
+          LOG.info("Found {} Metric Definitions", METRIC_DEFS.size());
+          // Just output these here so they are only output once per JVM
+          LOG.info("MIN_LAG_VALUE set to {} seconds", MIN_LAG_VALUE/1000);
+          LOG.info("MAX_LAG_MESSAGES set to {}", MAX_LAG_MESSAGES);
+          LOG.info("LAG_MESSAGE_PERIOD set to {} seconds", LAG_MESSAGE_PERIOD/1000);
         }
       }
     }
@@ -223,8 +232,8 @@ public class MetricFilteringBolt extends BaseRichBolt {
   /**
    * Allow override of current time for testing.
    */
-  protected long getCurrentSeconds() {
-    return System.currentTimeMillis() / 1000;
+  protected long getCurrentTime() {
+    return System.currentTimeMillis();
   }
 
   private void addMetricDef(MetricDefinitionAndTenantId metricDefinitionAndTenantId, String subAlarmId) {

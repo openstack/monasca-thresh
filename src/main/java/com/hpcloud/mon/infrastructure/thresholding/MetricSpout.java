@@ -34,7 +34,7 @@ public class MetricSpout extends KafkaSpout {
 
     private static final long serialVersionUID = 744004533863562119L;
 
-    public static final String[] FIELDS = new String[] { "metricDefinitionAndTenantId", "metric" };
+    public static final String[] FIELDS = new String[] { "metricDefinitionAndTenantId", "apiTimeStamp", "metric" };
     public static final String DEFAULT_TENANT_ID = "TENANT_ID_NOT_SET";
 
     public MetricSpout(MetricSpoutConfig metricSpoutConfig) {
@@ -58,7 +58,8 @@ public class MetricSpout extends KafkaSpout {
             LOG.error("No tenantId so using default tenantId {} for Metric {}", DEFAULT_TENANT_ID, metricEnvelope.metric);
             tenantId = DEFAULT_TENANT_ID;
         }
-        collector.emit(new Values(new MetricDefinitionAndTenantId(metricEnvelope.metric.definition(), tenantId), metricEnvelope.metric));
+        collector.emit(new Values(new MetricDefinitionAndTenantId(metricEnvelope.metric.definition(), tenantId),
+                metricEnvelope.creationTime, metricEnvelope.metric));
     }
 
     @Override
