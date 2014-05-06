@@ -84,9 +84,9 @@ public class MetricFilteringBolt extends BaseRichBolt {
   public static final int LAG_MESSAGE_PERIOD_DEFAULT = 30;
   public static final String[] FIELDS = new String[] { "metricDefinitionAndTenantId", "metric" };
 
-  private static final int MIN_LAG_VALUE = 1000 * PropertyFinder.getIntProperty(MIN_LAG_VALUE_KEY, MIN_LAG_VALUE_DEFAULT, 0, Integer.MAX_VALUE);
+  private static final int MIN_LAG_VALUE = PropertyFinder.getIntProperty(MIN_LAG_VALUE_KEY, MIN_LAG_VALUE_DEFAULT, 0, Integer.MAX_VALUE);
   private static final int MAX_LAG_MESSAGES = PropertyFinder.getIntProperty(MAX_LAG_MESSAGES_KEY, MAX_LAG_MESSAGES_DEFAULT, 0, Integer.MAX_VALUE);
-  private static final int LAG_MESSAGE_PERIOD = 1000 * PropertyFinder.getIntProperty(LAG_MESSAGE_PERIOD_KEY, LAG_MESSAGE_PERIOD_DEFAULT, 1, 600);
+  private static final int LAG_MESSAGE_PERIOD = PropertyFinder.getIntProperty(LAG_MESSAGE_PERIOD_KEY, LAG_MESSAGE_PERIOD_DEFAULT, 1, 600);
   private static final Map<MetricDefinitionAndTenantId, List<String>> METRIC_DEFS = new ConcurrentHashMap<>();
   private static final MetricDefinitionAndTenantIdMatcher matcher = new MetricDefinitionAndTenantIdMatcher();
   private static final Object SENTINAL = new Object();
@@ -220,9 +220,9 @@ public class MetricFilteringBolt extends BaseRichBolt {
             collector.emit(new Values(metricDefinitionAndTenantId, null));
           LOG.info("Found {} Metric Definitions", METRIC_DEFS.size());
           // Just output these here so they are only output once per JVM
-          LOG.info("MIN_LAG_VALUE set to {} seconds", MIN_LAG_VALUE/1000);
+          LOG.info("MIN_LAG_VALUE set to {} seconds", MIN_LAG_VALUE);
           LOG.info("MAX_LAG_MESSAGES set to {}", MAX_LAG_MESSAGES);
-          LOG.info("LAG_MESSAGE_PERIOD set to {} seconds", LAG_MESSAGE_PERIOD/1000);
+          LOG.info("LAG_MESSAGE_PERIOD set to {} seconds", LAG_MESSAGE_PERIOD);
         }
       }
     }
@@ -233,7 +233,7 @@ public class MetricFilteringBolt extends BaseRichBolt {
    * Allow override of current time for testing.
    */
   protected long getCurrentTime() {
-    return System.currentTimeMillis();
+    return System.currentTimeMillis()/1000;
   }
 
   private void addMetricDef(MetricDefinitionAndTenantId metricDefinitionAndTenantId, String subAlarmId) {

@@ -192,11 +192,11 @@ public class ThresholdingEngineTest extends TopologyTestCase {
       if (feedCount > 0) {
         System.out.println("Feeding metrics...");
 
-        long time = System.currentTimeMillis();
+        long time = System.currentTimeMillis()/1000;
         metricSpout.feed(new Values(new MetricDefinitionAndTenantId(cpuMetricDef, TEST_ALARM_TENANT_ID), time,
-                new Metric(cpuMetricDef.name, cpuMetricDef.dimensions, time / 1000, (double) (++goodValueCount == 15 ? 1 : 555))));
+                new Metric(cpuMetricDef.name, cpuMetricDef.dimensions, time, (double) (++goodValueCount == 15 ? 1 : 555))));
         metricSpout.feed(new Values(new MetricDefinitionAndTenantId(memMetricDef, TEST_ALARM_TENANT_ID), time,
-                new Metric(memMetricDef.name, extraMemMetricDefDimensions, time / 1000, (double) (goodValueCount == 15 ? 1 : 555))));
+                new Metric(memMetricDef.name, extraMemMetricDefDimensions, time, (double) (goodValueCount == 15 ? 1 : 555))));
 
         if (--feedCount == 0)
           waitCount = 3;

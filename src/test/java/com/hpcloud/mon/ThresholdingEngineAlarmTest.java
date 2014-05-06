@@ -241,13 +241,13 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
       else {
         System.out.println("Feeding metrics...");
 
-        long time = System.currentTimeMillis();
+        long time = System.currentTimeMillis()/1000;
         ++goodValueCount;
         for (final SubAlarm subAlarm : subAlarms) {
           final MetricDefinitionAndTenantId metricDefinitionAndTenantId =
                 new MetricDefinitionAndTenantId(subAlarm.getExpression().getMetricDefinition(), TEST_ALARM_TENANT_ID);
           metricSpout.feed(new Values(metricDefinitionAndTenantId, time,
-                    new Metric(metricDefinitionAndTenantId.metricDefinition, time / 1000, (double) (goodValueCount == 15 ? 1 : 555))));
+                    new Metric(metricDefinitionAndTenantId.metricDefinition, time, (double) (goodValueCount == 15 ? 1 : 555))));
         }
       }
       try {
