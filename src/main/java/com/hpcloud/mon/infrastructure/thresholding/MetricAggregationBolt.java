@@ -174,8 +174,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
         LOG.trace("Aggregated value {} at {} for {}. Updated {}", metric.value, metric.timestamp,
             metricDefinitionAndTenantId, stats.getStats());
       else
-        LOG.warn("Invalid metric timestamp {} for {}, {}", metric.timestamp, metricDefinitionAndTenantId,
-            stats.getStats());
+        LOG.warn("Metric is too old, age {} seconds: timestamp {} for {}, {}", currentTimeSeconds() - metric.timestamp,
+                metric.timestamp, metricDefinitionAndTenantId, stats.getStats());
     }
   }
 
