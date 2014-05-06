@@ -83,6 +83,8 @@ public class AlarmDAOImpl implements AlarmDAO {
           .bind("id", id)
           .map(new BeanMapper<Alarm>(Alarm.class))
           .first();
+      if (alarm == null)
+        return alarm;
 
       alarm.setSubAlarms(subAlarmsForRows(
           h,
