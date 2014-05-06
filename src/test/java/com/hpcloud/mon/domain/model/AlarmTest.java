@@ -21,12 +21,18 @@ import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.testng.annotations.Test;
 
+import com.hpcloud.mon.common.model.alarm.AggregateFunction;
 import com.hpcloud.mon.common.model.alarm.AlarmExpression;
+import com.hpcloud.mon.common.model.alarm.AlarmOperator;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
+import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
+import com.hpcloud.mon.common.model.metric.MetricDefinition;
 
 @Test
 public class AlarmTest {
@@ -139,5 +145,25 @@ public class AlarmTest {
     assertEquals(
         Alarm.buildStateChangeReason(AlarmState.ALARM, expressions),
         "Thresholds were exceeded for the sub-alarms: [avg(hpcs.compute{device=1, instance_id=5, metric_name=cpu}, 1) > 5.0 times 3, avg(hpcs.compute{flavor_id=3, metric_name=mem}, 2) < 4.0 times 3]");
+  }
+
+  /**
+   * This test is here because this case happened in the Threshold Engine. The AlarmExpression
+   * resulted in a MetricDefinition with null dimensions and SubAlarm had empty dimensions
+   * and that didn't match causing an IllegalArgumentException. MetricDefinition.equals() has
+   * been changed to consider those two values for dimensions the same
+   */
+  public void testDimensions() {
+    final AlarmExpression expression = AlarmExpression.of("max(cpu_system_perc) > 1");
+    final MetricDefinition metricDefinition = new MetricDefinition("cpu_system_perc", new HashMap<String, String>());
+    final AlarmSubExpression ase = new AlarmSubExpression(AggregateFunction.MAX, metricDefinition, AlarmOperator.GT, 1, 60, 1);
+    final SubAlarm subAlarm = new SubAlarm("123", "456", ase);
+    final Map<AlarmSubExpression, Boolean> subExpressionValues = new HashMap<AlarmSubExpression, Boolean>();
+    subExpressionValues.put(subAlarm.getExpression(), true);
+    assertEquals(expression.getSubExpressions().get(0).getMetricDefinition().hashCode(),
+                 metricDefinition.hashCode());
+
+    // Handle ALARM state
+    assertTrue(expression.evaluate(subExpressionValues));
   }
 }
