@@ -8,9 +8,15 @@ Based on Apache Storm, a free and open distributed real-time computation system.
 
 ![Threshold Engine Architecture](mon-thresh-architecture.png "Threshold Engine Architecture")
 
-Alarms have three possible states: UNDETERMINED, OK and ALARM.  Alarms are defined by an expression, for example: "avg(cpu{service=nova}, 120) > 90 or avg(load{service=nova}, 120) > 15". If the expression evaluates to true, the Alarm goes to state ALARM, if it evaluates to false, the state is OK and if there aren't any metrics for the two times the measuring period, the Alarm will be in the UNDETERMINED state. Each part of the expression is represented by a Sub Alarm, so for the above example, there are two Sub Alarms.
+Alarms have three possible states: `UNDETERMINED`, `OK` and `ALARM`.  Alarms are defined by an expression. For example: 
 
-The Threshold Engine is designed as a series of Storm Spouts and Bolts. For an overview of Storm, look at http://storm.incubator.apache.org/documentation/Tutorial.html. Spouts feed external data into the system as messages while bolts process incoming messages and optionally produce output messages for a downstream bolt.
+```
+avg(cpu{service=nova}, 120) > 90 or avg(load{service=nova}, 120) > 15
+```
+
+If the expression evaluates to true, the Alarm state transitions to `ALARM`, if it evaluates to false, the state transitions to `OK` and if there aren't any metrics for the two times the measuring period, the Alarm state transitions to `UNDETERMINED`. Each part of the expression is represented by a Sub Alarm, so for the above example, there are two Sub Alarms.
+
+The Threshold Engine is designed as a series of Storm Spouts and Bolts. For an overview of Storm, look at [the tutorial][storm-tutorial]. Spouts feed external data into the system as messages while bolts process incoming messages and optionally produce output messages for a downstream bolt.
 
 The flow of Metrics is MetricSpout to MetricFilteringBolt to MetricAggregationBolt. The MetricSpout reads from Kakfa and sends it on through Storm. Metrics are routed to a specific MetricFilteringBolt based on a routing algorithm that computes a hash code like value based on the Metric Definition so a Metric with the same MetricDefinition is always routed to the same MetricFilteringBolt. The MetricFilteringBolt looks up the Metric Definition and decides if it should be sent on to a MetricAggregationBolt using the same routing algorithm. The MetricAggregationBolt adds the Metric information to its total for each SubAlarms and once a minute evaluates each SubAlarm it has.
 
@@ -37,4 +43,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
 implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+[storm-tutorial]: http://storm.incubator.apache.org/documentation/Tutorial.html
 
