@@ -6,7 +6,7 @@
     <groupId>com.hpcloud</groupId>
     <artifactId>mon-thresh</artifactId>
     <version>1.0.0-SNAPSHOT</version>
-    <url>http://hpcloud.net</url>
+    <url>http://github.com/hpcloud-mon/mon-thresh</url>
     <packaging>jar</packaging>
 
     <prerequisites>
@@ -14,7 +14,7 @@
     </prerequisites>
 
     <properties>
-        <mon.common.version>1.0.0.51</mon.common.version>
+        <mon.common.version>1.0.0-SNAPSHOT</mon.common.version>
         <storm.version>0.9.1-incubating</storm.version>
         <skipITs>true</skipITs>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -24,24 +24,11 @@
     </properties>
 
     <scm>
-        <connection>scm:git:git@git.hpcloud.net:mon/mon-thresh.git</connection>
-        <developerConnection>scm:git:git@git.hpcloud.net:mon/mon-thresh.git</developerConnection>
+        <connection>scm:git:git@github.com:hpcloud-mon/mon-thresh</connection>
+        <developerConnection>scm:git:git@github.com:hpcloud-mon/mon-thresh</developerConnection>
     </scm>
 
     <repositories>
-        <repository>
-            <id>nexus releases</id>
-            <url>http://nexus.paas.hpcloud.net:8081/nexus/content/repositories/releases</url>
-        </repository>
-        <repository>
-            <id>nexus 3rd party</id>
-            <url>http://nexus.paas.hpcloud.net:8081/nexus/content/repositories/thirdparty</url>
-        </repository>
-        <repository>
-            <id>nexus-snapshots</id>
-            <name>nexus snapshots</name>
-            <url>http://nexus.paas.hpcloud.net:8081/nexus/content/repositories/snapshots</url>
-        </repository>
         <repository>
             <id>clojars.org</id>
             <url>http://clojars.org/repo</url>

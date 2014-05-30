@@ -27,6 +27,15 @@ Once a minute, the MetricAggregationBolts use the Aggregated Metrics to evaluate
 Events also flow into the Threshold Engine via Kafka so the Threshold Engine knows about Alarm creations, updates and deletes. The EventSpout reads the Events from Kafka and sends them to the appropriate bolts.
 
 =======
+# Build
+
+Requires mon-common from https://github.com/hpcloud-mon/mon-common. Download and do mvn install
+
+```
+mvn package
+```
+
+=======
 # License
 
 Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
