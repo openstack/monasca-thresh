@@ -152,7 +152,7 @@ public class AlarmThresholdingBoltTest {
         final AlarmState newState = AlarmState.OK;
         boolean newEnabled = false;
         final AlarmUpdatedEvent event = new AlarmUpdatedEvent(tenantId, alarmId, newName, newDescription, alarm.getAlarmExpression().getExpression(),
-                newState, newEnabled, empty, empty, empty);
+                alarm.getState(), newState, newEnabled, empty, empty, empty, empty);
         final Tuple updateTuple = createAlarmUpdateTuple(event);
         bolt.execute(updateTuple);
         verify(collector, times(1)).ack(updateTuple);
@@ -168,6 +168,7 @@ public class AlarmThresholdingBoltTest {
         final Map<String, AlarmSubExpression> newSubExpressions = new HashMap<>();
         final Map<String, AlarmSubExpression> oldSubExpressions = new HashMap<>();
         final Map<String, AlarmSubExpression> changedSubExpressions = new HashMap<>();
+        final Map<String, AlarmSubExpression> unchangedSubExpressions = new HashMap<>();
         final String newExpression = subExpressions[1] + " or " +
                                           subExpressions[2].replace("max", "avg") + " or " +
                                           "sum(diskio{instance_id=123,device=4242}, 1) > 5000";
@@ -180,13 +181,14 @@ public class AlarmThresholdingBoltTest {
         final SubAlarm changedSubAlarm = new SubAlarm(subAlarms.get(2).getId(), alarmId, newAlarmExpression.getSubExpressions().get(1));
         changedSubExpressions.put(changedSubAlarm.getId(), changedSubAlarm.getExpression());
         final SubAlarm unChangedSubAlarm = new SubAlarm(subAlarms.get(1).getId(), alarmId, subAlarms.get(1).getExpression());
+        unchangedSubExpressions.put(unChangedSubAlarm.getId(), unChangedSubAlarm.getExpression());
 
         emitSubAlarmStateChange(alarmId, changedSubAlarm, AlarmState.OK);
         emitSubAlarmStateChange(alarmId, unChangedSubAlarm, AlarmState.OK);
         unChangedSubAlarm.setState(AlarmState.OK);
 
         final AlarmUpdatedEvent event = new AlarmUpdatedEvent(tenantId, alarmId, alarm.getName(), alarm.getDescription(), newExpression,
-                alarm.getState(), alarm.isActionsEnabled(), oldSubExpressions, changedSubExpressions, newSubExpressions);
+                alarm.getState(), alarm.getState(), alarm.isActionsEnabled(), oldSubExpressions, changedSubExpressions, unchangedSubExpressions, newSubExpressions);
         final Tuple updateTuple = createAlarmUpdateTuple(event);
         bolt.execute(updateTuple);
         verify(collector, times(1)).ack(updateTuple);

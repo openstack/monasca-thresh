@@ -23,8 +23,11 @@ import static org.mockito.Mockito.verify;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.testng.annotations.BeforeMethod;
@@ -37,6 +40,9 @@ import backtype.storm.testing.MkTupleParam;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import com.google.common.collect.Sets;
 import com.hpcloud.mon.common.event.AlarmCreatedEvent;
 import com.hpcloud.mon.common.event.AlarmDeletedEvent;
 import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
@@ -144,43 +150,73 @@ public class EventProcessingBoltTest {
     }
 
     public static AlarmUpdatedEvent createAlarmUpdatedEvent(final Alarm alarm,
-                                                            final AlarmExpression updatedAlarmExpression, List<SubAlarm> updatedSubAlarms) {
-        final Alarm updatedAlarm = new Alarm();
-        updatedAlarm.setId(alarm.getId());
-        updatedAlarm.setTenantId(alarm.getTenantId());
-        updatedAlarm.setName(alarm.getName());
-        updatedAlarm.setExpression(updatedAlarmExpression.getExpression());
-        updatedAlarm.setDescription(alarm.getDescription());
-        updatedAlarm.setState(alarm.getState());
+                                                            final AlarmState newState,
+                                                            final AlarmExpression updatedAlarmExpression,
+                                                            List<SubAlarm> updatedSubAlarms) {
+        final Map<String, AlarmSubExpression> oldAlarmSubExpressions = new HashMap<>();
+        for (final SubAlarm subAlarm : alarm.getSubAlarms())
+            oldAlarmSubExpressions.put(subAlarm.getId(), subAlarm.getExpression());
+        BiMap<String, AlarmSubExpression> oldExpressions = HashBiMap.create(oldAlarmSubExpressions);
+        Set<AlarmSubExpression> oldSet = oldExpressions.inverse().keySet();
+        Set<AlarmSubExpression> newSet = new HashSet<>();
+        for (final SubAlarm subAlarm : updatedSubAlarms)
+          newSet.add(subAlarm.getExpression());
 
-        final List<SubAlarm> toDelete = new ArrayList<>(alarm.getSubAlarms());
-        final Map<String, AlarmSubExpression> newAlarmSubExpressions = new HashMap<>();
-        final Map<String, AlarmSubExpression> updatedSubExpressions = new HashMap<>();
-        for (final SubAlarm newSubAlarm : updatedSubAlarms) {
-            final SubAlarm oldSubAlarm = alarm.getSubAlarm(newSubAlarm.getId());
-            if (oldSubAlarm == null) {
-                newAlarmSubExpressions.put(newSubAlarm.getId(), newSubAlarm.getExpression());
+        // Identify old or changed expressions
+        Set<AlarmSubExpression> oldOrChangedExpressions = new HashSet<>(Sets.difference(oldSet, newSet));
+
+        // Identify new or changed expressions
+        Set<AlarmSubExpression> newOrChangedExpressions = new HashSet<>(Sets.difference(newSet, oldSet));
+
+        // Find changed expressions
+        Map<String, AlarmSubExpression> changedExpressions = new HashMap<>();
+        for (Iterator<AlarmSubExpression> oldIt = oldOrChangedExpressions.iterator(); oldIt.hasNext();) {
+          AlarmSubExpression oldExpr = oldIt.next();
+          for (Iterator<AlarmSubExpression> newIt = newOrChangedExpressions.iterator(); newIt.hasNext();) {
+            AlarmSubExpression newExpr = newIt.next();
+            if (sameKeyFields(oldExpr, newExpr)) {
+              oldIt.remove();
+              newIt.remove();
+              changedExpressions.put(oldExpressions.inverse().get(oldExpr), newExpr);
+              break;
             }
-            else {
-                toDelete.remove(oldSubAlarm);
-                if (!newSubAlarm.getExpression().equals(oldSubAlarm.getExpression())) {
-                    updatedSubExpressions.put(newSubAlarm.getId(), newSubAlarm.getExpression());
-                }
-            }
+          }
         }
-        final Map<String, AlarmSubExpression> deletedSubExpressions = new HashMap<>(toDelete.size());
-        for (final SubAlarm oldSubAlarm : toDelete) {
-            deletedSubExpressions.put(oldSubAlarm.getId(), oldSubAlarm.getExpression());
-        }
-        final AlarmUpdatedEvent event = new AlarmUpdatedEvent(updatedAlarm.getTenantId(), updatedAlarm.getId(),
-              updatedAlarm.getName(), updatedAlarm.getDescription(), updatedAlarm.getAlarmExpression().getExpression(), alarm.getState(), true, deletedSubExpressions,
-              updatedSubExpressions, newAlarmSubExpressions);
-        return event;
+
+        BiMap<String, AlarmSubExpression> unchangedExpressions = HashBiMap.create(oldExpressions);
+        unchangedExpressions.values().removeAll(oldOrChangedExpressions);
+        unchangedExpressions.keySet().removeAll(changedExpressions.keySet());
+
+        // Remove old sub expressions
+        oldExpressions.values().retainAll(oldOrChangedExpressions);
+
+        // Create IDs for new expressions
+        Map<String, AlarmSubExpression> newExpressions = new HashMap<>();
+        for (AlarmSubExpression expression : newOrChangedExpressions)
+          for (final SubAlarm subAlarm : updatedSubAlarms)
+              if (subAlarm.getExpression().equals(expression))
+                  newExpressions.put(subAlarm.getId(), expression);
+
+        final AlarmUpdatedEvent event = new AlarmUpdatedEvent(alarm.getTenantId(), alarm.getId(),
+                alarm.getName(), alarm.getDescription(), updatedAlarmExpression.getExpression(), newState, alarm.getState(),
+                true, oldExpressions,
+                changedExpressions, unchangedExpressions, newExpressions);
+          return event;
+    }
+
+    /**
+     * Returns whether all of the fields of {@code a} and {@code b} are the same except the operator
+     * and threshold.
+     */
+    private static boolean sameKeyFields(AlarmSubExpression a, AlarmSubExpression b) {
+      return a.getMetricDefinition().equals(b.getMetricDefinition())
+          && a.getFunction().equals(b.getFunction()) && a.getPeriod() == b.getPeriod()
+          && a.getPeriods() == b.getPeriods();
     }
 
     public void testAlarmUpdatedEvent() {
         final String updatedExpression = "avg(hpcs.compute.cpu{instance_id=123,device=42}, 1) > 5 " +
-                "and max(hpcs.compute.Mem{instance_id=123,device=42}) > 90 " +
+                "and max(hpcs.compute.mem{instance_id=123,device=42}) > 90 " +
                 "and max(hpcs.compute.newLoad{instance_id=123,device=42}) > 5";
 
         final AlarmExpression updatedAlarmExpression = new AlarmExpression(updatedExpression);
@@ -190,7 +226,8 @@ public class EventProcessingBoltTest {
         updatedSubAlarms.add(new SubAlarm(subAlarms.get(1).getId(), alarm.getId(), updatedAlarmExpression.getSubExpressions().get(1)));
         updatedSubAlarms.add(new SubAlarm(UUID.randomUUID().toString(), alarm.getId(), updatedAlarmExpression.getSubExpressions().get(2)));
 
-        final AlarmUpdatedEvent event = createAlarmUpdatedEvent(alarm, updatedAlarmExpression, updatedSubAlarms);
+        final AlarmUpdatedEvent event = createAlarmUpdatedEvent(alarm, alarm.getState(), updatedAlarmExpression,
+                                                                updatedSubAlarms);
 
         final Tuple tuple = createTuple(event);
         bolt.execute(tuple);

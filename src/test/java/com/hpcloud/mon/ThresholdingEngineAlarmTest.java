@@ -87,7 +87,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
   private AlarmExpression expression = new AlarmExpression(
           "max(hpcs.compute.cpu{id=5}) >= 3 or max(hpcs.compute.mem{id=5}) >= 557");
 
-  private AlarmState currentState = AlarmState.OK;
+  private AlarmState currentState = AlarmState.UNDETERMINED;
   private volatile int alarmsSent = 0;
 
   public ThresholdingEngineAlarmTest() {
@@ -171,7 +171,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
     return result;
   }
 
-  final AlarmState[] expectedStates = { AlarmState.ALARM, AlarmState.OK, AlarmState.ALARM };
+  final AlarmState[] expectedStates = { AlarmState.ALARM, AlarmState.OK, AlarmState.ALARM, AlarmState.OK };
   public void shouldThreshold() throws Exception {
     doAnswer(new Answer<Object>() {
           public Object answer(InvocationOnMock invocation) {
@@ -192,9 +192,11 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
     int goodValueCount = 0;
     boolean firstUpdate = true;
     boolean secondUpdate = true;
+    boolean thirdUpdate = true;
     final Alarm initialAlarm = new Alarm(TEST_ALARM_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME,
             TEST_ALARM_DESCRIPTION, expression, subAlarms, AlarmState.UNDETERMINED, Boolean.TRUE);
     final int expectedAlarms = expectedStates.length;
+    AlarmExpression savedAlarmExpression = null;
     for (int i = 1; alarmsSent != expectedAlarms && i < 300; i++) {
       if (i == 5) {
           final Map<String, AlarmSubExpression> exprs = createSubExpressionMap();
@@ -215,15 +217,18 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
               updatedSubAlarms.add(new SubAlarm(subAlarm.getId(), initialAlarm.getId(), subAlarm.getExpression()));
           }
 
-          final AlarmUpdatedEvent event = EventProcessingBoltTest.createAlarmUpdatedEvent(initialAlarm, expression, updatedSubAlarms);
-          event.alarmState = currentState;
+          initialAlarm.setState(currentState);
+          final AlarmUpdatedEvent event = EventProcessingBoltTest.createAlarmUpdatedEvent(initialAlarm, initialAlarm.getState(), expression,
+                                                                                          updatedSubAlarms);
           subAlarms = updatedSubAlarms;
+          initialAlarm.setSubAlarms(updatedSubAlarms);
           eventSpout.feed(new Values(event));
 
           System.out.printf("Send AlarmUpdatedEvent for expression %s%n", expression.getExpression());
       }
       else if (alarmsSent == 2 && secondUpdate) {
           secondUpdate = false;
+          savedAlarmExpression = expression;
           expression = new AlarmExpression("max(hpcs.compute.load{id=5}) > 551 and (" + expression.getExpression().replace("556", "554") + ")");
           final List<SubAlarm> updatedSubAlarms = new ArrayList<>();
           updatedSubAlarms.add(new SubAlarm(UUID.randomUUID().toString(), initialAlarm.getId(), expression.getSubExpressions().get(0)));
@@ -231,9 +236,30 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
               updatedSubAlarms.add(new SubAlarm(subAlarms.get(index).getId(), initialAlarm.getId(), expression.getSubExpressions().get(index+1)));
           }
 
-          final AlarmUpdatedEvent event = EventProcessingBoltTest.createAlarmUpdatedEvent(initialAlarm, expression, updatedSubAlarms);
-          event.alarmState = currentState;
+          initialAlarm.setState(currentState);
+          final AlarmUpdatedEvent event = EventProcessingBoltTest.createAlarmUpdatedEvent(initialAlarm, initialAlarm.getState(), expression,
+                                                                                          updatedSubAlarms);
           subAlarms = updatedSubAlarms;
+          initialAlarm.setSubAlarms(updatedSubAlarms);
+          eventSpout.feed(new Values(event));
+
+          System.out.printf("Send AlarmUpdatedEvent for expression %s%n", expression.getExpression());
+      }
+      else if (alarmsSent == 3 && thirdUpdate) {
+          thirdUpdate = false;
+          expression = savedAlarmExpression;
+          final List<SubAlarm> updatedSubAlarms = new ArrayList<>();
+          int index = 1;
+          for (AlarmSubExpression subExpression : expression.getSubExpressions()) {
+              updatedSubAlarms.add(new SubAlarm(subAlarms.get(index).getId(), initialAlarm.getId(), subExpression));
+              index++;
+          }
+
+          initialAlarm.setState(currentState);
+          final AlarmUpdatedEvent event = EventProcessingBoltTest.createAlarmUpdatedEvent(initialAlarm, initialAlarm.getState(), expression,
+                                                                                          updatedSubAlarms);
+          subAlarms = updatedSubAlarms;
+          initialAlarm.setSubAlarms(updatedSubAlarms);
           eventSpout.feed(new Values(event));
 
           System.out.printf("Send AlarmUpdatedEvent for expression %s%n", expression.getExpression());
@@ -265,7 +291,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
         }
     }
     assertEquals(alarmsSent, expectedAlarms);
-    assertEquals(currentState, AlarmState.ALARM);
+    assertEquals(currentState, expectedStates[expectedStates.length - 1]);
   }
 
   private Map<String, AlarmSubExpression> createSubExpressionMap() {

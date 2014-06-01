@@ -69,6 +69,7 @@ public class EventProcessingBolt extends BaseRichBolt {
   public static final String CREATED = "created";
   public static final String DELETED = "deleted";
   public static final String UPDATED = "updated";
+  public static final String RESEND = "resend";
 
   private transient Logger LOG;
   private OutputCollector collector;
@@ -120,6 +121,10 @@ public class EventProcessingBolt extends BaseRichBolt {
       sendSubAlarm(UPDATED, alarmId, subAlarmId, tenantId, alarmSubExpression);
   }
 
+  private void sendResendSubAlarm(String alarmId, String subAlarmId, String tenantId, AlarmSubExpression alarmSubExpression) {
+      sendSubAlarm(RESEND, alarmId, subAlarmId, tenantId, alarmSubExpression);
+  }
+
   private void sendSubAlarm(String eventType, String alarmId, String subAlarmId, String tenantId,
         AlarmSubExpression alarmSubExpression) {
     MetricDefinition metricDef = alarmSubExpression.getMetricDefinition();
@@ -141,6 +146,13 @@ public class EventProcessingBolt extends BaseRichBolt {
   }
 
   void handle(AlarmUpdatedEvent event) {
+    if ((!event.oldAlarmState.equals(event.alarmState) ||
+         !event.oldAlarmSubExpressions.isEmpty()) && event.changedSubExpressions.isEmpty() &&
+        event.newAlarmSubExpressions.isEmpty()) {
+      for (Map.Entry<String, AlarmSubExpression> entry : event.unchangedSubExpressions.entrySet()) {
+          sendResendSubAlarm(event.alarmId, entry.getKey(), event.tenantId, entry.getValue());
+      }
+    }
     for (Map.Entry<String, AlarmSubExpression> entry : event.oldAlarmSubExpressions.entrySet()) {
       sendDeletedSubAlarm(entry.getKey(), event.tenantId, entry.getValue().getMetricDefinition());
     }

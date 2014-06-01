@@ -102,7 +102,6 @@ public class SubAlarmStats {
    */
   boolean evaluate() {
     double[] values = stats.getViewValues();
-    AlarmState initialState = subAlarm.getState();
     boolean thresholdExceeded = false;
     boolean hasEmptyWindows = false;
     for (double value : values) {
@@ -115,7 +114,7 @@ public class SubAlarmStats {
         if (!subAlarm.getExpression()
             .getOperator()
             .evaluate(value, subAlarm.getExpression().getThreshold())) {
-          if (AlarmState.OK.equals(initialState))
+          if (!shouldSendStateChange(AlarmState.OK))
             return false;
           setSubAlarmState(AlarmState.OK);
           return true;
@@ -125,7 +124,7 @@ public class SubAlarmStats {
     }
 
     if (thresholdExceeded && !hasEmptyWindows) {
-      if (AlarmState.ALARM.equals(initialState))
+      if (!shouldSendStateChange(AlarmState.ALARM))
         return false;
       setSubAlarmState(AlarmState.ALARM);
       return true;
@@ -135,7 +134,7 @@ public class SubAlarmStats {
     emptyWindowObservations++;
 
     if ((emptyWindowObservations >= emptyWindowObservationThreshold) &&
-         (subAlarm.isNoState() || !AlarmState.UNDETERMINED.equals(initialState)) &&
+         shouldSendStateChange(AlarmState.UNDETERMINED) &&
          !subAlarm.isSporadicMetric()) {
         setSubAlarmState(AlarmState.UNDETERMINED);
       return true;
@@ -144,10 +143,14 @@ public class SubAlarmStats {
     return false;
   }
 
-private void setSubAlarmState(AlarmState newState) {
+  private boolean shouldSendStateChange(AlarmState newState) {
+    return !subAlarm.getState().equals(newState) || subAlarm.isNoState();
+  }
+
+  private void setSubAlarmState(AlarmState newState) {
     subAlarm.setState(newState);
     subAlarm.setNoState(false);
-}
+  }
 
   /**
    * This MUST only be used for compatible SubAlarms, i.e. where

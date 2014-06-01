@@ -172,6 +172,43 @@ public class MetricAggregationBoltTest {
     verify(collector, times(1)).emit(new Values(subAlarm3.getAlarmId(), subAlarm3));
   }
 
+  public void shouldSendAlarmAgain() {
+    long t1 = 10;
+    bolt.setCurrentTime(t1);
+    bolt.execute(createMetricTuple(metricDef2, null));
+
+    bolt.execute(createMetricTuple(metricDef2, new Metric(metricDef2, t1, 100)));
+    bolt.execute(createMetricTuple(metricDef2, new Metric(metricDef2, t1++, 95)));
+    bolt.execute(createMetricTuple(metricDef2, new Metric(metricDef2, t1++, 88)));
+
+    t1 += 60;
+    bolt.setCurrentTime(t1);
+    final Tuple tickTuple = createTickTuple();
+    bolt.execute(tickTuple);
+    verify(collector, times(1)).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
+    assertEquals(subAlarm2.getState(), AlarmState.ALARM);
+    verify(collector, times(1)).ack(tickTuple);
+
+    final MkTupleParam tupleParam = new MkTupleParam();
+    tupleParam.setFields(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_FIELDS);
+    tupleParam.setStream(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID);
+    final Tuple resendTuple = Testing.testTuple(Arrays.asList(EventProcessingBolt.RESEND,
+                new MetricDefinitionAndTenantId(metricDef2, TENANT_ID), subAlarm2), tupleParam);
+    bolt.execute(resendTuple);
+
+    bolt.execute(createMetricTuple(metricDef2, new Metric(metricDef2, t1, 100)));
+    bolt.execute(createMetricTuple(metricDef2, new Metric(metricDef2, t1++, 95)));
+    bolt.execute(createMetricTuple(metricDef2, new Metric(metricDef2, t1++, 88)));
+
+    t1 += 60;
+    bolt.setCurrentTime(t1);
+    bolt.execute(tickTuple);
+    verify(collector, times(2)).ack(tickTuple);
+
+    assertEquals(subAlarm2.getState(), AlarmState.ALARM);
+    verify(collector, times(2)).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
+  }
+
   public void shouldSendUndeterminedIfStateChanges() {
     long t1 = System.currentTimeMillis() / 1000;
     bolt.setCurrentTime(t1);

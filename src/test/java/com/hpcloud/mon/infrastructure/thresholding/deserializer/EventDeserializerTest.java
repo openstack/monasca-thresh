@@ -26,6 +26,7 @@ import org.testng.annotations.Test;
 import com.hpcloud.mon.common.event.AlarmCreatedEvent;
 import com.hpcloud.mon.common.event.AlarmDeletedEvent;
 import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
+import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.util.Serialization;
 
 @Test
@@ -46,7 +47,8 @@ public class EventDeserializerTest {
   }
 
   public void shouldDeserializeAlarmUpdatedEvent() {
-    roundTrip(new AlarmUpdatedEvent(TENANT_ID, ALARM_ID, ALARM_NAME, ALARM_DESCRIPTION, ALARM_EXPRESSION, null, false, null, null, null));
+    roundTrip(new AlarmUpdatedEvent(TENANT_ID, ALARM_ID, ALARM_NAME, ALARM_DESCRIPTION, ALARM_EXPRESSION,
+              AlarmState.OK, AlarmState.OK, false, null, null, null, null));
   }
 
   private void roundTrip(Object event) {
