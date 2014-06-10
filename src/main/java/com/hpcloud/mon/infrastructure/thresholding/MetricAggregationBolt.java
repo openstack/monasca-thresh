@@ -186,21 +186,26 @@ public class MetricAggregationBolt extends BaseRichBolt {
    * ago, then sliding the window to the current time.
    */
   void evaluateAlarmsAndSlideWindows() {
-    if (!upToDate) {
-        LOG.info("Not evaluating SubAlarms because Metrics are not up to date");
-        upToDate = true;
-        return;
-    }
+    LOG.debug("evaluateAlarmsAndSlideWindows called");
     long newWindowTimestamp = currentTimeSeconds();
     for (SubAlarmStatsRepository subAlarmStatsRepo : subAlarmStatsRepos.values())
       for (SubAlarmStats subAlarmStats : subAlarmStatsRepo.get()) {
-        LOG.debug("Evaluating {}", subAlarmStats);
-        if (subAlarmStats.evaluateAndSlideWindow(newWindowTimestamp)) {
-          LOG.debug("Alarm state changed for {}", subAlarmStats);
-          collector.emit(new Values(subAlarmStats.getSubAlarm().getAlarmId(),
-                  subAlarmStats.getSubAlarm()));
+        if (upToDate) {
+          LOG.debug("Evaluating {}", subAlarmStats);
+          if (subAlarmStats.evaluateAndSlideWindow(newWindowTimestamp)) {
+            LOG.debug("Alarm state changed for {}", subAlarmStats);
+            collector.emit(new Values(subAlarmStats.getSubAlarm().getAlarmId(),
+                    subAlarmStats.getSubAlarm()));
+          }
+        }
+        else {
+          subAlarmStats.slideWindow(newWindowTimestamp);
         }
       }
+    if (!upToDate) {
+        LOG.info("Did not evaluate SubAlarms because Metrics are not up to date");
+        upToDate = true;
+    }
   }
 
   /**

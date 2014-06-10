@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
-public abstract class KafkaSpout extends BaseRichSpout {
+public abstract class KafkaSpout extends BaseRichSpout implements Runnable {
     private static final Logger LOG = LoggerFactory.getLogger(KafkaSpout.class);
 
     private static final long serialVersionUID = 744004533863562119L;
@@ -46,6 +46,14 @@ public abstract class KafkaSpout extends BaseRichSpout {
     private transient List<KafkaStream<byte[], byte[]>> streams = null;
 
     private SpoutOutputCollector collector;
+
+    private volatile boolean shouldContinue;
+
+    private byte[] message;
+
+    private Thread readerThread;
+
+    private String spoutName;
 
     protected KafkaSpout(KafkaConsumerConfiguration kafkaConsumerConfig) {
         this.kafkaConsumerConfig = kafkaConsumerConfig;
@@ -67,6 +75,7 @@ public abstract class KafkaSpout extends BaseRichSpout {
         LOG.info("Opened");
         this.collector = collector;
         LOG.info(" topic = " + kafkaConsumerConfig.getTopic());
+        this.spoutName = String.format("%s-%d", context.getThisComponentId(), context.getThisTaskId());
 
         Properties kafkaProperties = KafkaConsumerProperties.createKafkaProperties(kafkaConsumerConfig);
         // Have to use a different consumer.id for each spout so use the storm taskId. Otherwise,
@@ -78,14 +87,72 @@ public abstract class KafkaSpout extends BaseRichSpout {
     }
 
     @Override
+    public synchronized void deactivate() {
+        LOG.info("deactivated");
+        this.consumerConnector.shutdown();
+        this.shouldContinue = false;
+        // Wake up the reader thread if it is waiting 
+        notify();
+    }
+
+    @Override
+    public void run() {
+        while (this.shouldContinue) {
+            final ConsumerIterator<byte[], byte[]> it = streams.get(0).iterator();
+            if (it.hasNext()) {
+                LOG.debug("streams iterator has next");
+                final byte[] message = it.next().message();
+                synchronized (this) {
+                    this.message = message;
+                    while (this.message != null && this.shouldContinue)
+                        try {
+                            wait();
+                        } catch (InterruptedException e) {
+                            LOG.info("Wait interrupted", e);
+                        }
+                }
+            }    
+        }
+        LOG.info("readerThread {} exited", this.readerThread.getName());
+        this.readerThread = null;
+    }
+
+    @Override
     public void nextTuple() {
         LOG.debug("nextTuple called");
-        ConsumerIterator<byte[], byte[]> it = streams.get(0).iterator();
-        if (it.hasNext()) {
+        checkReaderRunning();
+        final byte[] message = getMessage();
+        if (message != null) {
             LOG.debug("streams iterator has next");
-            byte[] message = it.next().message();
             processMessage(message, collector);
         }
+    }
+
+    private void checkReaderRunning() {
+        this.shouldContinue = true;
+        if (this.readerThread == null) {
+            final String threadName = String.format("%s reader", this.spoutName);
+            this.readerThread = new Thread(this, threadName);
+            this.readerThread.start();
+            LOG.info("Started Reader Thread {}", this.readerThread.getName());
+        }
+    }
+
+    private synchronized byte[] getMessage() {
+        final byte[] result = this.message;
+        if (result != null) {
+            this.message = null;
+            notify();
+        }
+        else {
+            // Storm docs recommend a short sleep
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                LOG.info("Sleep interrupted", e);
+            }
+        }
+        return result;
     }
 
     protected abstract void processMessage(byte[] message, SpoutOutputCollector collector2);

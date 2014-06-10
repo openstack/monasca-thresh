@@ -72,8 +72,18 @@ public class SubAlarmStats {
       LOG.error("Failed to evaluate {}", this, e);
       return false;
     } finally {
-      stats.slideViewTo(slideToTimestamp);
+      slideWindow(slideToTimestamp);
     }
+  }
+
+  /**
+   * Just slide the window. Either slideWindow or evaluateAndSlideWindow
+   * should be called for each time period, but never both
+   *
+   * @param slideToTimestamp
+   */
+  public void slideWindow(long slideToTimestamp) {
+    stats.slideViewTo(slideToTimestamp);
   }
 
   /**
