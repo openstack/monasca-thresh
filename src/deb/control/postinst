@@ -2,6 +2,7 @@
 
 case "$1" in
   configure)
+    chmod +x /etc/init.d/mon-thresh
     if ! [ `getent passwd thresh` ]; then
       adduser --system --group thresh
     fi
