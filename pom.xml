@@ -317,14 +317,8 @@
                                 </data>
                                 <data>
                                     <type>file</type>
-                                    <src>${project.build.directory}/storm-core-${storm.version}.jar
-                                    </src>
-                                    <dst>/opt/mon/storm-core-${storm.version}.jar</dst>
-                                </data>
-                                <data>
-                                    <type>file</type>
-                                    <src>${project.basedir}/src/deb/init/mon-thresh.conf</src>
-                                    <dst>/etc/init/mon-thresh.conf</dst>
+                                    <src>${project.basedir}/src/deb/init/mon-thresh</src>
+                                    <dst>/etc/init.d/mon-thresh</dst>
                                 </data>
                                 <data>
                                     <type>file</type>
