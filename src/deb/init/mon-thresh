@@ -11,14 +11,14 @@
 
 case "$1" in
     start)
-      sudo -Hu thresh exec /opt/storm/current/bin/storm jar /opt/mon/mon-thresh.jar com.hpcloud.mon.ThresholdingEngine /etc/mon/mon-thresh-config.yml thresh-cluster
+      sudo -Hu thresh /opt/storm/current/bin/storm jar /opt/mon/mon-thresh.jar com.hpcloud.mon.ThresholdingEngine /etc/mon/mon-thresh-config.yml thresh-cluster
     ;;
     stop)
       sudo -Hu thresh /opt/storm/current/bin/storm kill thresh-cluster
       # The above command returns but actually takes awhile loop watching status
       while true; do
         sudo -Hu thresh /opt/storm/current/bin/storm list |grep thresh-cluster
-        if [ $? -ne 0]; then break; fi
+        if [ $? -ne 0 ]; then break; fi
         sleep 1
       done
     ;;
