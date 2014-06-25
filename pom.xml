@@ -62,17 +62,6 @@
                 <artifactId>slf4j-log4j12</artifactId>
                 <version>1.7.6</version>
             </dependency>
-            <!-- Resolve dependency mismatch between Kafka and the newer version of scala in the library -->
-            <dependency>
-                <groupId>org.scala-lang</groupId>
-                <artifactId>scala-compiler</artifactId>
-                <version>2.9.2</version>
-            </dependency>
-            <dependency>
-                <groupId>org.scala-lang</groupId>
-                <artifactId>scala-library</artifactId>
-                <version>2.9.2</version>
-            </dependency>
         </dependencies>
     </dependencyManagement>
 
