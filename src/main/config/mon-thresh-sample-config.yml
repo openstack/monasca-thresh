@@ -2,6 +2,7 @@ metricSpoutThreads: 2
 metricSpoutTasks: 2
 
 metricSpoutConfig:
+  maxWaitTime: 500
 
   #Kafka settings.
   kafkaConsumerConfiguration:
@@ -33,6 +34,8 @@ eventSpoutThreads: 2
 eventSpoutTasks: 2
 
 eventSpoutConfig:
+  maxWaitTime: 500
+
   #Kafka settings.
   kafkaConsumerConfiguration:
   # See http://kafka.apache.org/documentation.html#api for semantics and defaults.

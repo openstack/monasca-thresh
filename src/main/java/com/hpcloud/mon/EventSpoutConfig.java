@@ -16,14 +16,7 @@
  */
 package com.hpcloud.mon;
 
-import java.io.Serializable;
-
-import com.hpcloud.configuration.KafkaConsumerConfiguration;
-
-public class EventSpoutConfig implements Serializable {
+public class EventSpoutConfig extends KafkaSpoutConfig {
 
     private static final long serialVersionUID = -8129774848323598123L;
-
-    public KafkaConsumerConfiguration kafkaConsumerConfiguration;
-
 }

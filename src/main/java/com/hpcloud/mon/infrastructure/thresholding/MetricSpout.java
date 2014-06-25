@@ -38,7 +38,7 @@ public class MetricSpout extends KafkaSpout {
     public static final String DEFAULT_TENANT_ID = "TENANT_ID_NOT_SET";
 
     public MetricSpout(MetricSpoutConfig metricSpoutConfig) {
-        super(metricSpoutConfig.kafkaConsumerConfiguration);
+        super(metricSpoutConfig);
         LOG.info("Created");
     }
 

@@ -37,7 +37,7 @@ public class EventSpout extends KafkaSpout {
     private final EventDeserializer deserializer;
 
     public EventSpout(EventSpoutConfig configuration, EventDeserializer deserializer) {
-        super(configuration.kafkaConsumerConfiguration);
+        super(configuration);
         this.deserializer = deserializer;
         LOG.info("EventSpout created");
     }
