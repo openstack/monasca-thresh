@@ -269,34 +269,6 @@
                 </configuration>
             </plugin>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <version>2.8</version>
-                <executions>
-                <execution>
-                    <id>copy</id>
-                    <phase>package</phase>
-                    <goals>
-                        <goal>copy</goal>
-                    </goals>
-                    <configuration>
-                        <artifactItems>
-                            <artifactItem>
-                                <groupId>org.apache.storm</groupId>
-                                <artifactId>storm-core</artifactId>
-                                <version>${storm.version}</version>
-                                <type>jar</type>
-                                <overWrite>false</overWrite>
-                            </artifactItem>
-                        </artifactItems>
-                        <outputDirectory>${project.build.directory}</outputDirectory>
-                        <overWriteReleases>false</overWriteReleases>
-                        <overWriteSnapshots>true</overWriteSnapshots>
-                      </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
                 <artifactId>jdeb</artifactId>
                 <groupId>org.vafer</groupId>
                 <version>1.0.1</version>
@@ -317,14 +289,8 @@
                                 </data>
                                 <data>
                                     <type>file</type>
-                                    <src>${project.build.directory}/storm-core-${storm.version}.jar
-                                    </src>
-                                    <dst>/opt/mon/storm-core-${storm.version}.jar</dst>
-                                </data>
-                                <data>
-                                    <type>file</type>
-                                    <src>${project.basedir}/src/deb/init/mon-thresh.conf</src>
-                                    <dst>/etc/init/mon-thresh.conf</dst>
+                                    <src>${project.basedir}/src/deb/init/mon-thresh</src>
+                                    <dst>/etc/init.d/mon-thresh</dst>
                                 </data>
                                 <data>
                                     <type>file</type>
