@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.hpcloud.mon.infrastructure.persistence;
 
 import static org.testng.Assert.assertTrue;
@@ -36,8 +37,8 @@ import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
 import com.hpcloud.mon.domain.service.SubAlarmMetricDefinition;
 
 /**
- * Note: MySQL dependent test because of the group_concat() used in the SQL in MetricDefinitionDAOImpl.
- * Depends on the MySQL in mini-mon.
+ * Note: MySQL dependent test because of the group_concat() used in the SQL in
+ * MetricDefinitionDAOImpl. Depends on the MySQL in mini-mon.
  */
 @Test(groups = "database")
 public class MetricDefinitionDAOImplTest {
@@ -64,38 +65,39 @@ public class MetricDefinitionDAOImplTest {
   protected void beforeMethod() {
     cleanUp();
 
-    handle.execute("insert into alarm (id, tenant_id, name, description, expression, state, created_at, updated_at) "
-            + "values ('123', '" + TENANT_ID + "', 'Test Alarm', 'Test Alarm Description', 'Not real expr', 'OK', NOW(), NOW())");
+    handle
+        .execute("insert into alarm (id, tenant_id, name, description, expression, state, created_at, updated_at) "
+            + "values ('123', '"
+            + TENANT_ID
+            + "', 'Test Alarm', 'Test Alarm Description', 'Not real expr', 'OK', NOW(), NOW())");
 
-    handle.execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, state, created_at, updated_at) "
-        + "values ('111', '123', 'AVG', 'cpu', 'GT', 10, 60, 1, 'OK', NOW(), NOW())");
+    handle
+        .execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, state, created_at, updated_at) "
+            + "values ('111', '123', 'AVG', 'cpu', 'GT', 10, 60, 1, 'OK', NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('111', 'device', '1')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'instance_id', '777')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'image_id', '888')");
 
-    handle.execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, state, created_at, updated_at) "
-        + "values ('222', '123', 'AVG', 'mem', 'GT', 10, 60, 1, 'OK', NOW(), NOW())");
+    handle
+        .execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, state, created_at, updated_at) "
+            + "values ('222', '123', 'AVG', 'mem', 'GT', 10, 60, 1, 'OK', NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('222', 'instance_id', '123')");
     handle.execute("insert into sub_alarm_dimension values ('222', 'az', '2')");
 
-    handle.execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, state, created_at, updated_at) "
-        + "values ('333', '123', 'AVG', 'bar', 'GT', 10, 60, 1, 'OK', NOW(), NOW())");
-    SubAlarmMetricDefinition metricDef1 = new SubAlarmMetricDefinition("111",
-            new MetricDefinitionAndTenantId(new MetricDefinition("cpu",
-                  ImmutableMap.<String, String>builder()
-                      .put("device", "1")
-                      .put("instance_id", "777")
-                      .put("image_id", "888")
-                      .build()), TENANT_ID));
-  SubAlarmMetricDefinition metricDef2 = new SubAlarmMetricDefinition("222",
-            new MetricDefinitionAndTenantId(new MetricDefinition("mem",
-                  ImmutableMap.<String, String>builder()
-                      .put("az", "2")
-                      .put("instance_id", "123")
-                      .build()), TENANT_ID));
-  SubAlarmMetricDefinition metricDef3 = new SubAlarmMetricDefinition("333",
-            new MetricDefinitionAndTenantId(new MetricDefinition("bar",
-                    null), TENANT_ID));
+    handle
+        .execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, state, created_at, updated_at) "
+            + "values ('333', '123', 'AVG', 'bar', 'GT', 10, 60, 1, 'OK', NOW(), NOW())");
+    SubAlarmMetricDefinition metricDef1 =
+        new SubAlarmMetricDefinition("111", new MetricDefinitionAndTenantId(new MetricDefinition(
+            "cpu", ImmutableMap.<String, String>builder().put("device", "1")
+                .put("instance_id", "777").put("image_id", "888").build()), TENANT_ID));
+    SubAlarmMetricDefinition metricDef2 =
+        new SubAlarmMetricDefinition("222", new MetricDefinitionAndTenantId(new MetricDefinition(
+            "mem", ImmutableMap.<String, String>builder().put("az", "2").put("instance_id", "123")
+                .build()), TENANT_ID));
+    SubAlarmMetricDefinition metricDef3 =
+        new SubAlarmMetricDefinition("333", new MetricDefinitionAndTenantId(new MetricDefinition(
+            "bar", null), TENANT_ID));
     expected = Arrays.asList(metricDef1, metricDef2, metricDef3);
   }
 
@@ -109,15 +111,17 @@ public class MetricDefinitionDAOImplTest {
 
 
     List<SubAlarmMetricDefinition> found = dao.findForAlarms();
-    for (final SubAlarmMetricDefinition toFind : expected)
+    for (final SubAlarmMetricDefinition toFind : expected) {
       assertTrue(found.contains(toFind), "Did not find " + toFind);
+    }
   }
 
   public void shouldNotFindDeletedAlarms() {
-      handle.execute("update alarm set deleted_at=NOW() where id in ('123')");
+    handle.execute("update alarm set deleted_at=NOW() where id in ('123')");
 
-      List<SubAlarmMetricDefinition> found = dao.findForAlarms();
-      for (final SubAlarmMetricDefinition toFind : expected)
-          assertFalse(found.contains(toFind), "Should not have found " + toFind);
+    List<SubAlarmMetricDefinition> found = dao.findForAlarms();
+    for (final SubAlarmMetricDefinition toFind : expected) {
+      assertFalse(found.contains(toFind), "Should not have found " + toFind);
+    }
   }
 }

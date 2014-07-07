@@ -14,12 +14,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.hpcloud.mon.infrastructure.persistence;
 
 import static org.testng.Assert.assertEquals;
 
-import java.nio.charset.Charset;
-import java.util.Arrays;
+import com.hpcloud.mon.common.model.alarm.AlarmExpression;
+import com.hpcloud.mon.common.model.alarm.AlarmState;
+import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
+import com.hpcloud.mon.domain.model.Alarm;
+import com.hpcloud.mon.domain.model.SubAlarm;
+import com.hpcloud.mon.domain.service.AlarmDAO;
+
+import com.google.common.io.Resources;
 
 import org.skife.jdbi.v2.DBI;
 import org.skife.jdbi.v2.Handle;
@@ -28,13 +35,8 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.google.common.io.Resources;
-import com.hpcloud.mon.common.model.alarm.AlarmExpression;
-import com.hpcloud.mon.common.model.alarm.AlarmState;
-import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
-import com.hpcloud.mon.domain.model.Alarm;
-import com.hpcloud.mon.domain.model.SubAlarm;
-import com.hpcloud.mon.domain.service.AlarmDAO;
+import java.nio.charset.Charset;
+import java.util.Arrays;
 
 @Test
 public class AlarmDAOImplTest {
@@ -52,7 +54,8 @@ public class AlarmDAOImplTest {
   protected void setupClass() throws Exception {
     db = new DBI("jdbc:h2:mem:test;MODE=MySQL");
     handle = db.open();
-    handle.execute(Resources.toString(getClass().getResource("alarm.sql"), Charset.defaultCharset()));
+    handle
+        .execute(Resources.toString(getClass().getResource("alarm.sql"), Charset.defaultCharset()));
     dao = new AlarmDAOImpl(db);
   }
 
@@ -68,12 +71,16 @@ public class AlarmDAOImplTest {
     handle.execute("truncate table sub_alarm_dimension");
     handle.execute("truncate table alarm_action");
 
-    String sql = String.format("insert into alarm (id, tenant_id, name, description, expression, state, actions_enabled, created_at, updated_at) "
-        + "values ('%s', '%s', '%s', '%s', 'avg(hpcs.compute{disk=vda, instance_id=123, metric_name=cpu}) > 10', 'UNDETERMINED', %d, NOW(), NOW())",
-        ALARM_ID, TENANT_ID, ALARM_NAME, ALARM_DESCR, ALARM_ENABLED ? 1 : 0);
+    String sql =
+        String
+            .format(
+                "insert into alarm (id, tenant_id, name, description, expression, state, actions_enabled, created_at, updated_at) "
+                    + "values ('%s', '%s', '%s', '%s', 'avg(hpcs.compute{disk=vda, instance_id=123, metric_name=cpu}) > 10', 'UNDETERMINED', %d, NOW(), NOW())",
+                ALARM_ID, TENANT_ID, ALARM_NAME, ALARM_DESCR, ALARM_ENABLED ? 1 : 0);
     handle.execute(sql);
-    handle.execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, created_at, updated_at) "
-        + "values ('111', '123', 'AVG', 'hpcs.compute', 'GT', 10, 60, 1, NOW(), NOW())");
+    handle
+        .execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, created_at, updated_at) "
+            + "values ('111', '123', 'AVG', 'hpcs.compute', 'GT', 10, 60, 1, NOW(), NOW())");
     handle.execute("insert into sub_alarm_dimension values ('111', 'instance_id', '123')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'disk', 'vda')");
     handle.execute("insert into sub_alarm_dimension values ('111', 'metric_name', 'cpu')");
@@ -83,9 +90,10 @@ public class AlarmDAOImplTest {
 
   public void shouldFindById() {
     String expr = "avg(hpcs.compute{disk=vda, instance_id=123, metric_name=cpu}) > 10";
-    Alarm expected = new Alarm(ALARM_ID, TENANT_ID, ALARM_NAME, ALARM_DESCR, AlarmExpression.of(expr),
-        Arrays.asList(new SubAlarm("111", ALARM_ID, AlarmSubExpression.of(expr))),
-        AlarmState.UNDETERMINED, Boolean.TRUE);
+    Alarm expected =
+        new Alarm(ALARM_ID, TENANT_ID, ALARM_NAME, ALARM_DESCR, AlarmExpression.of(expr),
+            Arrays.asList(new SubAlarm("111", ALARM_ID, AlarmSubExpression.of(expr))),
+            AlarmState.UNDETERMINED, Boolean.TRUE);
 
     Alarm alarm = dao.findById(ALARM_ID);
 

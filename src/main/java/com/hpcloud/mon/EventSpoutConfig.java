@@ -14,9 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.hpcloud.mon;
 
 public class EventSpoutConfig extends KafkaSpoutConfig {
 
-    private static final long serialVersionUID = -8129774848323598123L;
+  private static final long serialVersionUID = -8129774848323598123L;
 }

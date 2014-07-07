@@ -14,7 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.hpcloud.mon.infrastructure.persistence;
+
+import com.hpcloud.mon.common.model.metric.MetricDefinition;
+import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantId;
+import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
+import com.hpcloud.mon.domain.service.SubAlarmMetricDefinition;
+
+import org.skife.jdbi.v2.DBI;
+import org.skife.jdbi.v2.Handle;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -23,21 +32,14 @@ import java.util.Map;
 
 import javax.inject.Inject;
 
-import org.skife.jdbi.v2.DBI;
-import org.skife.jdbi.v2.Handle;
-
-import com.hpcloud.mon.common.model.metric.MetricDefinition;
-import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantId;
-import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
-import com.hpcloud.mon.domain.service.SubAlarmMetricDefinition;
-
 /**
  * MetricDefinition DAO implementation.
  */
 public class MetricDefinitionDAOImpl implements MetricDefinitionDAO {
-  private static final String METRIC_DEF_SQL = "select sa.id, a.tenant_id, sa.metric_name, sad.dimensions from alarm as a, sub_alarm as sa "
-      + "left join (select sub_alarm_id, group_concat(dimension_name, '=', value) as dimensions from sub_alarm_dimension group by sub_alarm_id) as sad on sa.id = sad.sub_alarm_id "
-      + "where a.id = sa.alarm_id and a.deleted_at is null";
+  private static final String METRIC_DEF_SQL =
+      "select sa.id, a.tenant_id, sa.metric_name, sad.dimensions from alarm as a, sub_alarm as sa "
+          + "left join (select sub_alarm_id, group_concat(dimension_name, '=', value) as dimensions from sub_alarm_dimension group by sub_alarm_id) as sad on sa.id = sad.sub_alarm_id "
+          + "where a.id = sa.alarm_id and a.deleted_at is null";
 
   private final DBI db;
 
@@ -65,15 +67,16 @@ public class MetricDefinitionDAOImpl implements MetricDefinitionDAO {
           for (String kvStr : dimensionSet.split(",")) {
             String[] kv = kvStr.split("=");
             if (kv.length > 1) {
-              if (dimensions == null)
+              if (dimensions == null) {
                 dimensions = new HashMap<String, String>();
+              }
               dimensions.put(kv[0], kv[1]);
             }
           }
         }
 
-        metricDefs.add(new SubAlarmMetricDefinition(subAlarmId,
-                new MetricDefinitionAndTenantId(new MetricDefinition(metric_name, dimensions), tenantId)));
+        metricDefs.add(new SubAlarmMetricDefinition(subAlarmId, new MetricDefinitionAndTenantId(
+            new MetricDefinition(metric_name, dimensions), tenantId)));
       }
 
       return metricDefs;

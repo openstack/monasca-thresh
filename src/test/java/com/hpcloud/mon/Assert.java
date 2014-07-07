@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.hpcloud.mon;
 
 import static org.testng.Assert.assertEquals;
@@ -21,12 +22,15 @@ import static org.testng.Assert.fail;
 
 public class Assert {
   public static void assertArraysEqual(final double[] actual, final double[] expected) {
-    if (expected == actual)
+    if (expected == actual) {
       return;
-    if (null == expected)
+    }
+    if (null == expected) {
       fail("expected a null array, but not null found.");
-    if (null == actual)
+    }
+    if (null == actual) {
       fail("expected not null array, but null found.");
+    }
 
     assertEquals(actual.length, expected.length, "arrays don't have the same size.");
 
@@ -39,12 +43,15 @@ public class Assert {
   }
 
   public static void assertArraysEqual(final long[] actual, final long[] expected) {
-    if (expected == actual)
+    if (expected == actual) {
       return;
-    if (null == expected)
+    }
+    if (null == expected) {
       fail("expected a null array, but not null found.");
-    if (null == actual)
+    }
+    if (null == actual) {
       fail("expected not null array, but null found.");
+    }
 
     assertEquals(actual.length, expected.length, "arrays don't have the same size.");
 

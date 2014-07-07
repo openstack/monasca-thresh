@@ -14,9 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.hpcloud.mon;
 
 public class MetricSpoutConfig extends KafkaSpoutConfig {
 
-    private static final long serialVersionUID = -4285448019855024921L;
+  private static final long serialVersionUID = -4285448019855024921L;
 }

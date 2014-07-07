@@ -14,17 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.hpcloud.mon.domain.model;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
-
 import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
+
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
 
 @Test
 public class SubAlarmStatsTest {
@@ -43,7 +44,7 @@ public class SubAlarmStatsTest {
   public void shouldBeOkIfAnySlotsInViewAreBelowThreshold() {
     subAlarmStats.getStats().addValue(5, 1);
     assertFalse(subAlarmStats.evaluateAndSlideWindow(61));
-    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);    
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
 
     subAlarmStats.getStats().addValue(1, 62);
     assertTrue(subAlarmStats.evaluateAndSlideWindow(121));
@@ -106,8 +107,9 @@ public class SubAlarmStatsTest {
     // equivalent to the behavior in CloudWatch for an alarm with 3 evaluation periods. 2 more
     // slides to move the value outside of the window and 6 more to exceed the observation
     // threshold.
-    for (int i = 0; i < 7; i++)
+    for (int i = 0; i < 7; i++) {
       assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60));
+    }
     assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime += 60));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
     subAlarmStats.getStats().addValue(5, initialTime - 1);
@@ -139,10 +141,11 @@ public class SubAlarmStatsTest {
   }
 
   public void checkLongPeriod() {
-    final AlarmSubExpression subExpr = AlarmSubExpression.of("sum(hpcs.compute.mem{id=5}, 120) >= 96");
-      
+    final AlarmSubExpression subExpr =
+        AlarmSubExpression.of("sum(hpcs.compute.mem{id=5}, 120) >= 96");
+
     final SubAlarm subAlarm = new SubAlarm("42", "4242", subExpr);
-      
+
     long t1 = 0;
     final SubAlarmStats stats = new SubAlarmStats(subAlarm, t1 + subExpr.getPeriod());
     for (int i = 0; i < 360; i++) {
@@ -150,13 +153,14 @@ public class SubAlarmStatsTest {
       stats.getStats().addValue(1.0, t1);
       if ((t1 % 60) == 0) {
         stats.evaluateAndSlideWindow(t1);
-        if (i <= 60)
-            // First check will show it is OK. You could argue that this is incorrect
-            // as we have not waited for the whole period so we can't really evaluate it.
-            // That is true for sum and count
-            assertEquals(stats.getSubAlarm().getState(), AlarmState.OK);
-        else
-            assertEquals(stats.getSubAlarm().getState(), AlarmState.ALARM);
+        if (i <= 60) {
+          // First check will show it is OK. You could argue that this is incorrect
+          // as we have not waited for the whole period so we can't really evaluate it.
+          // That is true for sum and count
+          assertEquals(stats.getSubAlarm().getState(), AlarmState.OK);
+        } else {
+          assertEquals(stats.getSubAlarm().getState(), AlarmState.ALARM);
+        }
       }
     }
   }

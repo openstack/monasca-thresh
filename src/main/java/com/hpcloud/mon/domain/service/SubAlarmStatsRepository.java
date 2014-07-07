@@ -14,14 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.hpcloud.mon.domain.service;
+
+import com.hpcloud.mon.domain.model.SubAlarm;
+import com.hpcloud.mon.domain.model.SubAlarmStats;
 
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-
-import com.hpcloud.mon.domain.model.SubAlarm;
-import com.hpcloud.mon.domain.model.SubAlarmStats;
 
 /**
  * SubAlarmStats repository.
@@ -34,8 +35,9 @@ public class SubAlarmStatsRepository {
    * adds it to the repository.
    */
   public void add(SubAlarm subAlarm, long viewEndTimestamp) {
-    if (!subAlarmStats.containsKey(subAlarm.getId()))
+    if (!subAlarmStats.containsKey(subAlarm.getId())) {
       subAlarmStats.put(subAlarm.getId(), new SubAlarmStats(subAlarm, viewEndTimestamp));
+    }
   }
 
   public Collection<SubAlarmStats> get() {

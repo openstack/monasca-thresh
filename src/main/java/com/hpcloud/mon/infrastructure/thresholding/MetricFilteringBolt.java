@@ -14,23 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.hpcloud.mon.infrastructure.thresholding;
-
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import backtype.storm.task.OutputCollector;
-import backtype.storm.task.TopologyContext;
-import backtype.storm.topology.OutputFieldsDeclarer;
-import backtype.storm.topology.base.BaseRichBolt;
-import backtype.storm.tuple.Fields;
-import backtype.storm.tuple.Tuple;
-import backtype.storm.tuple.Values;
 
 import com.hpcloud.mon.common.model.metric.Metric;
 import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantId;
@@ -44,32 +29,48 @@ import com.hpcloud.streaming.storm.Logging;
 import com.hpcloud.streaming.storm.Streams;
 import com.hpcloud.util.Injector;
 
+import backtype.storm.task.OutputCollector;
+import backtype.storm.task.TopologyContext;
+import backtype.storm.topology.OutputFieldsDeclarer;
+import backtype.storm.topology.base.BaseRichBolt;
+import backtype.storm.tuple.Fields;
+import backtype.storm.tuple.Tuple;
+import backtype.storm.tuple.Values;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * Filters metrics for which there is no associated alarm and forwards metrics for which there is an
  * alarm. Receives metric alarm and metric sub-alarm events to update metric definitions.
  *
- * METRIC_DEFS table and the matcher are shared between any bolts in the same worker process so that all of the
- * MetricDefinitionAndTenantIds for existing SubAlarms only have to be read once and because it is not
- * possible to predict which bolt gets which Metrics so all Bolts know about all starting
- * MetricDefinitionAndTenantIds.
- * 
+ * METRIC_DEFS table and the matcher are shared between any bolts in the same worker process so that
+ * all of the MetricDefinitionAndTenantIds for existing SubAlarms only have to be read once and
+ * because it is not possible to predict which bolt gets which Metrics so all Bolts know about all
+ * starting MetricDefinitionAndTenantIds.
+ *
  * The current topology uses shuffleGrouping for the incoming Metrics and allGrouping for the
- * events. So, any Bolt may get any Metric so the METRIC_DEFS table and the matcher must be kept up to date
- * for all MetricDefinitionAndTenantIds.
- * 
- * The METRIC_DEFS table contains a List of SubAlarms IDs that reference the same MetricDefinitionAndTenantId
- * so if a SubAlarm is deleted, the MetricDefinitionAndTenantId will only be deleted from it and the matcher if no
- * more SubAlarms reference it. Incrementing and decrementing the count is done under the static lock SENTINAL
- * to ensure it is correct across all Bolts sharing the same METRIC_DEFS table and the matcher. The
- * amount of adds and deletes will be very small compared to the number of Metrics so it shouldn't
- * block the Metric handling.
- * 
+ * events. So, any Bolt may get any Metric so the METRIC_DEFS table and the matcher must be kept up
+ * to date for all MetricDefinitionAndTenantIds.
+ *
+ * The METRIC_DEFS table contains a List of SubAlarms IDs that reference the same
+ * MetricDefinitionAndTenantId so if a SubAlarm is deleted, the MetricDefinitionAndTenantId will
+ * only be deleted from it and the matcher if no more SubAlarms reference it. Incrementing and
+ * decrementing the count is done under the static lock SENTINAL to ensure it is correct across all
+ * Bolts sharing the same METRIC_DEFS table and the matcher. The amount of adds and deletes will be
+ * very small compared to the number of Metrics so it shouldn't block the Metric handling.
+ *
  * <ul>
  * <li>Input: MetricDefinition metricDefinition, Metric metric
- * <li>Input metric-alarm-events: String eventType, MetricDefinitionAndTenantId metricDefinitionAndTenantId, String
- * alarmId
- * <li>Input metric-sub-alarm-events: String eventType, MetricDefinitionAndTenantId metricDefinitionAndTenantId, SubAlarm
- * subAlarm
+ * <li>Input metric-alarm-events: String eventType, MetricDefinitionAndTenantId
+ * metricDefinitionAndTenantId, String alarmId
+ * <li>Input metric-sub-alarm-events: String eventType, MetricDefinitionAndTenantId
+ * metricDefinitionAndTenantId, SubAlarm subAlarm
  * <li>Output: MetricDefinitionAndTenantId metricDefinitionAndTenantId, Metric metric
  * </ul>
  */
@@ -82,16 +83,21 @@ public class MetricFilteringBolt extends BaseRichBolt {
   public static final int MAX_LAG_MESSAGES_DEFAULT = 10;
   public static final String LAG_MESSAGE_PERIOD_KEY = "com.hpcloud.mon.filtering.lagMessagePeriod";
   public static final int LAG_MESSAGE_PERIOD_DEFAULT = 30;
-  public static final String[] FIELDS = new String[] { "metricDefinitionAndTenantId", "metric" };
+  public static final String[] FIELDS = new String[] {"metricDefinitionAndTenantId", "metric"};
 
-  private static final int MIN_LAG_VALUE = PropertyFinder.getIntProperty(MIN_LAG_VALUE_KEY, MIN_LAG_VALUE_DEFAULT, 0, Integer.MAX_VALUE);
-  private static final int MAX_LAG_MESSAGES = PropertyFinder.getIntProperty(MAX_LAG_MESSAGES_KEY, MAX_LAG_MESSAGES_DEFAULT, 0, Integer.MAX_VALUE);
-  private static final int LAG_MESSAGE_PERIOD = PropertyFinder.getIntProperty(LAG_MESSAGE_PERIOD_KEY, LAG_MESSAGE_PERIOD_DEFAULT, 1, 600);
-  private static final Map<MetricDefinitionAndTenantId, List<String>> METRIC_DEFS = new ConcurrentHashMap<>();
-  private static final MetricDefinitionAndTenantIdMatcher matcher = new MetricDefinitionAndTenantIdMatcher();
+  private static final int MIN_LAG_VALUE = PropertyFinder.getIntProperty(MIN_LAG_VALUE_KEY,
+      MIN_LAG_VALUE_DEFAULT, 0, Integer.MAX_VALUE);
+  private static final int MAX_LAG_MESSAGES = PropertyFinder.getIntProperty(MAX_LAG_MESSAGES_KEY,
+      MAX_LAG_MESSAGES_DEFAULT, 0, Integer.MAX_VALUE);
+  private static final int LAG_MESSAGE_PERIOD = PropertyFinder.getIntProperty(
+      LAG_MESSAGE_PERIOD_KEY, LAG_MESSAGE_PERIOD_DEFAULT, 1, 600);
+  private static final Map<MetricDefinitionAndTenantId, List<String>> METRIC_DEFS =
+      new ConcurrentHashMap<>();
+  private static final MetricDefinitionAndTenantIdMatcher matcher =
+      new MetricDefinitionAndTenantIdMatcher();
   private static final Object SENTINAL = new Object();
 
-  private transient Logger LOG;
+  private transient Logger logger;
   private DataSourceFactory dbConfig;
   private transient MetricDefinitionDAO metricDefDAO;
   private OutputCollector collector;
@@ -111,86 +117,94 @@ public class MetricFilteringBolt extends BaseRichBolt {
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
     declarer.declare(new Fields(FIELDS));
-    declarer.declareStream(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM,
-            new Fields(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_FIELDS));
+    declarer.declareStream(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM, new Fields(
+        MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_FIELDS));
   }
 
   @Override
   public void execute(Tuple tuple) {
-    LOG.debug("tuple: {}", tuple);
+    logger.debug("tuple: {}", tuple);
     try {
       if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-        final MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) tuple.getValue(0);
-        final Long timestamp = (Long)tuple.getValue(1);
-        final Metric metric = (Metric)tuple.getValue(2);
+        final MetricDefinitionAndTenantId metricDefinitionAndTenantId =
+            (MetricDefinitionAndTenantId) tuple.getValue(0);
+        final Long timestamp = (Long) tuple.getValue(1);
+        final Metric metric = (Metric) tuple.getValue(2);
         checkLag(timestamp);
 
-        LOG.debug("metric definition and tenant id: {}", metricDefinitionAndTenantId);
+        logger.debug("metric definition and tenant id: {}", metricDefinitionAndTenantId);
         // Check for exact matches as well as inexact matches
-        final List<MetricDefinitionAndTenantId> matches = matcher.match(metricDefinitionAndTenantId);
-        for (final MetricDefinitionAndTenantId match : matches)
-            collector.emit(new Values(match, metric));
+        final List<MetricDefinitionAndTenantId> matches =
+            matcher.match(metricDefinitionAndTenantId);
+        for (final MetricDefinitionAndTenantId match : matches) {
+          collector.emit(new Values(match, metric));
+        }
       } else {
         String eventType = tuple.getString(0);
-        MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) tuple.getValue(1);
+        MetricDefinitionAndTenantId metricDefinitionAndTenantId =
+            (MetricDefinitionAndTenantId) tuple.getValue(1);
 
-        LOG.debug("Received {} for {}", eventType, metricDefinitionAndTenantId);
+        logger.debug("Received {} for {}", eventType, metricDefinitionAndTenantId);
         // UPDATED events can be ignored because the MetricDefinitionAndTenantId doesn't change
         if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-          if (EventProcessingBolt.DELETED.equals(eventType))
+          if (EventProcessingBolt.DELETED.equals(eventType)) {
             removeSubAlarm(metricDefinitionAndTenantId, tuple.getString(2));
-        } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-          if (EventProcessingBolt.CREATED.equals(eventType))
-            synchronized(SENTINAL) {
+          }
+        } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple
+            .getSourceStreamId())) {
+          if (EventProcessingBolt.CREATED.equals(eventType)) {
+            synchronized (SENTINAL) {
               final SubAlarm subAlarm = (SubAlarm) tuple.getValue(2);
               addMetricDef(metricDefinitionAndTenantId, subAlarm.getId());
             }
+          }
         }
       }
     } catch (Exception e) {
-      LOG.error("Error processing tuple {}", tuple, e);
+      logger.error("Error processing tuple {}", tuple, e);
     } finally {
       collector.ack(tuple);
     }
   }
 
   private void checkLag(Long apiTimeStamp) {
-    if (!lagging)
-        return;
-    if ((apiTimeStamp == null) || (apiTimeStamp.longValue() == 0))
+    if (!lagging) {
+      return;
+    }
+    if ((apiTimeStamp == null) || (apiTimeStamp.longValue() == 0)) {
       return; // Remove this code at some point, just to handle old metrics without a NPE
+    }
     final long now = getCurrentTime();
     final long lag = now - apiTimeStamp.longValue();
-    if (lag < minLag)
+    if (lag < minLag) {
       minLag = lag;
+    }
     if (minLag <= MIN_LAG_VALUE) {
       lagging = false;
-      LOG.info("Metrics no longer lagging, minLag = {}", minLag);
-    }
-    else if (minLagMessageSent >= MAX_LAG_MESSAGES) {
-      LOG.info("Waited for {} seconds for Metrics to catch up. Giving up. minLag = {}",
-                  MAX_LAG_MESSAGES * LAG_MESSAGE_PERIOD, minLag);
-        lagging = false;
-    }
-    else if (lastMinLagMessageSent == 0) {
+      logger.info("Metrics no longer lagging, minLag = {}", minLag);
+    } else if (minLagMessageSent >= MAX_LAG_MESSAGES) {
+      logger.info("Waited for {} seconds for Metrics to catch up. Giving up. minLag = {}",
+          MAX_LAG_MESSAGES * LAG_MESSAGE_PERIOD, minLag);
+      lagging = false;
+    } else if (lastMinLagMessageSent == 0) {
       lastMinLagMessageSent = now;
-    }
-    else if ((now - lastMinLagMessageSent) >= LAG_MESSAGE_PERIOD) {
-      LOG.info("Sending {} message, minLag = {}", MetricAggregationBolt.METRICS_BEHIND, minLag);
-      collector.emit(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM,
-                        new Values(MetricAggregationBolt.METRICS_BEHIND));
+    } else if ((now - lastMinLagMessageSent) >= LAG_MESSAGE_PERIOD) {
+      logger.info("Sending {} message, minLag = {}", MetricAggregationBolt.METRICS_BEHIND, minLag);
+      collector.emit(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM, new Values(
+          MetricAggregationBolt.METRICS_BEHIND));
       lastMinLagMessageSent = now;
       minLagMessageSent++;
     }
   }
 
-  private void removeSubAlarm(MetricDefinitionAndTenantId metricDefinitionAndTenantId, String subAlarmId) {
-    synchronized(SENTINAL) {
+  private void removeSubAlarm(MetricDefinitionAndTenantId metricDefinitionAndTenantId,
+      String subAlarmId) {
+    synchronized (SENTINAL) {
       final List<String> subAlarmIds = METRIC_DEFS.get(metricDefinitionAndTenantId);
       if (subAlarmIds != null) {
         if (subAlarmIds.remove(subAlarmId) && subAlarmIds.isEmpty()) {
-           METRIC_DEFS.remove(metricDefinitionAndTenantId);
-           matcher.remove(metricDefinitionAndTenantId);
+          METRIC_DEFS.remove(metricDefinitionAndTenantId);
+          matcher.remove(metricDefinitionAndTenantId);
         }
       }
     }
@@ -199,8 +213,8 @@ public class MetricFilteringBolt extends BaseRichBolt {
   @Override
   @SuppressWarnings("rawtypes")
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
-    LOG = LoggerFactory.getLogger(Logging.categoryFor(getClass(), context));
-    LOG.info("Preparing");
+    logger = LoggerFactory.getLogger(Logging.categoryFor(getClass(), context));
+    logger.info("Preparing");
     this.collector = collector;
 
     if (metricDefDAO == null) {
@@ -213,16 +227,18 @@ public class MetricFilteringBolt extends BaseRichBolt {
       synchronized (SENTINAL) {
         if (METRIC_DEFS.isEmpty()) {
           for (SubAlarmMetricDefinition subAlarmMetricDef : metricDefDAO.findForAlarms()) {
-            addMetricDef(subAlarmMetricDef.getMetricDefinitionAndTenantId(), subAlarmMetricDef.getSubAlarmId());
+            addMetricDef(subAlarmMetricDef.getMetricDefinitionAndTenantId(),
+                subAlarmMetricDef.getSubAlarmId());
           }
           // Iterate again to ensure we only emit each metricDef once
-          for (MetricDefinitionAndTenantId metricDefinitionAndTenantId : METRIC_DEFS.keySet())
+          for (MetricDefinitionAndTenantId metricDefinitionAndTenantId : METRIC_DEFS.keySet()) {
             collector.emit(new Values(metricDefinitionAndTenantId, null));
-          LOG.info("Found {} Metric Definitions", METRIC_DEFS.size());
+          }
+          logger.info("Found {} Metric Definitions", METRIC_DEFS.size());
           // Just output these here so they are only output once per JVM
-          LOG.info("MIN_LAG_VALUE set to {} seconds", MIN_LAG_VALUE);
-          LOG.info("MAX_LAG_MESSAGES set to {}", MAX_LAG_MESSAGES);
-          LOG.info("LAG_MESSAGE_PERIOD set to {} seconds", LAG_MESSAGE_PERIOD);
+          logger.info("MIN_LAG_VALUE set to {} seconds", MIN_LAG_VALUE);
+          logger.info("MAX_LAG_MESSAGES set to {}", MAX_LAG_MESSAGES);
+          logger.info("LAG_MESSAGE_PERIOD set to {} seconds", LAG_MESSAGE_PERIOD);
         }
       }
     }
@@ -233,18 +249,19 @@ public class MetricFilteringBolt extends BaseRichBolt {
    * Allow override of current time for testing.
    */
   protected long getCurrentTime() {
-    return System.currentTimeMillis()/1000;
+    return System.currentTimeMillis() / 1000;
   }
 
-  private void addMetricDef(MetricDefinitionAndTenantId metricDefinitionAndTenantId, String subAlarmId) {
+  private void addMetricDef(MetricDefinitionAndTenantId metricDefinitionAndTenantId,
+      String subAlarmId) {
     List<String> subAlarmIds = METRIC_DEFS.get(metricDefinitionAndTenantId);
     if (subAlarmIds == null) {
       subAlarmIds = new LinkedList<>();
       METRIC_DEFS.put(metricDefinitionAndTenantId, subAlarmIds);
       matcher.add(metricDefinitionAndTenantId);
+    } else if (subAlarmIds.contains(subAlarmId)) {
+      return; // Make sure it is only added once. Multiple bolts process the same AlarmCreatedEvent
     }
-    else if (subAlarmIds.contains(subAlarmId))
-      return; // Make sure it only gets added once. Multiple bolts process the same AlarmCreatedEvent
     subAlarmIds.add(subAlarmId);
   }
 
@@ -252,14 +269,14 @@ public class MetricFilteringBolt extends BaseRichBolt {
    * Only use for testing.
    */
   static void clearMetricDefinitions() {
-      METRIC_DEFS.clear();
-      matcher.clear();
+    METRIC_DEFS.clear();
+    matcher.clear();
   }
 
   /**
    * Only use for testing.
    */
   static int sizeMetricDefinitions() {
-      return METRIC_DEFS.size();
+    return METRIC_DEFS.size();
   }
 }

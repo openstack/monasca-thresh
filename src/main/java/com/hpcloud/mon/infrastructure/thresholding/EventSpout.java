@@ -14,51 +14,52 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.hpcloud.mon.infrastructure.thresholding;
 
-import java.io.Serializable;
-import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.hpcloud.mon.EventSpoutConfig;
+import com.hpcloud.mon.infrastructure.thresholding.deserializer.EventDeserializer;
 
 import backtype.storm.spout.SpoutOutputCollector;
 import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.tuple.Values;
 
-import com.hpcloud.mon.EventSpoutConfig;
-import com.hpcloud.mon.infrastructure.thresholding.deserializer.EventDeserializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.Serializable;
+import java.util.List;
 
 public class EventSpout extends KafkaSpout {
-    private static final Logger LOG = LoggerFactory.getLogger(EventSpout.class);
+  private static final Logger logger = LoggerFactory.getLogger(EventSpout.class);
 
-    private static final long serialVersionUID = 8457340455857276878L;
+  private static final long serialVersionUID = 8457340455857276878L;
 
-    private final EventDeserializer deserializer;
+  private final EventDeserializer deserializer;
 
-    public EventSpout(EventSpoutConfig configuration, EventDeserializer deserializer) {
-        super(configuration);
-        this.deserializer = deserializer;
-        LOG.info("EventSpout created");
-    }
+  public EventSpout(EventSpoutConfig configuration, EventDeserializer deserializer) {
+    super(configuration);
+    this.deserializer = deserializer;
+    logger.info("EventSpout created");
+  }
 
-    @Override
-    public void declareOutputFields(OutputFieldsDeclarer declarer) {
-        declarer.declare(deserializer.getOutputFields());
-    }
+  @Override
+  public void declareOutputFields(OutputFieldsDeclarer declarer) {
+    declarer.declare(deserializer.getOutputFields());
+  }
 
-    @Override
-    protected void processMessage(byte[] message, SpoutOutputCollector collector) {
-        List<List<?>> events = deserializer.deserialize(message);
-        if (events != null) {
-            for (final List<?> event : events) {
-                final Object eventToSend = event.get(0);
-                if (!(eventToSend instanceof Serializable)) {
-                    LOG.error("Class {} is not Serializable: {}", eventToSend.getClass(), eventToSend);
-                    continue;
-                }
-                collector.emit(new Values(eventToSend));
-            }
+  @Override
+  protected void processMessage(byte[] message, SpoutOutputCollector collector) {
+    List<List<?>> events = deserializer.deserialize(message);
+    if (events != null) {
+      for (final List<?> event : events) {
+        final Object eventToSend = event.get(0);
+        if (!(eventToSend instanceof Serializable)) {
+          logger.error("Class {} is not Serializable: {}", eventToSend.getClass(), eventToSend);
+          continue;
         }
+        collector.emit(new Values(eventToSend));
+      }
     }
+  }
 }

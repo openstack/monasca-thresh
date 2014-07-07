@@ -14,33 +14,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.hpcloud.mon;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.doAnswer;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
-import org.testng.annotations.Test;
-
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
-import backtype.storm.Config;
-import backtype.storm.testing.FeederSpout;
-import backtype.storm.tuple.Fields;
-import backtype.storm.tuple.Values;
 
-import com.google.inject.AbstractModule;
 import com.hpcloud.configuration.KafkaProducerConfiguration;
 import com.hpcloud.mon.common.event.AlarmStateTransitionedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmExpression;
@@ -60,6 +44,24 @@ import com.hpcloud.mon.infrastructure.thresholding.ProducerModule;
 import com.hpcloud.streaming.storm.TopologyTestCase;
 import com.hpcloud.util.Injector;
 import com.hpcloud.util.Serialization;
+
+import backtype.storm.Config;
+import backtype.storm.testing.FeederSpout;
+import backtype.storm.tuple.Fields;
+import backtype.storm.tuple.Values;
+
+import com.google.inject.AbstractModule;
+
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
+import org.testng.annotations.Test;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Simulates a real'ish run of the thresholding engine, using seconds instead of minutes for the
@@ -86,8 +88,8 @@ public class ThresholdingEngineTest extends TopologyTestCase {
 
   public ThresholdingEngineTest() {
     // Fixtures
-    final AlarmExpression expression = new AlarmExpression(
-        "max(cpu{id=5}) >= 3 or max(mem{id=5}) >= 5");
+    final AlarmExpression expression =
+        new AlarmExpression("max(cpu{id=5}) >= 3 or max(mem{id=5}) >= 5");
 
     cpuMetricDef = expression.getSubExpressions().get(0).getMetricDefinition();
     memMetricDef = expression.getSubExpressions().get(1).getMetricDefinition();
@@ -98,33 +100,38 @@ public class ThresholdingEngineTest extends TopologyTestCase {
       @Override
       public Alarm answer(InvocationOnMock invocation) throws Throwable {
         return new Alarm(TEST_ALARM_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME,
-                TEST_ALARM_DESCRIPTION, expression, subAlarmsFor(expression), AlarmState.OK, Boolean.TRUE);
+            TEST_ALARM_DESCRIPTION, expression, subAlarmsFor(expression), AlarmState.OK,
+            Boolean.TRUE);
       }
     });
 
     subAlarmDAO = mock(SubAlarmDAO.class);
-    final SubAlarm cpuMetricDefSubAlarm = new SubAlarm("123", TEST_ALARM_ID, expression.getSubExpressions().get(0));
-    final SubAlarm memMetricDefSubAlarm = new SubAlarm("456", TEST_ALARM_ID, expression.getSubExpressions().get(1));
-    when(subAlarmDAO.find(any(MetricDefinitionAndTenantId.class))).thenAnswer(new Answer<List<SubAlarm>>() {
-      @Override
-      public List<SubAlarm> answer(InvocationOnMock invocation) throws Throwable {
-        MetricDefinitionAndTenantId metricDefinitionAndTenantId = (MetricDefinitionAndTenantId) invocation.getArguments()[0];
-        MetricDefinition metricDef = metricDefinitionAndTenantId.metricDefinition;
-        if (metricDef.equals(cpuMetricDef)) {
-            return Arrays.asList(cpuMetricDefSubAlarm);
-        } else if (metricDef.equals(memMetricDef)) {
-            return Arrays.asList(memMetricDefSubAlarm);
-        }
-        return Collections.emptyList();
-      }
-    });
+    final SubAlarm cpuMetricDefSubAlarm =
+        new SubAlarm("123", TEST_ALARM_ID, expression.getSubExpressions().get(0));
+    final SubAlarm memMetricDefSubAlarm =
+        new SubAlarm("456", TEST_ALARM_ID, expression.getSubExpressions().get(1));
+    when(subAlarmDAO.find(any(MetricDefinitionAndTenantId.class))).thenAnswer(
+        new Answer<List<SubAlarm>>() {
+          @Override
+          public List<SubAlarm> answer(InvocationOnMock invocation) throws Throwable {
+            MetricDefinitionAndTenantId metricDefinitionAndTenantId =
+                (MetricDefinitionAndTenantId) invocation.getArguments()[0];
+            MetricDefinition metricDef = metricDefinitionAndTenantId.metricDefinition;
+            if (metricDef.equals(cpuMetricDef)) {
+              return Arrays.asList(cpuMetricDefSubAlarm);
+            } else if (metricDef.equals(memMetricDef)) {
+              return Arrays.asList(memMetricDefSubAlarm);
+            }
+            return Collections.emptyList();
+          }
+        });
 
     metricDefinitionDAO = mock(MetricDefinitionDAO.class);
-    final List<SubAlarmMetricDefinition> metricDefs = Arrays.asList(
-            new SubAlarmMetricDefinition(cpuMetricDefSubAlarm.getId(),
-                    new MetricDefinitionAndTenantId(cpuMetricDef, TEST_ALARM_TENANT_ID)),
+    final List<SubAlarmMetricDefinition> metricDefs =
+        Arrays.asList(new SubAlarmMetricDefinition(cpuMetricDefSubAlarm.getId(),
+            new MetricDefinitionAndTenantId(cpuMetricDef, TEST_ALARM_TENANT_ID)),
             new SubAlarmMetricDefinition(memMetricDefSubAlarm.getId(),
-                    new MetricDefinitionAndTenantId(memMetricDef, TEST_ALARM_TENANT_ID)));
+                new MetricDefinitionAndTenantId(memMetricDef, TEST_ALARM_TENANT_ID)));
     when(metricDefinitionDAO.findForAlarms()).thenReturn(metricDefs);
 
     // Bindings
@@ -142,14 +149,16 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     threshConfig.sporadicMetricNamespaces = new HashSet<String>();
     Serialization.registerTarget(KafkaProducerConfiguration.class);
 
-    threshConfig.kafkaProducerConfig = Serialization.fromJson("{\"KafkaProducerConfiguration\":{\"topic\":\"alarm-state-transitions\",\"metadataBrokerList\":\"192.168.10.10:9092\",\"requestRequiredAcks\":1,\"requestTimeoutMs\":10000,\"producerType\":\"sync\",\"serializerClass\":\"kafka.serializer.StringEncoder\",\"keySerializerClass\":\"\",\"partitionerClass\":\"\",\"compressionCodec\":\"none\",\"compressedTopics\":\"\",\"messageSendMaxRetries\":3,\"retryBackoffMs\":100,\"topicMetadataRefreshIntervalMs\":600000,\"queueBufferingMaxMs\":5000,\"queueBufferingMaxMessages\":10000,\"queueEnqueueTimeoutMs\":-1,\"batchNumMessages\":200,\"sendBufferBytes\":102400,\"clientId\":\"Threshold_Engine\"}}");
+    threshConfig.kafkaProducerConfig =
+        Serialization
+            .fromJson("{\"KafkaProducerConfiguration\":{\"topic\":\"alarm-state-transitions\",\"metadataBrokerList\":\"192.168.10.10:9092\",\"requestRequiredAcks\":1,\"requestTimeoutMs\":10000,\"producerType\":\"sync\",\"serializerClass\":\"kafka.serializer.StringEncoder\",\"keySerializerClass\":\"\",\"partitionerClass\":\"\",\"compressionCodec\":\"none\",\"compressedTopics\":\"\",\"messageSendMaxRetries\":3,\"retryBackoffMs\":100,\"topicMetadataRefreshIntervalMs\":600000,\"queueBufferingMaxMs\":5000,\"queueBufferingMaxMessages\":10000,\"queueEnqueueTimeoutMs\":-1,\"batchNumMessages\":200,\"sendBufferBytes\":102400,\"clientId\":\"Threshold_Engine\"}}");
     Config stormConfig = new Config();
     stormConfig.setMaxTaskParallelism(1);
     metricSpout = new FeederSpout(new Fields(MetricSpout.FIELDS));
     eventSpout = new FeederSpout(new Fields("event"));
     alarmEventForwarder = mock(AlarmEventForwarder.class);
-    Injector.registerModules(new TopologyModule(threshConfig, stormConfig,
-        metricSpout, eventSpout));
+    Injector
+        .registerModules(new TopologyModule(threshConfig, stormConfig, metricSpout, eventSpout));
     Injector.registerModules(new ProducerModule(alarmEventForwarder));
   }
 
@@ -161,28 +170,25 @@ public class ThresholdingEngineTest extends TopologyTestCase {
 
   public void shouldThreshold() throws Exception {
     doAnswer(new Answer<Object>() {
-          public Object answer(InvocationOnMock invocation) {
-              final Object[] args = invocation.getArguments();
-              AlarmStateTransitionedEvent event = Serialization.fromJson((String)args[2]);
-              alarmsSent++;
-              System.out.printf("Alarm transitioned from %s to %s%n", event.oldState, event.newState);
-              assertEquals(event.alarmName, TEST_ALARM_NAME);
-              assertEquals(event.alarmId, TEST_ALARM_ID);
-              assertEquals(event.tenantId, TEST_ALARM_TENANT_ID);
-              assertEquals(event.oldState, previousState);
-              assertEquals(event.newState, expectedState);
-              previousState = event.newState;
-              if (event.newState == AlarmState.UNDETERMINED) {
-                  expectedState = AlarmState.ALARM;
-              }
-              else if (event.newState == AlarmState.ALARM) {
-                  expectedState = AlarmState.UNDETERMINED;
-              }
-              return null;
-          }
+      public Object answer(InvocationOnMock invocation) {
+        final Object[] args = invocation.getArguments();
+        AlarmStateTransitionedEvent event = Serialization.fromJson((String) args[2]);
+        alarmsSent++;
+        System.out.printf("Alarm transitioned from %s to %s%n", event.oldState, event.newState);
+        assertEquals(event.alarmName, TEST_ALARM_NAME);
+        assertEquals(event.alarmId, TEST_ALARM_ID);
+        assertEquals(event.tenantId, TEST_ALARM_TENANT_ID);
+        assertEquals(event.oldState, previousState);
+        assertEquals(event.newState, expectedState);
+        previousState = event.newState;
+        if (event.newState == AlarmState.UNDETERMINED) {
+          expectedState = AlarmState.ALARM;
+        } else if (event.newState == AlarmState.ALARM) {
+          expectedState = AlarmState.UNDETERMINED;
+        }
+        return null;
       }
-    )
-    .when(alarmEventForwarder).send(anyString(), anyString(), anyString());
+    }).when(alarmEventForwarder).send(anyString(), anyString(), anyString());
     int waitCount = 0;
     int feedCount = 5;
     int goodValueCount = 0;
@@ -192,21 +198,26 @@ public class ThresholdingEngineTest extends TopologyTestCase {
       if (feedCount > 0) {
         System.out.println("Feeding metrics...");
 
-        long time = System.currentTimeMillis()/1000;
-        metricSpout.feed(new Values(new MetricDefinitionAndTenantId(cpuMetricDef, TEST_ALARM_TENANT_ID), time,
-                new Metric(cpuMetricDef.name, cpuMetricDef.dimensions, time, (double) (++goodValueCount == 15 ? 1 : 555))));
-        metricSpout.feed(new Values(new MetricDefinitionAndTenantId(memMetricDef, TEST_ALARM_TENANT_ID), time,
-                new Metric(memMetricDef.name, extraMemMetricDefDimensions, time, (double) (goodValueCount == 15 ? 1 : 555))));
+        long time = System.currentTimeMillis() / 1000;
+        metricSpout.feed(new Values(new MetricDefinitionAndTenantId(cpuMetricDef,
+            TEST_ALARM_TENANT_ID), time, new Metric(cpuMetricDef.name, cpuMetricDef.dimensions,
+            time, (double) (++goodValueCount == 15 ? 1 : 555))));
+        metricSpout.feed(new Values(new MetricDefinitionAndTenantId(memMetricDef,
+            TEST_ALARM_TENANT_ID), time, new Metric(memMetricDef.name, extraMemMetricDefDimensions,
+            time, (double) (goodValueCount == 15 ? 1 : 555))));
 
-        if (--feedCount == 0)
+        if (--feedCount == 0) {
           waitCount = 3;
+        }
 
-        if (goodValueCount == 15)
+        if (goodValueCount == 15) {
           goodValueCount = 0;
+        }
       } else {
         System.out.println("Waiting...");
-        if (--waitCount == 0)
+        if (--waitCount == 0) {
           feedCount = 5;
+        }
       }
 
       try {
@@ -218,11 +229,11 @@ public class ThresholdingEngineTest extends TopologyTestCase {
 
     // Give it some extra time if it needs it for the alarm to come out
     for (int i = 0; i < 30 && alarmsSent == 0; i++) {
-        try {
-          Thread.sleep(1000);
-        } catch (InterruptedException e) {
-          e.printStackTrace();
-        }
+      try {
+        Thread.sleep(1000);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
     }
     assertTrue(alarmsSent > 0, "Not enough alarms");
   }

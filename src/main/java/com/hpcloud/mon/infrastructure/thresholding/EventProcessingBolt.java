@@ -14,20 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.hpcloud.mon.infrastructure.thresholding;
-
-import java.util.Map;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import backtype.storm.task.OutputCollector;
-import backtype.storm.task.TopologyContext;
-import backtype.storm.topology.OutputFieldsDeclarer;
-import backtype.storm.topology.base.BaseRichBolt;
-import backtype.storm.tuple.Fields;
-import backtype.storm.tuple.Tuple;
-import backtype.storm.tuple.Values;
 
 import com.hpcloud.mon.common.event.AlarmCreatedEvent;
 import com.hpcloud.mon.common.event.AlarmDeletedEvent;
@@ -38,9 +26,22 @@ import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantId;
 import com.hpcloud.mon.domain.model.SubAlarm;
 import com.hpcloud.streaming.storm.Logging;
 
+import backtype.storm.task.OutputCollector;
+import backtype.storm.task.TopologyContext;
+import backtype.storm.topology.OutputFieldsDeclarer;
+import backtype.storm.topology.base.BaseRichBolt;
+import backtype.storm.tuple.Fields;
+import backtype.storm.tuple.Tuple;
+import backtype.storm.tuple.Values;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Map;
+
 /**
  * Processes events by emitting tuples related to the event.
- * 
+ *
  * <ul>
  * <li>Input: Object event
  * <li>Output alarm-events: String eventType, String alarmId
@@ -60,7 +61,8 @@ public class EventProcessingBolt extends BaseRichBolt {
   /** Stream for metric and sub-alarm specific events. */
   public static final String METRIC_SUB_ALARM_EVENT_STREAM_ID = "metric-sub-alarm-events";
 
-  public static final String[] ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType", "alarmId", "alarm"};
+  public static final String[] ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType", "alarmId",
+      "alarm"};
   public static final String[] METRIC_ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType",
       "metricDefinitionAndTenantId", "subAlarmId"};
   public static final String[] METRIC_SUB_ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType",
@@ -71,29 +73,32 @@ public class EventProcessingBolt extends BaseRichBolt {
   public static final String UPDATED = "updated";
   public static final String RESEND = "resend";
 
-  private transient Logger LOG;
+  private transient Logger logger;
   private OutputCollector collector;
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
     declarer.declareStream(ALARM_EVENT_STREAM_ID, new Fields(ALARM_EVENT_STREAM_FIELDS));
-    declarer.declareStream(METRIC_ALARM_EVENT_STREAM_ID, new Fields(METRIC_ALARM_EVENT_STREAM_FIELDS));
-    declarer.declareStream(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Fields(METRIC_SUB_ALARM_EVENT_STREAM_FIELDS));
+    declarer.declareStream(METRIC_ALARM_EVENT_STREAM_ID, new Fields(
+        METRIC_ALARM_EVENT_STREAM_FIELDS));
+    declarer.declareStream(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Fields(
+        METRIC_SUB_ALARM_EVENT_STREAM_FIELDS));
   }
 
   @Override
   public void execute(Tuple tuple) {
     try {
       Object event = tuple.getValue(0);
-      LOG.trace("Received event for processing {}", event);
-      if (event instanceof AlarmCreatedEvent)
+      logger.trace("Received event for processing {}", event);
+      if (event instanceof AlarmCreatedEvent) {
         handle((AlarmCreatedEvent) event);
-      else if (event instanceof AlarmDeletedEvent)
+      } else if (event instanceof AlarmDeletedEvent) {
         handle((AlarmDeletedEvent) event);
-      else if (event instanceof AlarmUpdatedEvent)
+      } else if (event instanceof AlarmUpdatedEvent) {
         handle((AlarmUpdatedEvent) event);
+      }
     } catch (Exception e) {
-      LOG.error("Error processing tuple {}", tuple, e);
+      logger.error("Error processing tuple {}", tuple, e);
     } finally {
       collector.ack(tuple);
     }
@@ -102,34 +107,40 @@ public class EventProcessingBolt extends BaseRichBolt {
   @Override
   @SuppressWarnings("rawtypes")
   public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
-    LOG = LoggerFactory.getLogger(Logging.categoryFor(getClass(), context));
-    LOG.info("Preparing");
+    logger = LoggerFactory.getLogger(Logging.categoryFor(getClass(), context));
+    logger.info("Preparing");
     this.collector = collector;
   }
 
   void handle(AlarmCreatedEvent event) {
-    for (Map.Entry<String, AlarmSubExpression> subExpressionEntry : event.alarmSubExpressions.entrySet()) {
-      sendAddSubAlarm(event.alarmId, subExpressionEntry.getKey(), event.tenantId, subExpressionEntry.getValue());
+    for (Map.Entry<String, AlarmSubExpression> subExpressionEntry : event.alarmSubExpressions
+        .entrySet()) {
+      sendAddSubAlarm(event.alarmId, subExpressionEntry.getKey(), event.tenantId,
+          subExpressionEntry.getValue());
     }
   }
 
-  private void sendAddSubAlarm(String alarmId, String subAlarmId, String tenantId, AlarmSubExpression alarmSubExpression) {
-      sendSubAlarm(CREATED, alarmId, subAlarmId, tenantId, alarmSubExpression);
+  private void sendAddSubAlarm(String alarmId, String subAlarmId, String tenantId,
+      AlarmSubExpression alarmSubExpression) {
+    sendSubAlarm(CREATED, alarmId, subAlarmId, tenantId, alarmSubExpression);
   }
 
-  private void sendUpdateSubAlarm(String alarmId, String subAlarmId, String tenantId, AlarmSubExpression alarmSubExpression) {
-      sendSubAlarm(UPDATED, alarmId, subAlarmId, tenantId, alarmSubExpression);
+  private void sendUpdateSubAlarm(String alarmId, String subAlarmId, String tenantId,
+      AlarmSubExpression alarmSubExpression) {
+    sendSubAlarm(UPDATED, alarmId, subAlarmId, tenantId, alarmSubExpression);
   }
 
-  private void sendResendSubAlarm(String alarmId, String subAlarmId, String tenantId, AlarmSubExpression alarmSubExpression) {
-      sendSubAlarm(RESEND, alarmId, subAlarmId, tenantId, alarmSubExpression);
+  private void sendResendSubAlarm(String alarmId, String subAlarmId, String tenantId,
+      AlarmSubExpression alarmSubExpression) {
+    sendSubAlarm(RESEND, alarmId, subAlarmId, tenantId, alarmSubExpression);
   }
 
   private void sendSubAlarm(String eventType, String alarmId, String subAlarmId, String tenantId,
-        AlarmSubExpression alarmSubExpression) {
+      AlarmSubExpression alarmSubExpression) {
     MetricDefinition metricDef = alarmSubExpression.getMetricDefinition();
-    collector.emit(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Values(eventType, new MetricDefinitionAndTenantId(metricDef, tenantId),
-          new SubAlarm(subAlarmId, alarmId, alarmSubExpression)));
+    collector.emit(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Values(eventType,
+        new MetricDefinitionAndTenantId(metricDef, tenantId), new SubAlarm(subAlarmId, alarmId,
+            alarmSubExpression)));
   }
 
   void handle(AlarmDeletedEvent event) {
@@ -142,25 +153,24 @@ public class EventProcessingBolt extends BaseRichBolt {
 
   private void sendDeletedSubAlarm(String subAlarmId, String tenantId, MetricDefinition metricDef) {
     collector.emit(METRIC_ALARM_EVENT_STREAM_ID, new Values(DELETED,
-            new MetricDefinitionAndTenantId(metricDef, tenantId), subAlarmId));
+        new MetricDefinitionAndTenantId(metricDef, tenantId), subAlarmId));
   }
 
   void handle(AlarmUpdatedEvent event) {
-    if ((!event.oldAlarmState.equals(event.alarmState) ||
-         !event.oldAlarmSubExpressions.isEmpty()) && event.changedSubExpressions.isEmpty() &&
-        event.newAlarmSubExpressions.isEmpty()) {
+    if ((!event.oldAlarmState.equals(event.alarmState) || !event.oldAlarmSubExpressions.isEmpty())
+        && event.changedSubExpressions.isEmpty() && event.newAlarmSubExpressions.isEmpty()) {
       for (Map.Entry<String, AlarmSubExpression> entry : event.unchangedSubExpressions.entrySet()) {
-          sendResendSubAlarm(event.alarmId, entry.getKey(), event.tenantId, entry.getValue());
+        sendResendSubAlarm(event.alarmId, entry.getKey(), event.tenantId, entry.getValue());
       }
     }
     for (Map.Entry<String, AlarmSubExpression> entry : event.oldAlarmSubExpressions.entrySet()) {
       sendDeletedSubAlarm(entry.getKey(), event.tenantId, entry.getValue().getMetricDefinition());
     }
     for (Map.Entry<String, AlarmSubExpression> entry : event.changedSubExpressions.entrySet()) {
-        sendUpdateSubAlarm(event.alarmId, entry.getKey(), event.tenantId, entry.getValue());
-     }
+      sendUpdateSubAlarm(event.alarmId, entry.getKey(), event.tenantId, entry.getValue());
+    }
     for (Map.Entry<String, AlarmSubExpression> entry : event.newAlarmSubExpressions.entrySet()) {
-       sendAddSubAlarm(event.alarmId, entry.getKey(), event.tenantId, entry.getValue());
+      sendAddSubAlarm(event.alarmId, entry.getKey(), event.tenantId, entry.getValue());
     }
     collector.emit(ALARM_EVENT_STREAM_ID, new Values(UPDATED, event.alarmId, event));
   }

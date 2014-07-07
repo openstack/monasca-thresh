@@ -14,18 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.hpcloud.mon;
 
 import com.hpcloud.configuration.KafkaProducerConfiguration;
+import com.hpcloud.mon.infrastructure.thresholding.DataSourceFactory;
+
+import org.hibernate.validator.constraints.NotEmpty;
 
 import java.util.Set;
 
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
-
-import org.hibernate.validator.constraints.NotEmpty;
-
-import com.hpcloud.mon.infrastructure.thresholding.DataSourceFactory;
 
 /**
  * Thresholding configuration.

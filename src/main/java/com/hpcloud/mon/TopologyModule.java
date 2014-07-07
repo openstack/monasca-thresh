@@ -14,9 +14,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.hpcloud.mon;
 
-import javax.inject.Named;
+import com.hpcloud.mon.infrastructure.thresholding.AlarmThresholdingBolt;
+import com.hpcloud.mon.infrastructure.thresholding.EventProcessingBolt;
+import com.hpcloud.mon.infrastructure.thresholding.EventSpout;
+import com.hpcloud.mon.infrastructure.thresholding.MetricAggregationBolt;
+import com.hpcloud.mon.infrastructure.thresholding.MetricFilteringBolt;
+import com.hpcloud.mon.infrastructure.thresholding.MetricSpout;
+import com.hpcloud.mon.infrastructure.thresholding.deserializer.EventDeserializer;
+import com.hpcloud.util.Injector;
 
 import backtype.storm.Config;
 import backtype.storm.generated.StormTopology;
@@ -26,14 +34,8 @@ import backtype.storm.tuple.Fields;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
-import com.hpcloud.mon.infrastructure.thresholding.AlarmThresholdingBolt;
-import com.hpcloud.mon.infrastructure.thresholding.EventProcessingBolt;
-import com.hpcloud.mon.infrastructure.thresholding.EventSpout;
-import com.hpcloud.mon.infrastructure.thresholding.MetricAggregationBolt;
-import com.hpcloud.mon.infrastructure.thresholding.MetricFilteringBolt;
-import com.hpcloud.mon.infrastructure.thresholding.MetricSpout;
-import com.hpcloud.mon.infrastructure.thresholding.deserializer.EventDeserializer;
-import com.hpcloud.util.Injector;
+
+import javax.inject.Named;
 
 /**
  * Configures types for the thresholding topology.
@@ -57,8 +59,7 @@ public class TopologyModule extends AbstractModule {
   }
 
   @Override
-  protected void configure() {
-  }
+  protected void configure() {}
 
   @Provides
   Config stormConfig() {
@@ -100,21 +101,21 @@ public class TopologyModule extends AbstractModule {
 
     // MaaS Event -> Events
     builder.setBolt("event-bolt", new EventProcessingBolt(), config.eventBoltThreads)
-        .shuffleGrouping("event-spout")
-        .setNumTasks(config.eventBoltTasks);
+        .shuffleGrouping("event-spout").setNumTasks(config.eventBoltTasks);
 
     // Metrics / Event -> Filtering
-    builder.setBolt("filtering-bolt", new MetricFilteringBolt(config.database),
-        config.filteringBoltThreads)
-        .shuffleGrouping("metrics-spout")
+    builder
+        .setBolt("filtering-bolt", new MetricFilteringBolt(config.database),
+            config.filteringBoltThreads).shuffleGrouping("metrics-spout")
         .allGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID)
         .allGrouping("event-bolt", EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID)
         .setNumTasks(config.filteringBoltTasks);
 
     // Filtering / Event -> Aggregation
-    builder.setBolt("aggregation-bolt",
-        new MetricAggregationBolt(config.database, config.sporadicMetricNamespaces),
-        config.aggregationBoltThreads)
+    builder
+        .setBolt("aggregation-bolt",
+            new MetricAggregationBolt(config.database, config.sporadicMetricNamespaces),
+            config.aggregationBoltThreads)
         .fieldsGrouping("filtering-bolt", new Fields(MetricFilteringBolt.FIELDS[0]))
         .allGrouping("filtering-bolt", MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM)
         .fieldsGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID,
@@ -124,9 +125,10 @@ public class TopologyModule extends AbstractModule {
         .setNumTasks(config.aggregationBoltTasks);
 
     // Aggregation / Event -> Thresholding
-    builder.setBolt("thresholding-bolt",
-        new AlarmThresholdingBolt(config.database, config.kafkaProducerConfig),
-        config.thresholdingBoltThreads)
+    builder
+        .setBolt("thresholding-bolt",
+            new AlarmThresholdingBolt(config.database, config.kafkaProducerConfig),
+            config.thresholdingBoltThreads)
         .fieldsGrouping("aggregation-bolt", new Fields(MetricAggregationBolt.FIELDS[0]))
         .fieldsGrouping("event-bolt", EventProcessingBolt.ALARM_EVENT_STREAM_ID,
             new Fields(EventProcessingBolt.ALARM_EVENT_STREAM_FIELDS[1]))

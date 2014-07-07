@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.hpcloud.mon.domain.service;
 
 import com.hpcloud.mon.common.model.alarm.AlarmState;

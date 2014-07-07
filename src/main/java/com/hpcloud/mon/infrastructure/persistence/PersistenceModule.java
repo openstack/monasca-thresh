@@ -14,19 +14,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.hpcloud.mon.infrastructure.persistence;
 
-import javax.inject.Singleton;
-
-import org.skife.jdbi.v2.DBI;
-
-import com.google.inject.AbstractModule;
-import com.google.inject.Provides;
-import com.google.inject.Scopes;
 import com.hpcloud.mon.domain.service.AlarmDAO;
 import com.hpcloud.mon.domain.service.MetricDefinitionDAO;
 import com.hpcloud.mon.domain.service.SubAlarmDAO;
 import com.hpcloud.mon.infrastructure.thresholding.DataSourceFactory;
+
+import com.google.inject.AbstractModule;
+import com.google.inject.Provides;
+import com.google.inject.Scopes;
+
+import org.skife.jdbi.v2.DBI;
+
+import javax.inject.Singleton;
 
 /**
  * Configures persistence related types.

@@ -14,12 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.hpcloud.mon.domain.service;
 
-import java.util.List;
+package com.hpcloud.mon.domain.service;
 
 import com.hpcloud.mon.domain.model.MetricDefinitionAndTenantId;
 import com.hpcloud.mon.domain.model.SubAlarm;
+
+import java.util.List;
 
 /**
  * SubAlarm DAO.
