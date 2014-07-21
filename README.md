@@ -1,4 +1,4 @@
-mon-thresh
+monasca-thresh
 ==========
 
 Monitoring Thresholding Engine
@@ -29,7 +29,7 @@ Events also flow into the Threshold Engine via Kafka so the Threshold Engine kno
 =======
 # Build
 
-Requires mon-common from https://github.com/hpcloud-mon/mon-common. Download and do mvn install
+Requires monasca-common from https://github.com/stackforge/monasca-common. Download and do mvn install
 
 ```
 mvn package
