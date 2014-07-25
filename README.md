@@ -29,11 +29,26 @@ Events also flow into the Threshold Engine via Kafka so the Threshold Engine kno
 =======
 # Build
 
-Requires monasca-common from https://github.com/stackforge/monasca-common. Download and do mvn install
+Requires monasca-common from https://github.com/stackforge/monasca-common. Download and follow the instructions in the README
 
 ```
+cd thresh
 mvn package
 ```
+
+# StackForge Build
+
+There is a pom.xml in the base directory that should only be used for the StackForge build. The StackForge build is a rather strange build because of the limitations of the current StackForge java jobs and infrastructure. This build depends on jars that are built in the monasca-common build. That StrackForge build uploads the completed jars to http://tarballs.openstack.org/ci/monasca-common, but they are just regular jars, and not in a maven repository. Hence, the first thing the maven build from the base project does is execute the build in the download directory. That pom.xml executes the script download.sh which downloads the required jars from http://tarballs.openstack.org/ci/monasca-common and then uses maven to install them in the local directory. The maven install needs the pom.xml so that is pulled from the jar file and then changed to have the right version before the install.
+
+The monasca-common jars also need the base monasca-common pom.xml. So, that is pulled from gihtub.com and also installed in the local repository.
+
+Since this is all rather complex, that part of the build only works on StackForge so follow the simple instruction above if you are building your own monasca-thresh.
+
+Currently this build is executed on the bare-precise nodes in StackForge and they only have maven 2. So, this build must be kept compatible with Maven 2. If another monasca-common jar is added as a dependency to java/pom.xml, it must also be added to download/download.sh.
+
+A change has been submitted to StackForge to switch to bare-trusty for this build in the hopes that those systems will have maven 3, but it is not known how long that change will take to be accepted.
+
+Combining monasca-common, monasca-thresh, monasaca-api and monasca-persister into one build would vastly simplify the builds but that is a future task.
 
 =======
 # License
