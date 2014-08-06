@@ -1,6 +1,6 @@
 #! /bin/sh
 #### BEGIN INIT INFO
-## Provides:          mon-thresh
+## Provides:          monasca-thresh
 ## Required-Start:    $nimbus
 ## Required-Stop:     
 ## Default-Start:     2 3 4 5
@@ -13,9 +13,9 @@ case "$1" in
     start)
       $0 status
       if [ $? -ne 0 ]; then
-        sudo -Hu thresh /opt/storm/current/bin/storm jar /opt/mon/mon-thresh.jar monasca.thresh.ThresholdingEngine /etc/mon/mon-thresh-config.yml thresh-cluster
+        sudo -Hu thresh /opt/storm/current/bin/storm jar /opt/monasca/monasca-thresh.jar monasca.thresh.ThresholdingEngine /etc/monasca/thresh-config.yml thresh-cluster
       else
-        echo "Mon-thresh is already running"
+        echo "monasca-thresh is already running"
       fi
       exit 0
     ;;

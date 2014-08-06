@@ -2,7 +2,7 @@
 
 case "$1" in
   remove)
-    stop mon-thresh
+    service monasca-thresh stop
   ;;
 esac
 

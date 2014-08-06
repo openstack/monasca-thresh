@@ -278,24 +278,24 @@
                                     <type>file</type>
                                     <src>${project.build.directory}/${shadedJarName}.jar
                                     </src>
-                                    <dst>/opt/mon/mon-thresh.jar</dst>
+                                    <dst>/opt/monasca/monasca-thresh.jar</dst>
                                 </data>
                                 <data>
                                     <type>file</type>
-                                    <src>${project.basedir}/src/deb/init/mon-thresh</src>
-                                    <dst>/etc/init.d/mon-thresh</dst>
+                                    <src>${project.basedir}/src/deb/init/monasca-thresh</src>
+                                    <dst>/etc/init.d/monasca-thresh</dst>
                                 </data>
                                 <data>
                                     <type>file</type>
                                     <src>${project.basedir}/src/main/resources/logback.xml</src>
-                                    <dst>/etc/mon/logback.xml</dst>
+                                    <dst>/etc/monasca/logback.xml</dst>
                                 </data>
                                 <data>
                                     <type>file</type>
                                     <src>
-                                        ${project.basedir}/src/deb/etc/mon-thresh-config.yml-sample
+                                        ${project.basedir}/src/deb/etc/thresh-config.yml-sample
                                     </src>
-                                    <dst>/etc/mon/thresh-config.yml-sample</dst>
+                                    <dst>/etc/monasca/thresh-config.yml-sample</dst>
                                 </data>
                             </dataSet>
                         </configuration>

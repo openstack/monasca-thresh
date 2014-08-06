@@ -4,6 +4,6 @@ Priority: optional
 Architecture: all
 Depends: openjdk-7-jre-headless | openjdk-7-jre
 Version: [[version]]-[[timestamp]]-[[buildNumber]]
-Maintainer: HPCloud Monitoring <hpcs-mon@hp.com>
+Maintainer: Monasca Team - monasca@lists.launchpad.net
 Description: Monasca-Thresh
   Reads metrics and generates alarms based on alarm definitions.

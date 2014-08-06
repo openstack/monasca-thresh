@@ -2,8 +2,8 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>monasca-common</groupId>
-  <artifactId>monasca-common</artifactId>
+  <groupId>monasca</groupId>
+  <artifactId>monasca-thresh-base</artifactId>
   <version>${computedVersion}</version>
   <url>http://github.com/stackforge/monasca-common</url>
   <packaging>pom</packaging>
