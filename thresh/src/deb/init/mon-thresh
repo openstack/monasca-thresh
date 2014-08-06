@@ -13,7 +13,7 @@ case "$1" in
     start)
       $0 status
       if [ $? -ne 0 ]; then
-        sudo -Hu thresh /opt/storm/current/bin/storm jar /opt/mon/mon-thresh.jar com.hpcloud.mon.ThresholdingEngine /etc/mon/mon-thresh-config.yml thresh-cluster
+        sudo -Hu thresh /opt/storm/current/bin/storm jar /opt/mon/mon-thresh.jar monasca.thresh.ThresholdingEngine /etc/mon/mon-thresh-config.yml thresh-cluster
       else
         echo "Mon-thresh is already running"
       fi

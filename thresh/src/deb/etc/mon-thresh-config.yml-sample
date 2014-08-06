@@ -63,7 +63,7 @@ sporadicMetricNamespaces:
 
 database:
   driverClass: com.vertica.jdbc.Driver
-  url: jdbc:vertica://mon-aw1rdd1-vertica0001.rndd.aw1.hpcloud.net:5433/som
+  url: jdbc:vertica://mini-mon:5433/monasca
   user: thresh
   password: password
   properties:

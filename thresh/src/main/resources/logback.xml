@@ -17,7 +17,7 @@
     </appender>
 
 
-    <logger name="com.hpcloud" level = "info"/>
+    <logger name="monasca" level = "info"/>
 
     <root level="info">
         <appender-ref ref="STDOUT" />
