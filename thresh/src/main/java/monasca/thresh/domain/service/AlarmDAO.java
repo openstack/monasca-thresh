@@ -18,7 +18,11 @@
 package monasca.thresh.domain.service;
 
 import com.hpcloud.mon.common.model.alarm.AlarmState;
+
 import monasca.thresh.domain.model.Alarm;
+import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
+
+import java.util.List;
 
 /**
  * Alarm DAO.
@@ -27,6 +31,18 @@ public interface AlarmDAO {
   /** Finds and returns the Alarm for the {@code id}. */
   Alarm findById(String id);
 
+  /** Finds all Alarms for the given AlarmDefinition */
+  List<Alarm> findForAlarmDefinitionId(String alarmDefinitionId);
+
+  /** List all Alarms */
+  public List<Alarm> listAll();
+
   /** Updates the alarm state. */
   void updateState(String id, AlarmState state);
+
+  /** Adds a new AlarmedMetric to an Alarm */
+  void addAlarmedMetric(String id, MetricDefinitionAndTenantId metricDefinition);
+
+  /** Create a new Alarm */
+  void createAlarm(Alarm newAlarm);
 }

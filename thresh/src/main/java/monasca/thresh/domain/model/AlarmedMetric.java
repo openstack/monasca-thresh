@@ -1,3 +1,5 @@
+package monasca.thresh.domain.model;
+
 /*
  * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
  *
@@ -15,14 +17,20 @@
  * limitations under the License.
  */
 
-package monasca.thresh.domain.service;
+public class AlarmedMetric {
+  private final MetricDefinitionAndTenantId metricDefinitionAndTenantId;
+  private final Alarm alarm;
+  
+  public AlarmedMetric(MetricDefinitionAndTenantId metricDefinitionAndTenantId, Alarm alarm) {
+    this.metricDefinitionAndTenantId = metricDefinitionAndTenantId;
+    this.alarm = alarm;
+  }
 
-import java.util.List;
+  public MetricDefinitionAndTenantId getMetricDefinitionAndTenantId() {
+    return metricDefinitionAndTenantId;
+  }
 
-/**
- * Metric definition data access object.
- */
-public interface MetricDefinitionDAO {
-  /** Finds all metric definitions SubAlarm IDs for all alarms. */
-  List<SubAlarmMetricDefinition> findForAlarms();
+  public Alarm getAlarm() {
+    return alarm;
+  }
 }

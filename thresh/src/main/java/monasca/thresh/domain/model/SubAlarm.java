@@ -60,9 +60,6 @@ public class SubAlarm extends AbstractEntity implements Serializable {
     if (this == obj) {
       return true;
     }
-    if (!super.equals(obj)) {
-      return false;
-    }
     if (getClass() != obj.getClass()) {
       return false;
     }

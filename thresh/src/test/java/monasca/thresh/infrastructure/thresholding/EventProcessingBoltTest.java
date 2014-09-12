@@ -21,16 +21,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.hpcloud.mon.common.event.AlarmCreatedEvent;
+import com.hpcloud.mon.common.event.AlarmDefinitionCreatedEvent;
 import com.hpcloud.mon.common.event.AlarmDeletedEvent;
 import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmExpression;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
-import monasca.thresh.domain.model.Alarm;
-import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
-import monasca.thresh.domain.model.SubAlarm;
 import com.hpcloud.streaming.storm.Streams;
 
 import backtype.storm.Testing;
@@ -44,6 +41,11 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Sets;
 
+import monasca.thresh.domain.model.Alarm;
+import monasca.thresh.domain.model.AlarmDefinition;
+import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
+import monasca.thresh.domain.model.SubAlarm;
+
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -52,6 +54,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -65,6 +68,7 @@ public class EventProcessingBoltTest {
   private OutputCollector collector;
   private AlarmExpression alarmExpression;
   private Alarm alarm;
+  private AlarmDefinition alarmDefinition;
   private List<SubAlarm> subAlarms;
 
   @BeforeMethod
@@ -84,40 +88,25 @@ public class EventProcessingBoltTest {
             + "and max(hpcs.compute.mem{instance_id=123,device=42}) > 80 "
             + "and max(hpcs.compute.load{instance_id=123,device=42}) > 5";
     alarmExpression = new AlarmExpression(expression);
-    subAlarms = createSubAlarms(alarmId, alarmExpression);
-    alarm =
-        new Alarm(alarmId, TENANT_ID, name, description, alarmExpression, subAlarms,
-            AlarmState.UNDETERMINED, Boolean.TRUE);
+    alarmDefinition =
+        new AlarmDefinition("424242", TENANT_ID, name, description, alarmExpression, Boolean.TRUE,
+            new ArrayList<String>());
+    alarm = new Alarm(alarmId, alarmDefinition, AlarmState.UNDETERMINED);
+    subAlarms = new ArrayList<SubAlarm>(alarm.getSubAlarms());
   }
 
-  private List<SubAlarm> createSubAlarms(final String alarmId,
-      final AlarmExpression alarmExpression, String... ids) {
-    final List<AlarmSubExpression> subExpressions = alarmExpression.getSubExpressions();
-    final List<SubAlarm> subAlarms = new ArrayList<SubAlarm>(subExpressions.size());
-    for (int i = 0; i < subExpressions.size(); i++) {
-      final String id;
-      if (i >= ids.length) {
-        id = UUID.randomUUID().toString();
-      } else {
-        id = ids[i];
-      }
-      final SubAlarm subAlarm = new SubAlarm(id, alarmId, subExpressions.get(i));
-      subAlarms.add(subAlarm);
-    }
-    return subAlarms;
-  }
-
-  public void testAlarmCreatedEvent() {
+  public void testAlarmDefinitionCreatedEvent() {
     final Map<String, AlarmSubExpression> expressions = createAlarmSubExpressionMap(alarm);
-    final AlarmCreatedEvent event =
-        new AlarmCreatedEvent(alarm.getTenantId(), alarm.getId(), alarm.getName(), alarm
-            .getAlarmExpression().getExpression(), expressions);
+    final AlarmDefinitionCreatedEvent event =
+        new AlarmDefinitionCreatedEvent(alarmDefinition.getTenantId(), alarmDefinition.getId(),
+            alarmDefinition.getName(), alarmDefinition.getDescription(), alarmDefinition
+                .getAlarmExpression().getExpression(), expressions, Arrays.asList("hostname"));
     final Tuple tuple = createTuple(event);
     bolt.execute(tuple);
-    for (final SubAlarm subAlarm : subAlarms) {
-      verifyAddedSubAlarm(subAlarm);
-    }
     verify(collector, times(1)).ack(tuple);
+    verify(collector, times(1)).emit(
+        EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID,
+        new Values(EventProcessingBolt.CREATED, event));
   }
 
   private Tuple createTuple(final Object event) {
@@ -129,12 +118,17 @@ public class EventProcessingBoltTest {
   }
 
   public void testAlarmDeletedEvent() {
-    final Map<String, MetricDefinition> metricDefinitions = new HashMap<>();
+    final Map<String, MetricDefinition> subAlarmMetricDefs = new HashMap<>();
     for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
-      metricDefinitions.put(subAlarm.getId(), subAlarm.getExpression().getMetricDefinition());
+      subAlarmMetricDefs.put(subAlarm.getId(), subAlarm.getExpression().getMetricDefinition());
+    }
+    final List<MetricDefinition> alarmedMetricsDefs = new LinkedList<>();
+    for (final MetricDefinitionAndTenantId mtid : alarm.getAlarmedMetrics()) {
+      alarmedMetricsDefs.add(mtid.metricDefinition);
     }
     final AlarmDeletedEvent event =
-        new AlarmDeletedEvent(alarm.getTenantId(), alarm.getId(), metricDefinitions);
+        new AlarmDeletedEvent(alarmDefinition.getTenantId(), alarm.getId(), alarmedMetricsDefs,
+            alarmDefinition.getId(), subAlarmMetricDefs);
     final Tuple tuple = createTuple(event);
     bolt.execute(tuple);
     for (final SubAlarm subAlarm : subAlarms) {
@@ -152,8 +146,8 @@ public class EventProcessingBoltTest {
             .getExpression().getMetricDefinition(), TENANT_ID), subAlarm.getId()));
   }
 
-  public static AlarmUpdatedEvent createAlarmUpdatedEvent(final Alarm alarm,
-      final AlarmState newState, final AlarmExpression updatedAlarmExpression,
+  public static AlarmUpdatedEvent createAlarmUpdatedEvent(final AlarmDefinition alarmDefinition,
+      final Alarm alarm, final AlarmState newState, final AlarmExpression updatedAlarmExpression,
       List<SubAlarm> updatedSubAlarms) {
     final Map<String, AlarmSubExpression> oldAlarmSubExpressions = new HashMap<>();
     for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
@@ -207,10 +201,7 @@ public class EventProcessingBoltTest {
     }
 
     final AlarmUpdatedEvent event =
-        new AlarmUpdatedEvent(alarm.getTenantId(), alarm.getId(), alarm.getName(),
-            alarm.getDescription(), updatedAlarmExpression.getExpression(), newState,
-            alarm.getState(), true, oldExpressions, changedExpressions, unchangedExpressions,
-            newExpressions);
+        new AlarmUpdatedEvent(alarm.getId(), alarmDefinition.getId(), newState, alarm.getState());
     return event;
   }
 
@@ -240,7 +231,7 @@ public class EventProcessingBoltTest {
         updatedAlarmExpression.getSubExpressions().get(2)));
 
     final AlarmUpdatedEvent event =
-        createAlarmUpdatedEvent(alarm, alarm.getState(), updatedAlarmExpression, updatedSubAlarms);
+        createAlarmUpdatedEvent(alarmDefinition, alarm, alarm.getState(), updatedAlarmExpression, updatedSubAlarms);
 
     final Tuple tuple = createTuple(event);
     bolt.execute(tuple);

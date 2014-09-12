@@ -18,15 +18,19 @@
 package monasca.thresh.infrastructure.persistence;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
 
 import com.hpcloud.mon.common.model.alarm.AlarmExpression;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
-import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
-import monasca.thresh.domain.model.Alarm;
-import monasca.thresh.domain.model.SubAlarm;
-import monasca.thresh.domain.service.AlarmDAO;
+import com.hpcloud.mon.common.model.metric.MetricDefinition;
 
 import com.google.common.io.Resources;
+
+import monasca.thresh.domain.model.Alarm;
+import monasca.thresh.domain.model.AlarmDefinition;
+import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
+import monasca.thresh.domain.service.AlarmDAO;
 
 import org.skife.jdbi.v2.DBI;
 import org.skife.jdbi.v2.Handle;
@@ -36,15 +40,22 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @Test
 public class AlarmDAOImplTest {
   private static final String TENANT_ID = "bob";
-  private static final String ALARM_ID = "123";
   private static String ALARM_NAME = "90% CPU";
   private static String ALARM_DESCR = "Description for " + ALARM_NAME;
   private static Boolean ALARM_ENABLED = Boolean.TRUE;
+  private MetricDefinitionAndTenantId newMetric;
+
+  private AlarmDefinition alarmDef;
 
   private DBI db;
   private Handle handle;
@@ -68,42 +79,90 @@ public class AlarmDAOImplTest {
   protected void beforeMethod() {
     handle.execute("truncate table alarm");
     handle.execute("truncate table sub_alarm");
-    handle.execute("truncate table sub_alarm_dimension");
-    handle.execute("truncate table alarm_action");
+    handle.execute("truncate table alarm_metric");
+    handle.execute("truncate table metric_definition");
+    handle.execute("truncate table metric_definition_dimensions");
+    handle.execute("truncate table metric_dimension");
 
-    String sql =
-        String
-            .format(
-                "insert into alarm (id, tenant_id, name, description, expression, state, actions_enabled, created_at, updated_at) "
-                    + "values ('%s', '%s', '%s', '%s', 'avg(hpcs.compute{disk=vda, instance_id=123, metric_name=cpu}) > 10', 'UNDETERMINED', %d, NOW(), NOW())",
-                ALARM_ID, TENANT_ID, ALARM_NAME, ALARM_DESCR, ALARM_ENABLED ? 1 : 0);
-    handle.execute(sql);
-    handle
-        .execute("insert into sub_alarm (id, alarm_id, function, metric_name, operator, threshold, period, periods, created_at, updated_at) "
-            + "values ('111', '123', 'AVG', 'hpcs.compute', 'GT', 10, 60, 1, NOW(), NOW())");
-    handle.execute("insert into sub_alarm_dimension values ('111', 'instance_id', '123')");
-    handle.execute("insert into sub_alarm_dimension values ('111', 'disk', 'vda')");
-    handle.execute("insert into sub_alarm_dimension values ('111', 'metric_name', 'cpu')");
-    handle.execute("insert into alarm_action values ('123', '29387234')");
-    handle.execute("insert into alarm_action values ('123', '77778687')");
+    final String expr = "avg(load{first=first_value}) > 10 and max(cpu) < 90";
+    alarmDef =
+        new AlarmDefinition(getNextId(), TENANT_ID, ALARM_NAME, ALARM_DESCR, new AlarmExpression(
+            expr), ALARM_ENABLED, new ArrayList<String>());
+
+    final Map<String, String> dimensions = new HashMap<String, String>();
+    dimensions.put("first", "first_value");
+    dimensions.put("second", "second_value");
+    final MetricDefinition md = new MetricDefinition("load", dimensions);
+    newMetric = new MetricDefinitionAndTenantId(md, TENANT_ID);
+  }
+
+  private String getNextId() {
+    return UUID.randomUUID().toString();
+  }
+
+  public void shouldFindForAlarmDefinitionId() {
+    verifyAlarmList(dao.findForAlarmDefinitionId(alarmDef.getId()));
+
+    final Alarm firstAlarm = new Alarm(getNextId(), alarmDef, AlarmState.OK);
+    firstAlarm.addAlarmedMetric(newMetric);
+
+    dao.createAlarm(firstAlarm);
+
+    final Alarm secondAlarm = new Alarm(getNextId(), alarmDef, AlarmState.OK);
+    dao.createAlarm(secondAlarm);
+
+    final AlarmDefinition secondAlarmDef =
+        new AlarmDefinition(getNextId(), TENANT_ID, "Second", null, new AlarmExpression(
+            "avg(cpu{disk=vda, instance_id=123}) > 10"), true, Arrays.asList("dev"));
+
+    final Alarm thirdAlarm = new Alarm(getNextId(), secondAlarmDef, AlarmState.OK);
+    dao.createAlarm(thirdAlarm);
+
+    verifyAlarmList(dao.findForAlarmDefinitionId(alarmDef.getId()), firstAlarm, secondAlarm);
+
+    verifyAlarmList(dao.findForAlarmDefinitionId(secondAlarmDef.getId()), thirdAlarm);
+
+    verifyAlarmList(dao.listAll(), firstAlarm, secondAlarm, thirdAlarm);
+  }
+
+  private void verifyAlarmList(final List<Alarm> found, Alarm... expected) {
+    assertEquals(expected.length, found.size());
+    for (final Alarm alarm : expected) {
+      assertTrue(found.contains(alarm));
+    }
   }
 
   public void shouldFindById() {
-    String expr = "avg(hpcs.compute{disk=vda, instance_id=123, metric_name=cpu}) > 10";
-    Alarm expected =
-        new Alarm(ALARM_ID, TENANT_ID, ALARM_NAME, ALARM_DESCR, AlarmExpression.of(expr),
-            Arrays.asList(new SubAlarm("111", ALARM_ID, AlarmSubExpression.of(expr))),
-            AlarmState.UNDETERMINED, Boolean.TRUE);
+    String alarmId = getNextId();
+    assertNull(dao.findById(alarmId));
 
-    Alarm alarm = dao.findById(ALARM_ID);
+    final Alarm newAlarm = new Alarm(alarmId, alarmDef, AlarmState.OK);
+    dao.createAlarm(newAlarm);
 
-    // Identity equality
-    assertEquals(alarm, expected);
-    assertEquals(alarm.getSubAlarms(), expected.getSubAlarms());
+    assertEquals(dao.findById(alarmId), newAlarm);
+
+    dao.addAlarmedMetric(newAlarm.getId(), newMetric);
+    newAlarm.addAlarmedMetric(newMetric);
+
+    assertEquals(dao.findById(alarmId), newAlarm);
+
+    // Make sure it can handle MetricDefinition with no dimensions
+    final MetricDefinitionAndTenantId anotherMetric =
+        new MetricDefinitionAndTenantId(new MetricDefinition("cpu", new HashMap<String, String>()),
+            TENANT_ID);
+    dao.addAlarmedMetric(newAlarm.getId(), anotherMetric);
+    newAlarm.addAlarmedMetric(anotherMetric);
+
+    assertEquals(dao.findById(alarmId), newAlarm);
   }
 
   public void shouldUpdateState() {
-    dao.updateState(ALARM_ID, AlarmState.ALARM);
-    assertEquals(dao.findById(ALARM_ID).getState(), AlarmState.ALARM);
+    String alarmId = getNextId();
+
+    final Alarm newAlarm = new Alarm(alarmId, alarmDef, AlarmState.OK);
+
+    dao.createAlarm(newAlarm);
+    dao.updateState(alarmId, AlarmState.ALARM);
+    assertEquals(dao.findById(alarmId).getState(), AlarmState.ALARM);
   }
 }

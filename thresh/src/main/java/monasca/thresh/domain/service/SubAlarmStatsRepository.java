@@ -17,7 +17,6 @@
 
 package monasca.thresh.domain.service;
 
-import monasca.thresh.domain.model.SubAlarm;
 import monasca.thresh.domain.model.SubAlarmStats;
 
 import java.util.Collection;
@@ -34,9 +33,9 @@ public class SubAlarmStatsRepository {
    * Creates a new SubAlarmStats instance for the {@code subAlarm} and {@code viewEndTimestamp} and
    * adds it to the repository.
    */
-  public void add(SubAlarm subAlarm, long viewEndTimestamp) {
-    if (!subAlarmStats.containsKey(subAlarm.getId())) {
-      subAlarmStats.put(subAlarm.getId(), new SubAlarmStats(subAlarm, viewEndTimestamp));
+  public void add(final String subAlarmId, SubAlarmStats newSubAlarmStats) {
+    if (!subAlarmStats.containsKey(subAlarmId)) {
+      subAlarmStats.put(subAlarmId, newSubAlarmStats);
     }
   }
 

@@ -25,35 +25,46 @@ import com.hpcloud.mon.domain.common.AbstractEntity;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * An alarm comprised of sub-alarms.
  */
+/**
+ * @author craigbr
+ *
+ */
 public class Alarm extends AbstractEntity {
-  private String tenantId;
-  private String name;
-  private String description;
-  private AlarmExpression expression;
   private Map<String, SubAlarm> subAlarms;
+  private Set<MetricDefinitionAndTenantId> alarmedMetrics = new HashSet<>();
   private AlarmState state;
-  private boolean actionsEnabled = true;
   private String stateChangeReason;
+  private String alarmDefinitionId;
 
   public Alarm() {
   }
 
-  public Alarm(String id, String tenantId, String name, String description,
-      AlarmExpression expression, List<SubAlarm> subAlarms, AlarmState state, boolean actionsEnabled) {
+  public Alarm(String id, List<SubAlarm> subAlarms, String alarmDefinitionId, AlarmState state) {
     this.id = id;
-    this.tenantId = tenantId;
-    this.name = name;
-    this.description = description;
-    this.expression = expression;
+    setSubAlarms(subAlarms);
+    this.alarmDefinitionId = alarmDefinitionId;
+    this.state = state;
+  }
+
+  public Alarm(String id, AlarmDefinition alarmDefinition, AlarmState state) {
+    this.id = id;
+    List<AlarmSubExpression> subExpressions = alarmDefinition.getAlarmExpression().getSubExpressions();
+    final List<SubAlarm> subAlarms = new ArrayList<>(subExpressions.size());
+    for (final AlarmSubExpression subExpr : subExpressions) {
+      subAlarms.add(new SubAlarm(UUID.randomUUID().toString(), id, subExpr));
+    }
     setSubAlarms(subAlarms);
     this.state = state;
-    this.actionsEnabled = actionsEnabled;
+    this.alarmDefinitionId = alarmDefinition.getId();
   }
 
   static String buildStateChangeReason(AlarmState alarmState, List<String> subAlarmExpressions) {
@@ -78,25 +89,20 @@ public class Alarm extends AbstractEntity {
       return false;
     }
     Alarm other = (Alarm) obj;
-    if (!compareObjects(expression, other.expression)) {
-      return false;
-    }
-    if (!compareObjects(name, other.name)) {
-      return false;
-    }
-    if (!compareObjects(description, other.description)) {
-      return false;
-    }
+
     if (state != other.state) {
       return false;
     }
-    if (actionsEnabled != other.actionsEnabled) {
+    if (!compareObjects(alarmDefinitionId, other.alarmDefinitionId)) {
       return false;
     }
     if (!compareObjects(subAlarms, other.subAlarms)) {
       return false;
     }
-    if (!compareObjects(tenantId, other.tenantId)) {
+    if (!compareObjects(stateChangeReason, other.stateChangeReason)) {
+      return false;
+    }
+    if (!compareObjects(alarmedMetrics, other.alarmedMetrics)) {
       return false;
     }
     return true;
@@ -117,7 +123,7 @@ public class Alarm extends AbstractEntity {
    * Evaluates the {@code alarm}, updating the alarm's state if necessary and returning true if the
    * alarm's state changed, else false.
    */
-  public boolean evaluate() {
+  public boolean evaluate(AlarmExpression expression) {
     AlarmState initialState = state;
     List<String> unitializedSubAlarms = new ArrayList<String>();
     for (SubAlarm subAlarm : subAlarms.values()) {
@@ -169,77 +175,36 @@ public class Alarm extends AbstractEntity {
     return true;
   }
 
-  public AlarmExpression getAlarmExpression() {
-    return expression;
-  }
-
-  public String getName() {
-    return name;
-  }
-
-  public String getDescription() {
-    return description;
-  }
-
-  public void setDescription(String description) {
-    this.description = description;
-  }
-
   public AlarmState getState() {
     return state;
-  }
-
-  public boolean isActionsEnabled() {
-    return actionsEnabled;
   }
 
   public String getStateChangeReason() {
     return stateChangeReason;
   }
 
-  public SubAlarm getSubAlarm(String subAlarmId) {
-    return subAlarms.get(subAlarmId);
-  }
-
   public Collection<SubAlarm> getSubAlarms() {
     return subAlarms.values();
-  }
-
-  public String getTenantId() {
-    return tenantId;
   }
 
   @Override
   public int hashCode() {
     final int prime = 31;
     int result = super.hashCode();
-    result = prime * result + ((expression == null) ? 0 : expression.hashCode());
-    result = prime * result + ((name == null) ? 0 : name.hashCode());
     result = prime * result + ((state == null) ? 0 : state.hashCode());
     result = prime * result + ((subAlarms == null) ? 0 : subAlarms.hashCode());
-    result = prime * result + (actionsEnabled ? 1783 : 0);
-    result = prime * result + ((tenantId == null) ? 0 : tenantId.hashCode());
+    result = prime * result + ((alarmDefinitionId == null) ? 0 : alarmDefinitionId.hashCode());
+    result = prime * result + ((stateChangeReason == null) ? 0 : stateChangeReason.hashCode());
+    result = prime * result + ((alarmedMetrics == null) ? 0 : alarmedMetrics.hashCode());
     return result;
-  }
-
-  public void setExpression(String expression) {
-    this.expression = AlarmExpression.of(expression);
   }
 
   public void setId(String id) {
     this.id = id;
   }
 
-  public void setName(String name) {
-    this.name = name;
-  }
-
   public void setState(AlarmState state) {
     this.state = state;
-  }
-
-  public void setActionsEnabled(boolean actionsEnabled) {
-    this.actionsEnabled = actionsEnabled;
   }
 
   public void setSubAlarms(List<SubAlarm> subAlarms) {
@@ -249,15 +214,17 @@ public class Alarm extends AbstractEntity {
     }
   }
 
-  public void setTenantId(String tenantId) {
-    this.tenantId = tenantId;
-  }
-
   @Override
   public String toString() {
-    return String.format(
-        "Alarm [tenantId=%s, name=%s, description=%s, state=%s, actionsEnabled=%s]", tenantId,
-        name, description, state, actionsEnabled);
+    final StringBuilder alarmedMetricsString = new StringBuilder();
+    for (final MetricDefinitionAndTenantId md : this.alarmedMetrics) {
+      if (alarmedMetricsString.length() > 0) {
+        alarmedMetricsString.append(',');
+      }
+      alarmedMetricsString.append(md.toString());
+    }
+    return String.format("Alarm [id=%s, state=%s, alarmDefinitionid=%s, alarmedMetrics=[%s]]",
+        getId(), state, alarmDefinitionId, alarmedMetricsString);
   }
 
   public void updateSubAlarm(SubAlarm subAlarm) {
@@ -266,5 +233,25 @@ public class Alarm extends AbstractEntity {
 
   public boolean removeSubAlarmById(String toDeleteId) {
     return subAlarms.remove(toDeleteId) != null;
+  }
+
+  public String getAlarmDefinitionId() {
+    return alarmDefinitionId;
+  }
+
+  public void setAlarmDefinitionId(String alarmDefinitionId) {
+    this.alarmDefinitionId = alarmDefinitionId;
+  }
+
+  public Set<MetricDefinitionAndTenantId> getAlarmedMetrics() {
+    return alarmedMetrics;
+  }
+
+  public void setAlarmedMetrics(Set<MetricDefinitionAndTenantId> alarmedMetrics) {
+    this.alarmedMetrics = alarmedMetrics;
+  }
+
+  public void addAlarmedMetric(MetricDefinitionAndTenantId alarmedMetric) {
+    this.alarmedMetrics.add(alarmedMetric);
   }
 }

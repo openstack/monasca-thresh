@@ -17,14 +17,10 @@
 
 package monasca.thresh.infrastructure.thresholding;
 
+import com.hpcloud.mon.common.event.AlarmDefinitionCreatedEvent;
+import com.hpcloud.mon.common.model.alarm.AlarmExpression;
+import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.Metric;
-import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
-import monasca.thresh.domain.model.MetricDefinitionAndTenantIdMatcher;
-import monasca.thresh.domain.model.SubAlarm;
-import monasca.thresh.domain.service.MetricDefinitionDAO;
-import monasca.thresh.domain.service.SubAlarmDAO;
-import monasca.thresh.domain.service.SubAlarmMetricDefinition;
-import monasca.thresh.infrastructure.persistence.PersistenceModule;
 import com.hpcloud.streaming.storm.Logging;
 import com.hpcloud.streaming.storm.Streams;
 import com.hpcloud.util.Injector;
@@ -37,12 +33,22 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
+import monasca.thresh.domain.model.Alarm;
+import monasca.thresh.domain.model.AlarmDefinition;
+import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
+import monasca.thresh.domain.model.MetricDefinitionAndTenantIdMatcher;
+import monasca.thresh.domain.model.SubAlarm;
+import monasca.thresh.domain.model.TenantIdAndMetricName;
+import monasca.thresh.domain.service.AlarmDAO;
+import monasca.thresh.domain.service.AlarmDefinitionDAO;
+import monasca.thresh.infrastructure.persistence.PersistenceModule;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.LinkedList;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -77,13 +83,16 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MetricFilteringBolt extends BaseRichBolt {
   private static final long serialVersionUID = 1096706128973976599L;
 
+  public static final String NEW_METRIC_FOR_ALARM_DEFINITION_STREAM = "newMetricForAlarmDefinitionStream";
+  public static final String[] NEW_METRIC_FOR_ALARM_DEFINITION_FIELDS =
+      new String[] {"metricDefinitionAndTenantId", "alarmDefinitionId"};
   public static final String MIN_LAG_VALUE_KEY = "monasca.thresh.filtering.minLagValue";
   public static final int MIN_LAG_VALUE_DEFAULT = 10;
   public static final String MAX_LAG_MESSAGES_KEY = "monasca.thresh.filtering.maxLagMessages";
   public static final int MAX_LAG_MESSAGES_DEFAULT = 10;
   public static final String LAG_MESSAGE_PERIOD_KEY = "monasca.thresh.filtering.lagMessagePeriod";
   public static final int LAG_MESSAGE_PERIOD_DEFAULT = 30;
-  public static final String[] FIELDS = new String[] {"metricDefinitionAndTenantId", "metric"};
+  public static final String[] FIELDS = new String[] {"tenantIdAndMetricName", "metric"};
 
   private static final int MIN_LAG_VALUE = PropertyFinder.getIntProperty(MIN_LAG_VALUE_KEY,
       MIN_LAG_VALUE_DEFAULT, 0, Integer.MAX_VALUE);
@@ -91,15 +100,17 @@ public class MetricFilteringBolt extends BaseRichBolt {
       MAX_LAG_MESSAGES_DEFAULT, 0, Integer.MAX_VALUE);
   private static final int LAG_MESSAGE_PERIOD = PropertyFinder.getIntProperty(
       LAG_MESSAGE_PERIOD_KEY, LAG_MESSAGE_PERIOD_DEFAULT, 1, 600);
-  private static final Map<MetricDefinitionAndTenantId, List<String>> METRIC_DEFS =
+  private static final Map<MetricDefinitionAndTenantId, Set<String>> METRIC_DEFS =
       new ConcurrentHashMap<>();
   private static final MetricDefinitionAndTenantIdMatcher matcher =
       new MetricDefinitionAndTenantIdMatcher();
   private static final Object SENTINAL = new Object();
+  private static final Map<String, AlarmDefinition> alarmDefinitions = new ConcurrentHashMap<>();
 
   private transient Logger logger;
   private DataSourceFactory dbConfig;
-  private transient MetricDefinitionDAO metricDefDAO;
+  private transient AlarmDAO alarmDAO;
+  private transient AlarmDefinitionDAO alarmDefDAO;
   private OutputCollector collector;
   private long minLag = Long.MAX_VALUE;
   private long lastMinLagMessageSent = 0;
@@ -110,15 +121,20 @@ public class MetricFilteringBolt extends BaseRichBolt {
     this.dbConfig = dbConfig;
   }
 
-  public MetricFilteringBolt(MetricDefinitionDAO metricDefDAO) {
-    this.metricDefDAO = metricDefDAO;
+  public MetricFilteringBolt(AlarmDefinitionDAO alarmDefDAO, AlarmDAO alarmDAO) {
+    this.alarmDefDAO = alarmDefDAO;
+    this.alarmDAO = alarmDAO;
   }
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
     declarer.declare(new Fields(FIELDS));
+    declarer.declareStream(NEW_METRIC_FOR_ALARM_DEFINITION_STREAM, new Fields(
+        NEW_METRIC_FOR_ALARM_DEFINITION_FIELDS));
     declarer.declareStream(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM, new Fields(
         MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_FIELDS));
+    declarer.declareStream(AlarmCreationBolt.ALARM_CREATION_STREAM, new Fields(
+        AlarmCreationBolt.ALARM_CREATION_FIELDS));
   }
 
   @Override
@@ -126,36 +142,39 @@ public class MetricFilteringBolt extends BaseRichBolt {
     logger.debug("tuple: {}", tuple);
     try {
       if (Streams.DEFAULT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-        final MetricDefinitionAndTenantId metricDefinitionAndTenantId =
-            (MetricDefinitionAndTenantId) tuple.getValue(0);
+        final TenantIdAndMetricName timn = (TenantIdAndMetricName)tuple.getValue(0);
         final Long timestamp = (Long) tuple.getValue(1);
         final Metric metric = (Metric) tuple.getValue(2);
+        final MetricDefinitionAndTenantId metricDefinitionAndTenantId =
+            new MetricDefinitionAndTenantId(metric.definition(), timn.getTenantId());
         checkLag(timestamp);
 
         logger.debug("metric definition and tenant id: {}", metricDefinitionAndTenantId);
-        // Check for exact matches as well as inexact matches
-        final List<MetricDefinitionAndTenantId> matches =
-            matcher.match(metricDefinitionAndTenantId);
-        for (final MetricDefinitionAndTenantId match : matches) {
-          collector.emit(new Values(match, metric));
+        if (checkForMatch(metricDefinitionAndTenantId)) {
+          collector.emit(new Values(timn, metric));
         }
       } else {
         String eventType = tuple.getString(0);
-        MetricDefinitionAndTenantId metricDefinitionAndTenantId =
-            (MetricDefinitionAndTenantId) tuple.getValue(1);
 
-        logger.debug("Received {} for {}", eventType, metricDefinitionAndTenantId);
+        logger.debug("Received {} on {}", eventType, tuple.getSourceStreamId());
         // UPDATED events can be ignored because the MetricDefinitionAndTenantId doesn't change
         if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
           if (EventProcessingBolt.DELETED.equals(eventType)) {
-            removeSubAlarm(metricDefinitionAndTenantId, tuple.getString(2));
+            MetricDefinitionAndTenantId metricDefinitionAndTenantId =
+                (MetricDefinitionAndTenantId) tuple.getValue(1);
+            removeAlarm(metricDefinitionAndTenantId, tuple.getString(2));
           }
-        } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple
+        } else if (EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID.equals(tuple
             .getSourceStreamId())) {
           if (EventProcessingBolt.CREATED.equals(eventType)) {
             synchronized (SENTINAL) {
-              final SubAlarm subAlarm = (SubAlarm) tuple.getValue(2);
-              addMetricDef(metricDefinitionAndTenantId, subAlarm.getId());
+              final AlarmDefinitionCreatedEvent event =
+                  (AlarmDefinitionCreatedEvent) tuple.getValue(1);
+              final AlarmDefinition alarmDefinition =
+                  new AlarmDefinition(event.alarmDefinitionId, event.tenantId, event.alarmName,
+                      event.alarmDescription, new AlarmExpression(event.alarmExpression), true,
+                      event.matchBy);
+              newAlarmDefinition(alarmDefinition);
             }
           }
         }
@@ -165,6 +184,39 @@ public class MetricFilteringBolt extends BaseRichBolt {
     } finally {
       collector.ack(tuple);
     }
+  }
+
+  private void newAlarmDefinition(final AlarmDefinition alarmDefinition) {
+    alarmDefinitions.put(alarmDefinition.getId(), alarmDefinition);
+    for (final AlarmSubExpression subExpr : alarmDefinition.getAlarmExpression()
+        .getSubExpressions()) {
+      final MetricDefinitionAndTenantId mtid =
+          new MetricDefinitionAndTenantId(subExpr.getMetricDefinition(),
+              alarmDefinition.getTenantId());
+      matcher.add(mtid, alarmDefinition.getId());
+    }
+  }
+
+  private boolean checkForMatch(MetricDefinitionAndTenantId metricDefinitionAndTenantId) {
+    final Set<String> alarmDefinitionIds = matcher.match(metricDefinitionAndTenantId);
+    if (alarmDefinitionIds.isEmpty()) {
+      return false;
+    }
+    final Set<String> existing = METRIC_DEFS.get(metricDefinitionAndTenantId);
+    if (existing != null) {
+      alarmDefinitionIds.removeAll(existing);
+    }
+    if (!alarmDefinitionIds.isEmpty()) {
+      for (final String alarmDefinitionId : alarmDefinitionIds) {
+        final AlarmDefinition alarmDefinition = alarmDefinitions.get(alarmDefinitionId);
+        logger.info("Should add metric for id = {} name = {}", alarmDefinitionId,
+            alarmDefinition.getName());
+        collector.emit(NEW_METRIC_FOR_ALARM_DEFINITION_STREAM,
+            new Values(metricDefinitionAndTenantId, alarmDefinitionId));
+        addMetricDef(metricDefinitionAndTenantId, alarmDefinitionId);
+      }
+    }
+    return true;
   }
 
   private void checkLag(Long apiTimeStamp) {
@@ -197,14 +249,14 @@ public class MetricFilteringBolt extends BaseRichBolt {
     }
   }
 
-  private void removeSubAlarm(MetricDefinitionAndTenantId metricDefinitionAndTenantId,
-      String subAlarmId) {
+  private void removeAlarm(MetricDefinitionAndTenantId metricDefinitionAndTenantId,
+      String alarmDefinitionId) {
     synchronized (SENTINAL) {
-      final List<String> subAlarmIds = METRIC_DEFS.get(metricDefinitionAndTenantId);
-      if (subAlarmIds != null) {
-        if (subAlarmIds.remove(subAlarmId) && subAlarmIds.isEmpty()) {
+      matcher.remove(metricDefinitionAndTenantId, alarmDefinitionId);
+      final Set<String> alarms = METRIC_DEFS.get(metricDefinitionAndTenantId);
+      if (alarms != null) {
+        if (alarms.remove(alarmDefinitionId) && alarms.isEmpty()) {
           METRIC_DEFS.remove(metricDefinitionAndTenantId);
-          matcher.remove(metricDefinitionAndTenantId);
         }
       }
     }
@@ -217,23 +269,48 @@ public class MetricFilteringBolt extends BaseRichBolt {
     logger.info("Preparing");
     this.collector = collector;
 
-    if (metricDefDAO == null) {
-      Injector.registerIfNotBound(SubAlarmDAO.class, new PersistenceModule(dbConfig));
-      metricDefDAO = Injector.getInstance(MetricDefinitionDAO.class);
+    if (alarmDefDAO == null) {
+      Injector.registerIfNotBound(AlarmDefinitionDAO.class, new PersistenceModule(dbConfig));
+      alarmDefDAO = Injector.getInstance(AlarmDefinitionDAO.class);
+    }
+
+    if (alarmDAO == null) {
+      Injector.registerIfNotBound(AlarmDAO.class, new PersistenceModule(dbConfig));
+      alarmDAO = Injector.getInstance(AlarmDAO.class);
     }
 
     // DCL
     if (METRIC_DEFS.isEmpty()) {
       synchronized (SENTINAL) {
         if (METRIC_DEFS.isEmpty()) {
-          for (SubAlarmMetricDefinition subAlarmMetricDef : metricDefDAO.findForAlarms()) {
-            addMetricDef(subAlarmMetricDef.getMetricDefinitionAndTenantId(),
-                subAlarmMetricDef.getSubAlarmId());
+          for (AlarmDefinition alarmcDef : alarmDefDAO.listAll()) {
+            newAlarmDefinition(alarmcDef);
           }
-          // Iterate again to ensure we only emit each metricDef once
-          for (MetricDefinitionAndTenantId metricDefinitionAndTenantId : METRIC_DEFS.keySet()) {
-            collector.emit(new Values(metricDefinitionAndTenantId, null));
+
+          // Load the existing Alarms
+          for (Alarm alarm : alarmDAO.listAll()) {
+            final AlarmDefinition alarmDefinition =
+                alarmDefinitions.get(alarm.getAlarmDefinitionId());
+            if (alarmDefinition == null) {
+              logger.error("AlarmDefinition {} does not exist for Alarm {}, ignoring",
+                  alarm.getAlarmDefinitionId(), alarm.getId());
+              continue;
+            }
+            for (final MetricDefinitionAndTenantId mtid : alarm.getAlarmedMetrics()) {
+              addMetricDef(mtid, alarm.getAlarmDefinitionId());
+              for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
+                if (AlarmCreationBolt.metricFitsInSubAlarm(subAlarm, mtid.metricDefinition)) {
+                  final TenantIdAndMetricName timn = new TenantIdAndMetricName(mtid);
+                  final Values values =
+                      new Values(EventProcessingBolt.CREATED, timn, mtid,
+                          alarm.getAlarmDefinitionId(), subAlarm);
+                  logger.debug("Emitting new SubAlarm {}", values);
+                  collector.emit(AlarmCreationBolt.ALARM_CREATION_STREAM, values);
+                }
+              }
+            }
           }
+
           logger.info("Found {} Metric Definitions", METRIC_DEFS.size());
           // Just output these here so they are only output once per JVM
           logger.info("MIN_LAG_VALUE set to {} seconds", MIN_LAG_VALUE);
@@ -253,16 +330,16 @@ public class MetricFilteringBolt extends BaseRichBolt {
   }
 
   private void addMetricDef(MetricDefinitionAndTenantId metricDefinitionAndTenantId,
-      String subAlarmId) {
-    List<String> subAlarmIds = METRIC_DEFS.get(metricDefinitionAndTenantId);
+      String alarmDefinitionId) {
+    Set<String> subAlarmIds = METRIC_DEFS.get(metricDefinitionAndTenantId);
     if (subAlarmIds == null) {
-      subAlarmIds = new LinkedList<>();
+      subAlarmIds = new HashSet<>();
       METRIC_DEFS.put(metricDefinitionAndTenantId, subAlarmIds);
-      matcher.add(metricDefinitionAndTenantId);
-    } else if (subAlarmIds.contains(subAlarmId)) {
+    } else if (subAlarmIds.contains(alarmDefinitionId)) {
       return; // Make sure it is only added once. Multiple bolts process the same AlarmCreatedEvent
     }
-    subAlarmIds.add(subAlarmId);
+    subAlarmIds.add(alarmDefinitionId);
+    matcher.add(metricDefinitionAndTenantId, alarmDefinitionId);
   }
 
   /**

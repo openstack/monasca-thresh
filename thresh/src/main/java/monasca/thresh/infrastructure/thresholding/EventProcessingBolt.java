@@ -17,13 +17,18 @@
 
 package monasca.thresh.infrastructure.thresholding;
 
-import com.hpcloud.mon.common.event.AlarmCreatedEvent;
+import com.hpcloud.mon.common.event.AlarmDefinitionCreatedEvent;
+import com.hpcloud.mon.common.event.AlarmDefinitionUpdatedEvent;
 import com.hpcloud.mon.common.event.AlarmDeletedEvent;
 import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
+import com.hpcloud.mon.common.model.alarm.AlarmExpression;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
+
+import monasca.thresh.domain.model.AlarmDefinition;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
+
 import com.hpcloud.streaming.storm.Logging;
 
 import backtype.storm.task.OutputCollector;
@@ -34,6 +39,7 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
+import org.apache.commons.lang.NotImplementedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,13 +66,16 @@ public class EventProcessingBolt extends BaseRichBolt {
   public static final String METRIC_ALARM_EVENT_STREAM_ID = "metric-alarm-events";
   /** Stream for metric and sub-alarm specific events. */
   public static final String METRIC_SUB_ALARM_EVENT_STREAM_ID = "metric-sub-alarm-events";
+  /** Stream for alarm definition specific events. */
+  public static final String ALARM_DEFINITION_EVENT_STREAM_ID = "alarm-definition-events";
 
   public static final String[] ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType", "alarmId",
       "alarm"};
   public static final String[] METRIC_ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType",
       "metricDefinitionAndTenantId", "subAlarmId"};
   public static final String[] METRIC_SUB_ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType",
-      "metricDefinitionAndTenantId", "subAlarm"};
+      "metricDefinitionAndTenantId", "alarmDefinition", "subAlarm"};
+  public static final String[] ALARM_DEFINITION_EVENT_FIELDS = new String[] {"eventType", "alarmDefinition"};
 
   public static final String CREATED = "created";
   public static final String DELETED = "deleted";
@@ -83,6 +92,8 @@ public class EventProcessingBolt extends BaseRichBolt {
         METRIC_ALARM_EVENT_STREAM_FIELDS));
     declarer.declareStream(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Fields(
         METRIC_SUB_ALARM_EVENT_STREAM_FIELDS));
+    declarer.declareStream(ALARM_DEFINITION_EVENT_STREAM_ID, new Fields(
+        ALARM_DEFINITION_EVENT_FIELDS));
   }
 
   @Override
@@ -90,8 +101,8 @@ public class EventProcessingBolt extends BaseRichBolt {
     try {
       Object event = tuple.getValue(0);
       logger.trace("Received event for processing {}", event);
-      if (event instanceof AlarmCreatedEvent) {
-        handle((AlarmCreatedEvent) event);
+      if (event instanceof AlarmDefinitionCreatedEvent) {
+        handle((AlarmDefinitionCreatedEvent) event);
       } else if (event instanceof AlarmDeletedEvent) {
         handle((AlarmDeletedEvent) event);
       } else if (event instanceof AlarmUpdatedEvent) {
@@ -112,12 +123,8 @@ public class EventProcessingBolt extends BaseRichBolt {
     this.collector = collector;
   }
 
-  void handle(AlarmCreatedEvent event) {
-    for (Map.Entry<String, AlarmSubExpression> subExpressionEntry : event.alarmSubExpressions
-        .entrySet()) {
-      sendAddSubAlarm(event.alarmId, subExpressionEntry.getKey(), event.tenantId,
-          subExpressionEntry.getValue());
-    }
+  void handle(AlarmDefinitionCreatedEvent event) {
+    collector.emit(ALARM_DEFINITION_EVENT_STREAM_ID, new Values(CREATED, event));
   }
 
   private void sendAddSubAlarm(String alarmId, String subAlarmId, String tenantId,
@@ -144,11 +151,13 @@ public class EventProcessingBolt extends BaseRichBolt {
   }
 
   void handle(AlarmDeletedEvent event) {
-    for (Map.Entry<String, MetricDefinition> entry : event.subAlarmMetricDefinitions.entrySet()) {
+    throw new NotImplementedException();
+    /* Not sure what this should do    for (Map.Entry<String, MetricDefinition> entry : event.subAlarmMetricDefinitions.entrySet()) {
       sendDeletedSubAlarm(entry.getKey(), event.tenantId, entry.getValue());
     }
 
     collector.emit(ALARM_EVENT_STREAM_ID, new Values(DELETED, event.alarmId, event));
+    */
   }
 
   private void sendDeletedSubAlarm(String subAlarmId, String tenantId, MetricDefinition metricDef) {
@@ -156,7 +165,9 @@ public class EventProcessingBolt extends BaseRichBolt {
         new MetricDefinitionAndTenantId(metricDef, tenantId), subAlarmId));
   }
 
-  void handle(AlarmUpdatedEvent event) {
+  void handle(AlarmDefinitionUpdatedEvent event) {
+    throw new NotImplementedException();
+    /* Not sure what this should do
     if ((!event.oldAlarmState.equals(event.alarmState) || !event.oldAlarmSubExpressions.isEmpty())
         && event.changedSubExpressions.isEmpty() && event.newAlarmSubExpressions.isEmpty()) {
       for (Map.Entry<String, AlarmSubExpression> entry : event.unchangedSubExpressions.entrySet()) {
@@ -173,5 +184,19 @@ public class EventProcessingBolt extends BaseRichBolt {
       sendAddSubAlarm(event.alarmId, entry.getKey(), event.tenantId, entry.getValue());
     }
     collector.emit(ALARM_EVENT_STREAM_ID, new Values(UPDATED, event.alarmId, event));
+    */
+  }
+
+  void handle(AlarmUpdatedEvent event) {
+    throw new NotImplementedException();
+    /*
+    if ((!event.oldAlarmState.equals(event.alarmState) || !event.oldAlarmSubExpressions.isEmpty())
+        && event.changedSubExpressions.isEmpty() && event.newAlarmSubExpressions.isEmpty()) {
+      for (Map.Entry<String, AlarmSubExpression> entry : event.unchangedSubExpressions.entrySet()) {
+        sendResendSubAlarm(event.alarmId, entry.getKey(), event.tenantId, entry.getValue());
+      }
+    }
+    collector.emit(ALARM_EVENT_STREAM_ID, new Values(UPDATED, event.alarmId, event));
+    */
   }
 }

@@ -10,7 +10,7 @@ metricSpoutConfig:
     topic: metrics
     numThreads: 1
     groupId: thresh-metric
-    zookeeperConnect: 192.168.10.10:2181
+    zookeeperConnect: 192.168.10.4:2181
     consumerId: 1
     socketTimeoutMs: 30000
     socketReceiveBufferBytes : 65536
@@ -42,7 +42,7 @@ eventSpoutConfig:
     topic: events
     numThreads: 1
     groupId: thresh-event
-    zookeeperConnect: 192.168.10.10:2181
+    zookeeperConnect: 192.168.10.4:2181
     consumerId: 1
     socketTimeoutMs: 30000
     socketReceiveBufferBytes : 65536
@@ -66,7 +66,7 @@ eventSpoutConfig:
 kafkaProducerConfig:
   # See http://kafka.apache.org/documentation.html#api for semantics and defaults.
   topic: alarm-state-transitions
-  metadataBrokerList: 192.168.10.10:9092
+  metadataBrokerList: 192.168.10.4:9092
   serializerClass: kafka.serializer.StringEncoder
   partitionerClass:
   requestRequiredAcks: 1
@@ -91,7 +91,7 @@ sporadicMetricNamespaces:
 
 database:
   driverClass: com.mysql.jdbc.Driver
-  url: jdbc:mysql://192.168.10.6:3306/mon
+  url: jdbc:mysql://192.168.10.4:3306/mon
   user: thresh
   password: password
   properties:

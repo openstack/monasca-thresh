@@ -17,29 +17,14 @@
 
 package monasca.thresh;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-import com.hpcloud.mon.common.event.AlarmCreatedEvent;
-import com.hpcloud.mon.common.event.AlarmDeletedEvent;
+import com.hpcloud.mon.common.event.AlarmDefinitionCreatedEvent;
+import com.hpcloud.mon.common.event.AlarmDefinitionDeletedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmExpression;
-import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.Metric;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
-import monasca.thresh.domain.model.Alarm;
-import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
-import monasca.thresh.domain.model.SubAlarm;
-import monasca.thresh.domain.service.AlarmDAO;
-import monasca.thresh.domain.service.MetricDefinitionDAO;
-import monasca.thresh.domain.service.SubAlarmDAO;
-import monasca.thresh.domain.service.SubAlarmMetricDefinition;
-import monasca.thresh.infrastructure.thresholding.AlarmEventForwarder;
-import monasca.thresh.infrastructure.thresholding.MetricAggregationBolt;
-import monasca.thresh.infrastructure.thresholding.MetricSpout;
-import monasca.thresh.infrastructure.thresholding.ProducerModule;
 import com.hpcloud.streaming.storm.TopologyTestCase;
 import com.hpcloud.util.Injector;
 
@@ -51,13 +36,18 @@ import backtype.storm.tuple.Values;
 import com.google.common.collect.ImmutableMap;
 import com.google.inject.AbstractModule;
 
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
+import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
+import monasca.thresh.domain.model.SubAlarm;
+import monasca.thresh.domain.service.AlarmDAO;
+import monasca.thresh.domain.service.AlarmDefinitionDAO;
+import monasca.thresh.infrastructure.thresholding.AlarmEventForwarder;
+import monasca.thresh.infrastructure.thresholding.MetricAggregationBolt;
+import monasca.thresh.infrastructure.thresholding.MetricSpout;
+import monasca.thresh.infrastructure.thresholding.ProducerModule;
+
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Simulates a real'ish run of the thresholding engine, using seconds instead of minutes for the
@@ -70,11 +60,10 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
   private FeederSpout metricSpout;
   private FeederSpout eventSpout;
   private AlarmDAO alarmDAO;
-  private SubAlarmDAO subAlarmDAO;
+  private AlarmDefinitionDAO alarmDefinitionDAO;
   private MetricDefinition cpuMetricDef;
   private MetricDefinition memMetricDef;
   private MetricDefinition customMetricDef;
-  private MetricDefinitionDAO metricDefinitionDAO;
 
   private AlarmExpression expression;
   private AlarmExpression customExpression;
@@ -94,6 +83,7 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
 
     // Mocks
     alarmDAO = mock(AlarmDAO.class);
+    /* FIX THIS
     when(alarmDAO.findById(anyString())).thenAnswer(new Answer<Alarm>() {
       @Override
       public Alarm answer(InvocationOnMock invocation) throws Throwable {
@@ -107,26 +97,11 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
         return null;
       }
     });
+    */
 
-    subAlarmDAO = mock(SubAlarmDAO.class);
-    when(subAlarmDAO.find(any(MetricDefinitionAndTenantId.class))).thenAnswer(
-        new Answer<List<SubAlarm>>() {
-          @Override
-          public List<SubAlarm> answer(InvocationOnMock invocation) throws Throwable {
-            MetricDefinitionAndTenantId metricDefinitionAndTenantId =
-                (MetricDefinitionAndTenantId) invocation.getArguments()[0];
-            MetricDefinition metricDef = metricDefinitionAndTenantId.metricDefinition;
-            if (metricDef.equals(cpuMetricDef)) {
-              return Arrays.asList(createCpuSubAlarm());
-            } else if (metricDef.equals(memMetricDef)) {
-              return Arrays.asList(createMemSubAlarm());
-            } else if (metricDef.equals(customMetricDef)) {
-              return Arrays.asList(createCustomSubAlarm());
-            }
-            return Collections.emptyList();
-          }
-        });
+    alarmDefinitionDAO = mock(AlarmDefinitionDAO.class);
 
+    /* FIX THIS
     metricDefinitionDAO = mock(MetricDefinitionDAO.class);
     final List<SubAlarmMetricDefinition> metricDefs =
         Arrays.asList(new SubAlarmMetricDefinition(createCpuSubAlarm().getId(),
@@ -136,14 +111,14 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
             new SubAlarmMetricDefinition(createCustomSubAlarm().getId(),
                 new MetricDefinitionAndTenantId(customMetricDef, JOE_TENANT_ID)));
     when(metricDefinitionDAO.findForAlarms()).thenReturn(metricDefs);
+    */
 
     // Bindings
     Injector.reset();
     Injector.registerModules(new AbstractModule() {
       protected void configure() {
         bind(AlarmDAO.class).toInstance(alarmDAO);
-        bind(SubAlarmDAO.class).toInstance(subAlarmDAO);
-        bind(MetricDefinitionDAO.class).toInstance(metricDefinitionDAO);
+        bind(AlarmDefinitionDAO.class).toInstance(alarmDefinitionDAO);
       }
     });
 
@@ -195,13 +170,15 @@ public class ThresholdingEngineTest1 extends TopologyTestCase {
         Object event = null;
         if (++eventCounter % 2 == 0) {
           event =
-              new AlarmDeletedEvent(JOE_TENANT_ID, "2", ImmutableMap
+              new AlarmDefinitionDeletedEvent("2", ImmutableMap
                   .<String, MetricDefinition>builder().put("444", customMetricDef).build());
         } else {
+          // TODO - Make sure this makes sense
           event =
-              new AlarmCreatedEvent(JOE_TENANT_ID, "2", "foo", customSubExpression.getExpression(),
-                  ImmutableMap.<String, AlarmSubExpression>builder()
-                      .put("444", customSubExpression).build());
+              new AlarmDefinitionCreatedEvent(JOE_TENANT_ID, "2", "foo", "foo description",
+                  customSubExpression.getExpression(), ImmutableMap
+                      .<String, AlarmSubExpression>builder().put("444", customSubExpression)
+                      .build(), Arrays.asList("hostname"));
         }
 
         eventSpout.feed(new Values(event));

@@ -21,6 +21,7 @@ import static org.testng.Assert.assertEqualsNoOrder;
 import static org.testng.Assert.assertTrue;
 
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
+
 import monasca.thresh.domain.model.MetricDefinitionAndTenantIdMatcher.DimensionPair;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantIdMatcher.DimensionSet;
 
@@ -28,8 +29,8 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Test
 public class MetricDefinitionAndTenantIdMatcherTest {
@@ -41,6 +42,7 @@ public class MetricDefinitionAndTenantIdMatcherTest {
   private final String tenantId = "4242";
   private MetricDefinition metricDef;
   private Map<String, String> dimensions;
+  private int nextId = 42;
 
   @BeforeMethod
   protected void beforeMethod() {
@@ -55,15 +57,17 @@ public class MetricDefinitionAndTenantIdMatcherTest {
     assertTrue(matcher.isEmpty());
     final MetricDefinitionAndTenantId toMatch =
         new MetricDefinitionAndTenantId(metricDef, tenantId);
+    final String toMatchId = getNextId();
     verifyNoMatch(toMatch);
 
     final MetricDefinitionAndTenantId diffTenantId =
         new MetricDefinitionAndTenantId(metricDef, "Different");
-    matcher.add(diffTenantId);
+    final String diffTenantIdId = getNextId();
+    matcher.add(diffTenantId, diffTenantIdId);
     verifyNoMatch(toMatch);
 
-    matcher.add(toMatch);
-    verifyMatch(toMatch, toMatch);
+    matcher.add(toMatch, toMatchId);
+    verifyMatch(toMatch, toMatchId);
 
     final MetricDefinitionAndTenantId noMatchOnName =
         new MetricDefinitionAndTenantId(new MetricDefinition("NotCpu", dimensions), tenantId);
@@ -76,9 +80,9 @@ public class MetricDefinitionAndTenantIdMatcherTest {
             tenantId);
     verifyNoMatch(noMatchOnDimensions);
 
-    matcher.remove(toMatch);
+    matcher.remove(toMatch, toMatchId);
     verifyNoMatch(toMatch);
-    matcher.remove(diffTenantId);
+    matcher.remove(diffTenantId, diffTenantIdId);
     assertTrue(matcher.isEmpty());
   }
 
@@ -87,8 +91,8 @@ public class MetricDefinitionAndTenantIdMatcherTest {
   }
 
   private void verifyMatch(final MetricDefinitionAndTenantId toMatch,
-      final MetricDefinitionAndTenantId... expected) {
-    final List<MetricDefinitionAndTenantId> matches = matcher.match(toMatch);
+      final String... expected) {
+    final Set<String> matches = matcher.match(toMatch);
     assertEqualsNoOrder(matches.toArray(), expected);
   }
 
@@ -96,68 +100,74 @@ public class MetricDefinitionAndTenantIdMatcherTest {
     assertTrue(matcher.isEmpty());
     final MetricDefinitionAndTenantId toMatch =
         new MetricDefinitionAndTenantId(metricDef, tenantId);
+    final String toMatchId = getNextId();
 
     final Map<String, String> nullDimensions = new HashMap<>(dimensions);
     nullDimensions.put(HOST, null);
     final MetricDefinitionAndTenantId nullMatch =
         new MetricDefinitionAndTenantId(new MetricDefinition(CPU_METRIC_NAME, nullDimensions),
             tenantId);
-    matcher.add(nullMatch);
-    verifyMatch(nullMatch, nullMatch);
+    final String nullMatchId = getNextId();
+    matcher.add(nullMatch, nullMatchId);
+    verifyMatch(nullMatch, nullMatchId);
 
     final Map<String, String> noDimensions = new HashMap<>();
     final MetricDefinitionAndTenantId noMatch =
         new MetricDefinitionAndTenantId(new MetricDefinition(CPU_METRIC_NAME, noDimensions),
             tenantId);
-    matcher.add(noMatch);
-    verifyMatch(noMatch, noMatch);
+    final String noMatchId = getNextId();
+    matcher.add(noMatch, noMatchId);
+    verifyMatch(noMatch, noMatchId);
 
     final Map<String, String> hostDimensions = new HashMap<>();
     hostDimensions.put(HOST, dimensions.get(HOST));
     final MetricDefinitionAndTenantId hostMatch =
         new MetricDefinitionAndTenantId(new MetricDefinition(CPU_METRIC_NAME, hostDimensions),
             tenantId);
-    matcher.add(hostMatch);
+    final String hostMatchId = getNextId();
+    matcher.add(hostMatch, hostMatchId);
 
     final Map<String, String> groupDimensions = new HashMap<>();
     groupDimensions.put(LOAD_BALANCER_GROUP, dimensions.get(LOAD_BALANCER_GROUP));
     final MetricDefinitionAndTenantId groupMatch =
         new MetricDefinitionAndTenantId(new MetricDefinition(CPU_METRIC_NAME, groupDimensions),
             tenantId);
-    matcher.add(groupMatch);
+    final String groupMatchId = getNextId();
+    matcher.add(groupMatch, groupMatchId);
 
-    verifyMatch(toMatch, noMatch, hostMatch, groupMatch);
+    verifyMatch(toMatch, noMatchId, hostMatchId, groupMatchId);
 
-    matcher.add(toMatch);
-    verifyMatch(toMatch, noMatch, hostMatch, groupMatch, toMatch);
+    matcher.add(toMatch, toMatchId);
+    verifyMatch(toMatch, noMatchId, hostMatchId, groupMatchId, toMatchId);
 
-    matcher.remove(groupMatch);
-    verifyMatch(toMatch, noMatch, hostMatch, toMatch);
+    matcher.remove(groupMatch, groupMatchId);
+    verifyMatch(toMatch, noMatchId, hostMatchId, toMatchId);
 
-    matcher.remove(noMatch);
-    verifyMatch(toMatch, hostMatch, toMatch);
+    matcher.remove(noMatch, noMatchId);
+    verifyMatch(toMatch, hostMatchId, toMatchId);
 
-    matcher.remove(toMatch);
-    verifyMatch(toMatch, hostMatch);
+    matcher.remove(toMatch, toMatchId);
+    verifyMatch(toMatch, hostMatchId);
 
     // Remove it again to ensure it won't throw an exception if the MetricDefinitionAndTenantId
     // doesn't exist
-    matcher.remove(toMatch);
+    matcher.remove(toMatch, toMatchId);
 
     final MetricDefinitionAndTenantId loadMetric =
         new MetricDefinitionAndTenantId(new MetricDefinition("load", new HashMap<String, String>(
             dimensions)), tenantId);
-    matcher.add(loadMetric);
+    final String loadMetricId = getNextId();
+    matcher.add(loadMetric, loadMetricId);
 
-    matcher.remove(hostMatch);
+    matcher.remove(hostMatch, hostMatchId);
     verifyNoMatch(toMatch);
 
     // Remove it again to ensure it won't throw an exception if the MetricDefinitionAndTenantId
     // doesn't exist
-    matcher.remove(hostMatch);
+    matcher.remove(hostMatch, hostMatchId);
 
-    matcher.remove(loadMetric);
-    matcher.remove(nullMatch);
+    matcher.remove(loadMetric, loadMetricId);
+    matcher.remove(nullMatch, nullMatchId);
     assertTrue(matcher.isEmpty());
     verifyNoMatch(toMatch);
   }
@@ -227,6 +237,10 @@ public class MetricDefinitionAndTenantIdMatcherTest {
             new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("2", "b"),
                 new DimensionPair("3", "c"), new DimensionPair("4", "d"))};
     assertEqualsNoOrder(actual, expected);
+  }
+
+  private String getNextId() {
+    return String.valueOf(this.nextId++);
   }
 }
 

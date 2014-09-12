@@ -18,15 +18,11 @@
 package monasca.thresh.infrastructure.thresholding;
 
 import com.hpcloud.configuration.KafkaProducerConfiguration;
-import monasca.thresh.ThresholdingConfiguration;
+import com.hpcloud.mon.common.event.AlarmDefinitionUpdatedEvent;
 import com.hpcloud.mon.common.event.AlarmStateTransitionedEvent;
 import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
-import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
-import monasca.thresh.domain.model.Alarm;
-import monasca.thresh.domain.model.SubAlarm;
-import monasca.thresh.domain.service.AlarmDAO;
-import monasca.thresh.infrastructure.persistence.PersistenceModule;
+import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.streaming.storm.Logging;
 import com.hpcloud.streaming.storm.Streams;
 import com.hpcloud.util.Injector;
@@ -38,10 +34,21 @@ import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 
+import monasca.thresh.ThresholdingConfiguration;
+import monasca.thresh.domain.model.Alarm;
+import monasca.thresh.domain.model.AlarmDefinition;
+import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
+import monasca.thresh.domain.model.SubAlarm;
+import monasca.thresh.domain.service.AlarmDAO;
+import monasca.thresh.domain.service.AlarmDefinitionDAO;
+import monasca.thresh.infrastructure.persistence.PersistenceModule;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -62,9 +69,11 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   private DataSourceFactory dbConfig;
   private KafkaProducerConfiguration producerConfiguration;
   final Map<String, Alarm> alarms = new HashMap<String, Alarm>();
+  final Map<String, AlarmDefinition> alarmDefinitions = new HashMap<>();
   private String alertExchange;
   private String alertRoutingKey;
   private transient AlarmDAO alarmDAO;
+  private transient AlarmDefinitionDAO alarmDefinitionDAO;
   private transient AlarmEventForwarder alarmEventForwarder;
   private OutputCollector collector;
 
@@ -73,9 +82,10 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     this.producerConfiguration = producerConfig;
   }
 
-  public AlarmThresholdingBolt(final AlarmDAO alarmDAO,
+  public AlarmThresholdingBolt(final AlarmDAO alarmDAO, final AlarmDefinitionDAO alarmDefinitionDAO,
       final AlarmEventForwarder alarmEventForwarder) {
     this.alarmDAO = alarmDAO;
+    this.alarmDefinitionDAO = alarmDefinitionDAO;
     this.alarmEventForwarder = alarmEventForwarder;
   }
 
@@ -126,6 +136,11 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
       Injector.registerIfNotBound(AlarmDAO.class, new PersistenceModule(dbConfig));
       alarmDAO = Injector.getInstance(AlarmDAO.class);
     }
+
+    if (alarmDefinitionDAO == null) {
+      Injector.registerIfNotBound(AlarmDefinitionDAO.class, new PersistenceModule(dbConfig));
+      alarmDefinitionDAO = Injector.getInstance(AlarmDefinitionDAO.class);
+    }
     if (alarmEventForwarder == null) {
       Injector.registerIfNotBound(AlarmEventForwarder.class, new ProducerModule(
           this.producerConfiguration));
@@ -140,7 +155,8 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
 
     AlarmState initialState = alarm.getState();
     // Wait for all sub alarms to have a state before evaluating to prevent flapping on startup
-    if (allSubAlarmsHaveState(alarm) && alarm.evaluate()) {
+    if (allSubAlarmsHaveState(alarm)
+        && alarm.evaluate(alarmDefinitions.get(alarm.getAlarmDefinitionId()).getAlarmExpression())) {
       changeAlarmState(alarm, initialState, alarm.getStateChangeReason());
     }
   }
@@ -156,12 +172,17 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
 
   private void changeAlarmState(Alarm alarm, AlarmState initialState, String stateChangeReason) {
     alarmDAO.updateState(alarm.getId(), alarm.getState());
-
+    final AlarmDefinition alarmDefinition = alarmDefinitions.get(alarm.getAlarmDefinitionId());
+    final List<MetricDefinition> alarmedMetrics = new ArrayList<>(alarm.getAlarmedMetrics().size());
+    for (final MetricDefinitionAndTenantId mdtid : alarm.getAlarmedMetrics()) {
+      alarmedMetrics.add(mdtid.metricDefinition);
+    }
     logger.debug("Alarm {} transitioned from {} to {}", alarm, initialState, alarm.getState());
     AlarmStateTransitionedEvent event =
-        new AlarmStateTransitionedEvent(alarm.getTenantId(), alarm.getId(), alarm.getName(),
-            alarm.getDescription(), initialState, alarm.getState(), alarm.isActionsEnabled(),
-            stateChangeReason, getTimestamp());
+        new AlarmStateTransitionedEvent(alarmDefinition.getTenantId(), alarm.getId(),
+            alarmDefinition.getId(), alarmedMetrics, alarmDefinition.getName(),
+            alarmDefinition.getDescription(), initialState, alarm.getState(),
+            alarmDefinition.isActionsEnabled(), stateChangeReason, getTimestamp());
     try {
       alarmEventForwarder.send(alertExchange, alertRoutingKey, Serialization.toJson(event));
     } catch (Exception ignore) {
@@ -185,49 +206,59 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
       return;
     }
 
-    oldAlarm.setName(alarmUpdatedEvent.alarmName);
-    oldAlarm.setDescription(alarmUpdatedEvent.alarmDescription);
-    oldAlarm.setExpression(alarmUpdatedEvent.alarmExpression);
     oldAlarm.setState(alarmUpdatedEvent.alarmState);
-    oldAlarm.setActionsEnabled(alarmUpdatedEvent.alarmActionsEnabled);
 
+  }
+
+  void handleAlarmDefinitionUpdated(String alarmDefId, AlarmDefinitionUpdatedEvent event) {
+    final AlarmDefinition oldAlarmDef = alarmDefinitions.get(alarmDefId);
+    if (oldAlarmDef == null) {
+      logger.debug("Updated Alarm Definition {} not loaded, ignoring", alarmDefId);
+      return;
+    }
+
+    oldAlarmDef.setName(event.alarmName);
+    oldAlarmDef.setDescription(event.alarmDescription);
+    oldAlarmDef.setExpression(event.alarmExpression);
+    oldAlarmDef.setActionsEnabled(event.alarmActionsEnabled);
+
+    /* Have to figure out how to handle this
     // Now handle the SubAlarms
     // First remove the deleted SubAlarms so we don't have to consider them later
-    for (Map.Entry<String, AlarmSubExpression> entry : alarmUpdatedEvent.oldAlarmSubExpressions
+    for (Map.Entry<String, AlarmSubExpression> entry : event.oldAlarmSubExpressions
         .entrySet()) {
       logger.debug("Removing deleted SubAlarm {}", entry.getValue());
-      if (!oldAlarm.removeSubAlarmById(entry.getKey())) {
+      if (!oldAlarmDef.removeSubAlarmById(entry.getKey())) {
         logger.error("Did not find removed SubAlarm {}", entry.getValue());
       }
     }
 
     // Reuse what we can from the changed SubAlarms
-    for (Map.Entry<String, AlarmSubExpression> entry : alarmUpdatedEvent.changedSubExpressions
+    for (Map.Entry<String, AlarmSubExpression> entry : event.changedSubExpressions
         .entrySet()) {
-      final SubAlarm oldSubAlarm = oldAlarm.getSubAlarm(entry.getKey());
+      final SubAlarm oldSubAlarm = oldAlarmDef.getSubAlarm(entry.getKey());
       if (oldSubAlarm == null) {
         logger.error("Did not find changed SubAlarm {}", entry.getValue());
         continue;
       }
-      final SubAlarm newSubAlarm = new SubAlarm(entry.getKey(), oldAlarm.getId(), entry.getValue());
+      final SubAlarm newSubAlarm = new SubAlarm(entry.getKey(), oldAlarmDef.getId(), entry.getValue());
       newSubAlarm.setState(oldSubAlarm.getState());
       if (!oldSubAlarm.isCompatible(newSubAlarm)) {
         newSubAlarm.setNoState(true);
       }
       logger.debug("Changing SubAlarm from {} to {}", oldSubAlarm, newSubAlarm);
-      oldAlarm.updateSubAlarm(newSubAlarm);
+      oldAlarmDef.updateSubAlarm(newSubAlarm);
     }
 
     // Add the new SubAlarms
-    for (Map.Entry<String, AlarmSubExpression> entry : alarmUpdatedEvent.newAlarmSubExpressions
+    for (Map.Entry<String, AlarmSubExpression> entry : event.newAlarmSubExpressions
         .entrySet()) {
-      final SubAlarm newSubAlarm = new SubAlarm(entry.getKey(), oldAlarm.getId(), entry.getValue());
+      final SubAlarm newSubAlarm = new SubAlarm(entry.getKey(), oldAlarmDef.getId(), entry.getValue());
       newSubAlarm.setNoState(true);
       logger.debug("Adding SubAlarm {}", newSubAlarm);
-      oldAlarm.updateSubAlarm(newSubAlarm);
+      oldAlarmDef.updateSubAlarm(newSubAlarm);
     }
-
-    alarms.put(alarmId, oldAlarm);
+    */
   }
 
   String buildStateChangeReason() {
@@ -240,7 +271,16 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
       alarm = alarmDAO.findById(alarmId);
       if (alarm == null) {
         logger.error("Failed to locate alarm for id {}", alarmId);
+        return null;
       } else {
+        if (alarmDefinitions.get(alarm.getAlarmDefinitionId()) == null) {
+          final AlarmDefinition alarmDefinition = alarmDefinitionDAO.findById(alarm.getAlarmDefinitionId());
+          if (alarmDefinition == null) {
+            logger.error("Failed to locate alarm definition for id {}", alarm.getAlarmDefinitionId());
+            return null;
+          }
+          alarmDefinitions.put(alarmDefinition.getId(), alarmDefinition);
+        }
         for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
           subAlarm.setNoState(true);
         }

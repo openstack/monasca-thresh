@@ -17,15 +17,12 @@
 
 package monasca.thresh.domain.service;
 
-import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
-import monasca.thresh.domain.model.SubAlarm;
+import monasca.thresh.domain.model.AlarmDefinition;
 
 import java.util.List;
 
-/**
- * SubAlarm DAO.
- */
-public interface SubAlarmDAO {
-  /** Finds and returns all sub alarms for the {@code metricDefinition}. */
-  List<SubAlarm> find(MetricDefinitionAndTenantId metricDefinition);
+public interface AlarmDefinitionDAO {
+  public List<AlarmDefinition> listAll();
+  
+  AlarmDefinition findById(String id);
 }

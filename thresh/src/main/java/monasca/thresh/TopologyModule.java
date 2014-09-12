@@ -17,6 +17,7 @@
 
 package monasca.thresh;
 
+import monasca.thresh.infrastructure.thresholding.AlarmCreationBolt;
 import monasca.thresh.infrastructure.thresholding.AlarmThresholdingBolt;
 import monasca.thresh.infrastructure.thresholding.EventProcessingBolt;
 import monasca.thresh.infrastructure.thresholding.EventSpout;
@@ -24,6 +25,7 @@ import monasca.thresh.infrastructure.thresholding.MetricAggregationBolt;
 import monasca.thresh.infrastructure.thresholding.MetricFilteringBolt;
 import monasca.thresh.infrastructure.thresholding.MetricSpout;
 import monasca.thresh.infrastructure.thresholding.deserializer.EventDeserializer;
+
 import com.hpcloud.util.Injector;
 
 import backtype.storm.Config;
@@ -106,24 +108,41 @@ public class TopologyModule extends AbstractModule {
     // Metrics / Event -> Filtering
     builder
         .setBolt("filtering-bolt", new MetricFilteringBolt(config.database),
-            config.filteringBoltThreads).shuffleGrouping("metrics-spout")
+            config.filteringBoltThreads)
+        .fieldsGrouping("metrics-spout", new Fields(MetricSpout.FIELDS[0]))
         .allGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID)
         .allGrouping("event-bolt", EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID)
+        .allGrouping("event-bolt", EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID)
         .setNumTasks(config.filteringBoltTasks);
 
-    // Filtering / Event -> Aggregation
+    // Filtering -> Alarm Creation 
+    builder
+        .setBolt("alarm-creation-bolt", new AlarmCreationBolt(config.database),
+            1)
+        .fieldsGrouping("filtering-bolt",
+            MetricFilteringBolt.NEW_METRIC_FOR_ALARM_DEFINITION_STREAM,
+            new Fields(AlarmCreationBolt.ALARM_CREATION_FIELDS[3]))
+        .setNumTasks(1); // This has to be a single bolt right now because there is no
+                         // database protection for adding metrics and dimensions
+
+    // Filtering / Event / Alarm Creation -> Aggregation 
     builder
         .setBolt("aggregation-bolt",
-            new MetricAggregationBolt(config.database, config.sporadicMetricNamespaces),
+            new MetricAggregationBolt(config.sporadicMetricNamespaces),
             config.aggregationBoltThreads)
         .fieldsGrouping("filtering-bolt", new Fields(MetricFilteringBolt.FIELDS[0]))
         .allGrouping("filtering-bolt", MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM)
+        .fieldsGrouping("filtering-bolt", AlarmCreationBolt.ALARM_CREATION_STREAM,
+            new Fields(AlarmCreationBolt.ALARM_CREATION_FIELDS[1]))
         .fieldsGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID,
             new Fields(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_FIELDS[1]))
         .fieldsGrouping("event-bolt", EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID,
             new Fields(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_FIELDS[1]))
+        .fieldsGrouping("alarm-creation-bolt", AlarmCreationBolt.ALARM_CREATION_STREAM,
+            new Fields(AlarmCreationBolt.ALARM_CREATION_FIELDS[1]))
         .setNumTasks(config.aggregationBoltTasks);
 
+    // Alarm Creation / Event
     // Aggregation / Event -> Thresholding
     builder
         .setBolt("thresholding-bolt",

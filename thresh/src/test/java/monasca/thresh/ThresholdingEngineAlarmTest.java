@@ -17,34 +17,20 @@
 
 package monasca.thresh;
 
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotEquals;
 
 import com.hpcloud.configuration.KafkaProducerConfiguration;
-import com.hpcloud.mon.common.event.AlarmCreatedEvent;
+import com.hpcloud.mon.common.event.AlarmDefinitionCreatedEvent;
 import com.hpcloud.mon.common.event.AlarmStateTransitionedEvent;
 import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmExpression;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.Metric;
-import monasca.thresh.domain.model.Alarm;
-import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
-import monasca.thresh.domain.model.SubAlarm;
-import monasca.thresh.domain.service.AlarmDAO;
-import monasca.thresh.domain.service.MetricDefinitionDAO;
-import monasca.thresh.domain.service.SubAlarmDAO;
-import monasca.thresh.domain.service.SubAlarmMetricDefinition;
-import monasca.thresh.infrastructure.thresholding.AlarmEventForwarder;
-import monasca.thresh.infrastructure.thresholding.EventProcessingBoltTest;
-import monasca.thresh.infrastructure.thresholding.MetricAggregationBolt;
-import monasca.thresh.infrastructure.thresholding.MetricSpout;
-import monasca.thresh.infrastructure.thresholding.ProducerModule;
 import com.hpcloud.streaming.storm.TopologyTestCase;
 import com.hpcloud.util.Injector;
 import com.hpcloud.util.Serialization;
@@ -56,13 +42,24 @@ import backtype.storm.tuple.Values;
 
 import com.google.inject.AbstractModule;
 
+import monasca.thresh.domain.model.Alarm;
+import monasca.thresh.domain.model.AlarmDefinition;
+import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
+import monasca.thresh.domain.model.SubAlarm;
+import monasca.thresh.domain.service.AlarmDAO;
+import monasca.thresh.domain.service.AlarmDefinitionDAO;
+import monasca.thresh.infrastructure.thresholding.AlarmEventForwarder;
+import monasca.thresh.infrastructure.thresholding.EventProcessingBoltTest;
+import monasca.thresh.infrastructure.thresholding.MetricAggregationBolt;
+import monasca.thresh.infrastructure.thresholding.MetricSpout;
+import monasca.thresh.infrastructure.thresholding.ProducerModule;
+
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -77,13 +74,13 @@ import java.util.UUID;
 public class ThresholdingEngineAlarmTest extends TopologyTestCase {
   private static final String TEST_ALARM_TENANT_ID = "bob";
   private static final String TEST_ALARM_ID = "1";
+  private static final String TEST_ALARM_DEFINITION_ID = "1";
   private static final String TEST_ALARM_NAME = "test-alarm";
   private static final String TEST_ALARM_DESCRIPTION = "Description of test-alarm";
   private FeederSpout metricSpout;
   private FeederSpout eventSpout;
   private AlarmDAO alarmDAO;
-  private SubAlarmDAO subAlarmDAO;
-  private MetricDefinitionDAO metricDefinitionDAO;
+  private AlarmDefinitionDAO alarmDefinitionDAO;
   private final AlarmEventForwarder alarmEventForwarder;
   private int nextSubAlarmId = 4242;
   private List<SubAlarm> subAlarms;
@@ -99,6 +96,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
 
     // Mocks
     alarmDAO = mock(AlarmDAO.class);
+    /* FIX THIS TO MATCH THE CORRECT METHOD
     when(alarmDAO.findById(anyString())).thenAnswer(new Answer<Alarm>() {
       @Override
       public Alarm answer(InvocationOnMock invocation) throws Throwable {
@@ -106,35 +104,14 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
             TEST_ALARM_DESCRIPTION, expression, subAlarms, currentState, Boolean.TRUE);
       }
     });
-
-    subAlarmDAO = mock(SubAlarmDAO.class);
-    when(subAlarmDAO.find(any(MetricDefinitionAndTenantId.class))).thenAnswer(
-        new Answer<List<SubAlarm>>() {
-          @Override
-          public List<SubAlarm> answer(InvocationOnMock invocation) throws Throwable {
-            MetricDefinitionAndTenantId metricDefinitionAndTenantId =
-                (MetricDefinitionAndTenantId) invocation.getArguments()[0];
-            for (final SubAlarm subAlarm : subAlarms) {
-              if (metricDefinitionAndTenantId.metricDefinition.equals(subAlarm.getExpression()
-                  .getMetricDefinition())) {
-                return Arrays.asList(subAlarm);
-              }
-            }
-            return Collections.emptyList();
-          }
-        });
-
-    metricDefinitionDAO = mock(MetricDefinitionDAO.class);
-    List<SubAlarmMetricDefinition> metricDefs = new ArrayList<>(0);
-    when(metricDefinitionDAO.findForAlarms()).thenReturn(metricDefs);
+    */
 
     // Bindings
     Injector.reset();
     Injector.registerModules(new AbstractModule() {
       protected void configure() {
         bind(AlarmDAO.class).toInstance(alarmDAO);
-        bind(SubAlarmDAO.class).toInstance(subAlarmDAO);
-        bind(MetricDefinitionDAO.class).toInstance(metricDefinitionDAO);
+        bind(AlarmDefinitionDAO.class).toInstance(alarmDefinitionDAO);
       }
     });
 
@@ -198,17 +175,19 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
     boolean firstUpdate = true;
     boolean secondUpdate = true;
     boolean thirdUpdate = true;
+    final AlarmDefinition initialAlarmDefinition =
+        new AlarmDefinition(TEST_ALARM_DEFINITION_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME,
+            TEST_ALARM_DESCRIPTION, expression, Boolean.TRUE, new ArrayList<String>());
     final Alarm initialAlarm =
-        new Alarm(TEST_ALARM_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME, TEST_ALARM_DESCRIPTION,
-            expression, subAlarms, AlarmState.UNDETERMINED, Boolean.TRUE);
+        new Alarm(TEST_ALARM_ID, subAlarms, initialAlarmDefinition.getId(), AlarmState.UNDETERMINED);
     final int expectedAlarms = expectedStates.length;
     AlarmExpression savedAlarmExpression = null;
     for (int i = 1; alarmsSent != expectedAlarms && i < 300; i++) {
       if (i == 5) {
         final Map<String, AlarmSubExpression> exprs = createSubExpressionMap();
-        final AlarmCreatedEvent event =
-            new AlarmCreatedEvent(TEST_ALARM_TENANT_ID, TEST_ALARM_ID, TEST_ALARM_NAME,
-                expression.getExpression(), exprs);
+        final AlarmDefinitionCreatedEvent event =
+            new AlarmDefinitionCreatedEvent(TEST_ALARM_TENANT_ID, TEST_ALARM_DEFINITION_ID, TEST_ALARM_NAME, TEST_ALARM_DESCRIPTION,
+                expression.getExpression(), exprs, Arrays.asList("hostname"));
         eventSpout.feed(new Values(event));
         System.out.printf("Send AlarmCreatedEvent for expression %s%n", expression.getExpression());
       } else if (alarmsSent == 1 && firstUpdate) {
@@ -227,7 +206,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
 
         initialAlarm.setState(currentState);
         final AlarmUpdatedEvent event =
-            EventProcessingBoltTest.createAlarmUpdatedEvent(initialAlarm, initialAlarm.getState(),
+            EventProcessingBoltTest.createAlarmUpdatedEvent(initialAlarmDefinition, initialAlarm, initialAlarm.getState(),
                 expression, updatedSubAlarms);
         subAlarms = updatedSubAlarms;
         initialAlarm.setSubAlarms(updatedSubAlarms);
@@ -250,7 +229,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
 
         initialAlarm.setState(currentState);
         final AlarmUpdatedEvent event =
-            EventProcessingBoltTest.createAlarmUpdatedEvent(initialAlarm, initialAlarm.getState(),
+            EventProcessingBoltTest.createAlarmUpdatedEvent(initialAlarmDefinition, initialAlarm, initialAlarm.getState(),
                 expression, updatedSubAlarms);
         subAlarms = updatedSubAlarms;
         initialAlarm.setSubAlarms(updatedSubAlarms);
@@ -270,7 +249,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
 
         initialAlarm.setState(currentState);
         final AlarmUpdatedEvent event =
-            EventProcessingBoltTest.createAlarmUpdatedEvent(initialAlarm, initialAlarm.getState(),
+            EventProcessingBoltTest.createAlarmUpdatedEvent(initialAlarmDefinition, initialAlarm, initialAlarm.getState(),
                 expression, updatedSubAlarms);
         subAlarms = updatedSubAlarms;
         initialAlarm.setSubAlarms(updatedSubAlarms);

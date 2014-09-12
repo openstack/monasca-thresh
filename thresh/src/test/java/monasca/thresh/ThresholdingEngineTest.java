@@ -24,23 +24,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
 
 import com.hpcloud.configuration.KafkaProducerConfiguration;
+import com.hpcloud.mon.common.event.AlarmDefinitionCreatedEvent;
 import com.hpcloud.mon.common.event.AlarmStateTransitionedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmExpression;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
+import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.Metric;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
-import monasca.thresh.domain.model.Alarm;
-import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
-import monasca.thresh.domain.model.SubAlarm;
-import monasca.thresh.domain.service.AlarmDAO;
-import monasca.thresh.domain.service.MetricDefinitionDAO;
-import monasca.thresh.domain.service.SubAlarmDAO;
-import monasca.thresh.domain.service.SubAlarmMetricDefinition;
-import monasca.thresh.infrastructure.thresholding.AlarmEventForwarder;
-import monasca.thresh.infrastructure.thresholding.MetricSpout;
-import monasca.thresh.infrastructure.thresholding.ProducerModule;
 import com.hpcloud.streaming.storm.TopologyTestCase;
 import com.hpcloud.util.Injector;
 import com.hpcloud.util.Serialization;
@@ -52,39 +45,53 @@ import backtype.storm.tuple.Values;
 
 import com.google.inject.AbstractModule;
 
+import monasca.thresh.domain.model.Alarm;
+import monasca.thresh.domain.model.AlarmDefinition;
+import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
+import monasca.thresh.domain.model.TenantIdAndMetricName;
+import monasca.thresh.domain.service.AlarmDAO;
+import monasca.thresh.domain.service.AlarmDefinitionDAO;
+import monasca.thresh.infrastructure.thresholding.AlarmEventForwarder;
+import monasca.thresh.infrastructure.thresholding.MetricSpout;
+import monasca.thresh.infrastructure.thresholding.ProducerModule;
+
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.testng.annotations.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Simulates a real'ish run of the thresholding engine, using seconds instead of minutes for the
  * evaluation timescale.
+ *
+ * The Thresholding Engine starts with one existing Alarm Definition. Then metrics are sent to the
+ * system that cause an alarm to be created and for that alarm to transition to the ALARM state
  */
 @Test(groups = "integration")
 public class ThresholdingEngineTest extends TopologyTestCase {
   private static final String TEST_ALARM_TENANT_ID = "bob";
-  private static final String TEST_ALARM_ID = "1";
   private static final String TEST_ALARM_NAME = "test-alarm";
   private static final String TEST_ALARM_DESCRIPTION = "Description of test-alarm";
+  private AlarmDefinition alarmDefinition;
   private FeederSpout metricSpout;
   private FeederSpout eventSpout;
   private AlarmDAO alarmDAO;
-  private SubAlarmDAO subAlarmDAO;
+  private AlarmDefinitionDAO alarmDefinitionDAO;
   private MetricDefinition cpuMetricDef;
   private MetricDefinition memMetricDef;
-  private MetricDefinitionDAO metricDefinitionDAO;
+  private Map<String, String> extraMemMetricDefDimensions;
   private final AlarmEventForwarder alarmEventForwarder;
 
-  private AlarmState previousState = AlarmState.OK;
+  private AlarmState previousState = AlarmState.UNDETERMINED;
   private AlarmState expectedState = AlarmState.ALARM;
   private volatile int alarmsSent = 0;
+  private boolean hasExtraMetric = false;
 
   public ThresholdingEngineTest() {
     // Fixtures
@@ -94,38 +101,18 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     cpuMetricDef = expression.getSubExpressions().get(0).getMetricDefinition();
     memMetricDef = expression.getSubExpressions().get(1).getMetricDefinition();
 
+    extraMemMetricDefDimensions = new HashMap<>(memMetricDef.dimensions);
+    extraMemMetricDefDimensions.put("Group", "group A");
+
+    alarmDefinition =
+        new AlarmDefinition("424242", TEST_ALARM_TENANT_ID, TEST_ALARM_NAME,
+            TEST_ALARM_DESCRIPTION, expression, true, new ArrayList<String>());
+
     // Mocks
     alarmDAO = mock(AlarmDAO.class);
-    when(alarmDAO.findById(anyString())).thenAnswer(new Answer<Alarm>() {
-      @Override
-      public Alarm answer(InvocationOnMock invocation) throws Throwable {
-        return new Alarm(TEST_ALARM_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME,
-            TEST_ALARM_DESCRIPTION, expression, subAlarmsFor(expression), AlarmState.OK,
-            Boolean.TRUE);
-      }
-    });
+    alarmDefinitionDAO = mock(AlarmDefinitionDAO.class);
 
-    subAlarmDAO = mock(SubAlarmDAO.class);
-    final SubAlarm cpuMetricDefSubAlarm =
-        new SubAlarm("123", TEST_ALARM_ID, expression.getSubExpressions().get(0));
-    final SubAlarm memMetricDefSubAlarm =
-        new SubAlarm("456", TEST_ALARM_ID, expression.getSubExpressions().get(1));
-    when(subAlarmDAO.find(any(MetricDefinitionAndTenantId.class))).thenAnswer(
-        new Answer<List<SubAlarm>>() {
-          @Override
-          public List<SubAlarm> answer(InvocationOnMock invocation) throws Throwable {
-            MetricDefinitionAndTenantId metricDefinitionAndTenantId =
-                (MetricDefinitionAndTenantId) invocation.getArguments()[0];
-            MetricDefinition metricDef = metricDefinitionAndTenantId.metricDefinition;
-            if (metricDef.equals(cpuMetricDef)) {
-              return Arrays.asList(cpuMetricDefSubAlarm);
-            } else if (metricDef.equals(memMetricDef)) {
-              return Arrays.asList(memMetricDefSubAlarm);
-            }
-            return Collections.emptyList();
-          }
-        });
-
+    /*
     metricDefinitionDAO = mock(MetricDefinitionDAO.class);
     final List<SubAlarmMetricDefinition> metricDefs =
         Arrays.asList(new SubAlarmMetricDefinition(cpuMetricDefSubAlarm.getId(),
@@ -133,14 +120,14 @@ public class ThresholdingEngineTest extends TopologyTestCase {
             new SubAlarmMetricDefinition(memMetricDefSubAlarm.getId(),
                 new MetricDefinitionAndTenantId(memMetricDef, TEST_ALARM_TENANT_ID)));
     when(metricDefinitionDAO.findForAlarms()).thenReturn(metricDefs);
+    */
 
     // Bindings
     Injector.reset();
     Injector.registerModules(new AbstractModule() {
       protected void configure() {
         bind(AlarmDAO.class).toInstance(alarmDAO);
-        bind(SubAlarmDAO.class).toInstance(subAlarmDAO);
-        bind(MetricDefinitionDAO.class).toInstance(metricDefinitionDAO);
+        bind(AlarmDefinitionDAO.class).toInstance(alarmDefinitionDAO);
       }
     });
 
@@ -162,48 +149,113 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     Injector.registerModules(new ProducerModule(alarmEventForwarder));
   }
 
-  private List<SubAlarm> subAlarmsFor(AlarmExpression expression) {
-    SubAlarm subAlarm1 = new SubAlarm("123", TEST_ALARM_ID, expression.getSubExpressions().get(0));
-    SubAlarm subAlarm2 = new SubAlarm("456", TEST_ALARM_ID, expression.getSubExpressions().get(1));
-    return Arrays.asList(subAlarm1, subAlarm2);
+  private void testWithInitialAlarmDefinition() throws Exception {
+    when(alarmDefinitionDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
+    when(alarmDefinitionDAO.listAll()).thenReturn(Arrays.asList(alarmDefinition));
+    shouldThreshold(null);  
   }
 
-  public void shouldThreshold() throws Exception {
+  private void testWithInitialAlarm() throws Exception {
+    when(alarmDefinitionDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
+    when(alarmDefinitionDAO.listAll()).thenReturn(Arrays.asList(alarmDefinition));
+    final String alarmId = getNextId();
+    final Alarm alarm = new Alarm(alarmId, alarmDefinition, AlarmState.UNDETERMINED);
+    alarm.addAlarmedMetric(new MetricDefinitionAndTenantId(cpuMetricDef, TEST_ALARM_TENANT_ID));
+    alarm.addAlarmedMetric(new MetricDefinitionAndTenantId(memMetricDef, TEST_ALARM_TENANT_ID));
+    when(alarmDAO.listAll()).thenReturn(Arrays.asList(alarm));
+    when(alarmDAO.findById(alarm.getId())).thenReturn(alarm);
+    when(alarmDAO.findForAlarmDefinitionId(alarmDefinition.getId())).thenReturn(Arrays.asList(alarm));
+    hasExtraMetric = true;
+    shouldThreshold(alarm.getId());  
+  }
+
+  public void testWithAlarmDefinitionCreatedEvent() throws Exception {
+    when(alarmDefinitionDAO.listAll()).thenReturn(new ArrayList<AlarmDefinition>());
+    when(alarmDefinitionDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
+    final AlarmDefinitionCreatedEvent event =
+        new AlarmDefinitionCreatedEvent(alarmDefinition.getTenantId(), alarmDefinition.getId(),
+            alarmDefinition.getName(), alarmDefinition.getDescription(), alarmDefinition
+                .getAlarmExpression().getExpression(),
+            createSubExpressionMap(alarmDefinition.getAlarmExpression()), Arrays.asList("id"));
+    eventSpout.feed(new Values(event));
+    shouldThreshold(null);
+  }
+
+  private Map<String, AlarmSubExpression> createSubExpressionMap(AlarmExpression alarmExpression) {
+    final Map<String, AlarmSubExpression> subExprMap = new HashMap<>();
+    for (final AlarmSubExpression subExpr : alarmExpression.getSubExpressions()) {
+      subExprMap.put(getNextId(), subExpr);
+    }
+    return subExprMap;
+  }
+
+  private String getNextId() {
+    return UUID.randomUUID().toString();
+  }
+
+  private void shouldThreshold(final String expectedAlarmId) throws Exception {
     doAnswer(new Answer<Object>() {
       public Object answer(InvocationOnMock invocation) {
         final Object[] args = invocation.getArguments();
         AlarmStateTransitionedEvent event = Serialization.fromJson((String) args[2]);
         alarmsSent++;
         System.out.printf("Alarm transitioned from %s to %s%n", event.oldState, event.newState);
+        assertEquals(event.alarmDefinitionId, alarmDefinition.getId());
         assertEquals(event.alarmName, TEST_ALARM_NAME);
-        assertEquals(event.alarmId, TEST_ALARM_ID);
         assertEquals(event.tenantId, TEST_ALARM_TENANT_ID);
+        if (expectedAlarmId != null) {
+          assertEquals(event.alarmId, expectedAlarmId);
+        }
         assertEquals(event.oldState, previousState);
         assertEquals(event.newState, expectedState);
-        previousState = event.newState;
-        if (event.newState == AlarmState.UNDETERMINED) {
-          expectedState = AlarmState.ALARM;
-        } else if (event.newState == AlarmState.ALARM) {
-          expectedState = AlarmState.UNDETERMINED;
+        assertEquals(event.metrics.size(), hasExtraMetric ? 3 : 2);
+        for (MetricDefinition md : event.metrics) {
+          if (md.name.equals(cpuMetricDef.name)) {
+            assertEquals(cpuMetricDef, md);
+          }
+          else if (md.name.equals(memMetricDef.name)) {
+            if (md.dimensions.size() == extraMemMetricDefDimensions.size()) {
+              assertEquals(extraMemMetricDefDimensions, md.dimensions);
+            }
+            else if (hasExtraMetric) {
+              assertEquals(memMetricDef, md);
+            }
+            else {
+              fail("Incorrect mem Alarmed Metric");
+            }
+          }
+          else {
+            fail(String.format("Unrecognized MetricDefinition %s", md));
+          }
         }
+        previousState = event.newState;
         return null;
       }
     }).when(alarmEventForwarder).send(anyString(), anyString(), anyString());
+    doAnswer(new Answer<Object>() {
+      public Object answer(InvocationOnMock invocation) {
+        final Object[] args = invocation.getArguments();
+        final Alarm alarm = (Alarm) args[0];
+        when(alarmDAO.findById(alarm.getId())).thenReturn(alarm);
+        return null;
+      }
+    }).when(alarmDAO).createAlarm((Alarm)any());
     int waitCount = 0;
     int feedCount = 5;
     int goodValueCount = 0;
-    final Map<String, String> extraMemMetricDefDimensions = new HashMap<>(memMetricDef.dimensions);
-    extraMemMetricDefDimensions.put("Group", "group A");
+
     for (int i = 1; i < 40 && alarmsSent == 0; i++) {
       if (feedCount > 0) {
         System.out.println("Feeding metrics...");
 
         long time = System.currentTimeMillis() / 1000;
-        metricSpout.feed(new Values(new MetricDefinitionAndTenantId(cpuMetricDef,
-            TEST_ALARM_TENANT_ID), time, new Metric(cpuMetricDef.name, cpuMetricDef.dimensions,
+        final MetricDefinitionAndTenantId cpuMtid = new MetricDefinitionAndTenantId(cpuMetricDef,
+            TEST_ALARM_TENANT_ID);
+        metricSpout.feed(new Values(new TenantIdAndMetricName(cpuMtid), time, new Metric(cpuMetricDef.name, cpuMetricDef.dimensions,
             time, (double) (++goodValueCount == 15 ? 1 : 555))));
-        metricSpout.feed(new Values(new MetricDefinitionAndTenantId(memMetricDef,
-            TEST_ALARM_TENANT_ID), time, new Metric(memMetricDef.name, extraMemMetricDefDimensions,
+        final MetricDefinitionAndTenantId memMtid = new MetricDefinitionAndTenantId(memMetricDef,
+            TEST_ALARM_TENANT_ID);
+        metricSpout.feed(new Values(new TenantIdAndMetricName(memMtid), time, new Metric(memMetricDef.name, extraMemMetricDefDimensions,
             time, (double) (goodValueCount == 15 ? 1 : 555))));
 
         if (--feedCount == 0) {

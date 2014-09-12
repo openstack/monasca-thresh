@@ -19,12 +19,11 @@ package monasca.thresh.domain.model;
 
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -41,20 +40,19 @@ import java.util.concurrent.ConcurrentHashMap;
  * the whole MetricDefinitionAndTenantId in the Map.
  */
 public class MetricDefinitionAndTenantIdMatcher {
-  final Map<String, Map<String, Map<DimensionSet, Object>>> byTenantId = new ConcurrentHashMap<>();
+  final Map<String, Map<String, Map<DimensionSet, Set<String>>>> byTenantId = new ConcurrentHashMap<>();
   private final static DimensionSet EMPTY_DIMENSION_SET = new DimensionSet(new DimensionPair[0]);
-  private final static Object placeHolder = new Object();
   @SuppressWarnings("unchecked")
-  private final static List<MetricDefinitionAndTenantId> EMPTY_LIST = Collections.EMPTY_LIST;
+  private final static Set<String> EMPTY_SET = Collections.EMPTY_SET;
 
-  public void add(MetricDefinitionAndTenantId metricDefinitionAndTenantId) {
-    Map<String, Map<DimensionSet, Object>> byMetricName =
+  public void add(MetricDefinitionAndTenantId metricDefinitionAndTenantId, String alarmDefinitionId) {
+    Map<String, Map<DimensionSet, Set<String>>> byMetricName =
         byTenantId.get(metricDefinitionAndTenantId.tenantId);
     if (byMetricName == null) {
       byMetricName = new ConcurrentHashMap<>();
       byTenantId.put(metricDefinitionAndTenantId.tenantId, byMetricName);
     }
-    Map<DimensionSet, Object> byDimensionSet =
+    Map<DimensionSet, Set<String>> byDimensionSet =
         byMetricName.get(metricDefinitionAndTenantId.metricDefinition.name);
     if (byDimensionSet == null) {
       byDimensionSet = new ConcurrentHashMap<>();
@@ -62,21 +60,27 @@ public class MetricDefinitionAndTenantIdMatcher {
     }
     final DimensionSet dimensionSet =
         createDimensionSet(metricDefinitionAndTenantId.metricDefinition);
-    byDimensionSet.put(dimensionSet, placeHolder);
+    Set<String> alarmDefIds = byDimensionSet.get(dimensionSet);
+    if (alarmDefIds == null) {
+      alarmDefIds = new HashSet<>();
+      byDimensionSet.put(dimensionSet, alarmDefIds);
+    }
+    alarmDefIds.add(alarmDefinitionId);
   }
 
   private DimensionSet createDimensionSet(MetricDefinition metricDefinition) {
     return new DimensionSet(createPairs(metricDefinition));
   }
 
-  public boolean remove(MetricDefinitionAndTenantId metricDefinitionAndTenantId) {
-    final Map<String, Map<DimensionSet, Object>> byMetricName =
+  public boolean remove(MetricDefinitionAndTenantId metricDefinitionAndTenantId,
+                        final String alarmDefinitionId) {
+    final Map<String, Map<DimensionSet, Set<String>>> byMetricName =
         byTenantId.get(metricDefinitionAndTenantId.tenantId);
     if (byMetricName == null) {
       return false;
     }
 
-    final Map<DimensionSet, Object> byDimensionSet =
+    final Map<DimensionSet, Set<String>> byDimensionSet =
         byMetricName.get(metricDefinitionAndTenantId.metricDefinition.name);
     if (byDimensionSet == null) {
       return false;
@@ -84,51 +88,49 @@ public class MetricDefinitionAndTenantIdMatcher {
 
     final DimensionSet dimensionSet =
         createDimensionSet(metricDefinitionAndTenantId.metricDefinition);
-    final boolean result = byDimensionSet.remove(dimensionSet) != null;
-    if (result) {
-      if (byDimensionSet.isEmpty()) {
-        byMetricName.remove(metricDefinitionAndTenantId.metricDefinition.name);
-        if (byMetricName.isEmpty()) {
-          byTenantId.remove(metricDefinitionAndTenantId.tenantId);
+    final Set<String> alarmDefinitionIds = byDimensionSet.get(dimensionSet);
+    boolean result = false;
+    if (alarmDefinitionIds != null && !alarmDefinitionIds.isEmpty()) {
+      if (alarmDefinitionIds.remove(alarmDefinitionId)) {
+        result = true;
+        if (alarmDefinitionIds.isEmpty()) {
+          byDimensionSet.remove(dimensionSet);
+          if (byDimensionSet.isEmpty()) {
+            byMetricName.remove(metricDefinitionAndTenantId.metricDefinition.name);
+            if (byMetricName.isEmpty()) {
+              byTenantId.remove(metricDefinitionAndTenantId.tenantId);
+            }
+          }
         }
       }
     }
     return result;
   }
 
-  public List<MetricDefinitionAndTenantId> match(final MetricDefinitionAndTenantId toMatch) {
-    final Map<String, Map<DimensionSet, Object>> byMetricName = byTenantId.get(toMatch.tenantId);
+  public Set<String> match(final MetricDefinitionAndTenantId toMatch) {
+    final Map<String, Map<DimensionSet, Set<String>>> byMetricName = byTenantId.get(toMatch.tenantId);
     if (byMetricName == null) {
-      return EMPTY_LIST;
+      return EMPTY_SET;
     }
 
-    final Map<DimensionSet, Object> byDimensionSet =
+    final Map<DimensionSet, Set<String>> byDimensionSet =
         byMetricName.get(toMatch.metricDefinition.name);
     if (byDimensionSet == null) {
-      return EMPTY_LIST;
+      return EMPTY_SET;
     }
     final DimensionSet[] possibleDimensionSets =
         createPossibleDimensionPairs(toMatch.metricDefinition);
-    List<MetricDefinitionAndTenantId> matches = null;
+    Set<String> matches = null;
     for (final DimensionSet dimensionSet : possibleDimensionSets) {
-      if (byDimensionSet.containsKey(dimensionSet)) {
+      final Set<String> alarmDefinitionIds = byDimensionSet.get(dimensionSet);
+      if (alarmDefinitionIds != null) {
         if (matches == null) {
-          matches = new ArrayList<>();
+          matches = new HashSet<>();
         }
-        matches.add(createFromDimensionSet(toMatch, dimensionSet));
+        matches.addAll(alarmDefinitionIds);
       }
     }
-    return matches == null ? EMPTY_LIST : matches;
-  }
-
-  private MetricDefinitionAndTenantId createFromDimensionSet(MetricDefinitionAndTenantId toMatch,
-      DimensionSet dimensionSet) {
-    final Map<String, String> dimensions = new HashMap<>(dimensionSet.pairs.length);
-    for (final DimensionPair pair : dimensionSet.pairs) {
-      dimensions.put(pair.key, pair.value);
-    }
-    return new MetricDefinitionAndTenantId(new MetricDefinition(toMatch.metricDefinition.name,
-        dimensions), toMatch.tenantId);
+    return matches == null ? EMPTY_SET : matches;
   }
 
   protected DimensionSet[] createPossibleDimensionPairs(MetricDefinition metricDefinition) {

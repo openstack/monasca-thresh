@@ -51,6 +51,9 @@ public class ThresholdingConfiguration {
   @NotNull public Integer filteringBoltThreads = 6;
   @NotNull public Integer filteringBoltTasks = 15;
 
+  @NotNull public Integer alarmCreationBoltThreads = 4;
+  @NotNull public Integer alarmCreationBoltTasks = 4;
+
   @NotNull public Integer aggregationBoltThreads = 12;
   @NotNull public Integer aggregationBoltTasks = 30;
 

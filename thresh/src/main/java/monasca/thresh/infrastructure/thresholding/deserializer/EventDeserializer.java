@@ -17,7 +17,9 @@
 
 package monasca.thresh.infrastructure.thresholding.deserializer;
 
-import com.hpcloud.mon.common.event.AlarmCreatedEvent;
+import com.hpcloud.mon.common.event.AlarmDefinitionCreatedEvent;
+import com.hpcloud.mon.common.event.AlarmDefinitionDeletedEvent;
+import com.hpcloud.mon.common.event.AlarmDefinitionUpdatedEvent;
 import com.hpcloud.mon.common.event.AlarmDeletedEvent;
 import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
 import com.hpcloud.streaming.storm.TupleDeserializer;
@@ -42,7 +44,9 @@ public class EventDeserializer implements TupleDeserializer, Serializable {
 
   static {
     // Register event types
-    Serialization.registerTarget(AlarmCreatedEvent.class);
+    Serialization.registerTarget(AlarmDefinitionUpdatedEvent.class);
+    Serialization.registerTarget(AlarmDefinitionDeletedEvent.class);
+    Serialization.registerTarget(AlarmDefinitionCreatedEvent.class);
     Serialization.registerTarget(AlarmUpdatedEvent.class);
     Serialization.registerTarget(AlarmDeletedEvent.class);
   }

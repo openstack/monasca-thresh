@@ -38,10 +38,7 @@ import java.util.Map;
 @Test
 public class AlarmTest {
   private static final String TEST_ALARM_ID = "1";
-  private static final String TEST_ALARM_TENANT_ID = "joe";
-  private static final String TEST_ALARM_NAME = "test alarm";
-  private static final String TEST_ALARM_DESCRIPTION = "Description of test alarm";
-  private static Boolean ALARM_ENABLED = Boolean.FALSE;
+  private static final String ALARM_DEF_ID = "42";
 
   public void shouldBeUndeterminedIfAnySubAlarmIsUndetermined() {
     AlarmExpression expr =
@@ -52,10 +49,10 @@ public class AlarmTest {
     SubAlarm subAlarm2 =
         new SubAlarm("456", TEST_ALARM_ID, expr.getSubExpressions().get(1), AlarmState.ALARM);
     Alarm alarm =
-        new Alarm(TEST_ALARM_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME, TEST_ALARM_DESCRIPTION,
-            expr, Arrays.asList(subAlarm1, subAlarm2), AlarmState.UNDETERMINED, ALARM_ENABLED);
+        new Alarm(TEST_ALARM_ID, Arrays.asList(subAlarm1, subAlarm2), ALARM_DEF_ID,
+            AlarmState.UNDETERMINED);
 
-    assertFalse(alarm.evaluate());
+    assertFalse(alarm.evaluate(expr));
     assertEquals(alarm.getState(), AlarmState.UNDETERMINED);
   }
 
@@ -67,31 +64,31 @@ public class AlarmTest {
     SubAlarm subAlarm2 = new SubAlarm("456", TEST_ALARM_ID, expr.getSubExpressions().get(1));
 
     Alarm alarm =
-        new Alarm(TEST_ALARM_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME, TEST_ALARM_DESCRIPTION,
-            expr, Arrays.asList(subAlarm1, subAlarm2), AlarmState.UNDETERMINED, ALARM_ENABLED);
+        new Alarm(TEST_ALARM_ID, Arrays.asList(subAlarm1, subAlarm2), ALARM_DEF_ID,
+            AlarmState.UNDETERMINED);
 
-    assertFalse(alarm.evaluate());
+    assertFalse(alarm.evaluate(expr));
     assertEquals(alarm.getState(), AlarmState.UNDETERMINED);
 
     subAlarm1.setState(AlarmState.OK);
-    assertFalse(alarm.evaluate());
+    assertFalse(alarm.evaluate(expr));
 
     // UNDETERMINED -> OK
     subAlarm2.setState(AlarmState.OK);
-    assertTrue(alarm.evaluate());
+    assertTrue(alarm.evaluate(expr));
     assertEquals(alarm.getState(), AlarmState.OK);
 
     subAlarm2.setState(AlarmState.ALARM);
-    assertFalse(alarm.evaluate());
+    assertFalse(alarm.evaluate(expr));
 
     // OK -> ALARM
     subAlarm1.setState(AlarmState.ALARM);
-    assertTrue(alarm.evaluate());
+    assertTrue(alarm.evaluate(expr));
     assertEquals(alarm.getState(), AlarmState.ALARM);
 
     // ALARM -> UNDETERMINED
     subAlarm1.setState(AlarmState.UNDETERMINED);
-    assertTrue(alarm.evaluate());
+    assertTrue(alarm.evaluate(expr));
     assertEquals(alarm.getState(), AlarmState.UNDETERMINED);
   }
 
@@ -103,38 +100,38 @@ public class AlarmTest {
     SubAlarm subAlarm2 = new SubAlarm("456", TEST_ALARM_ID, expr.getSubExpressions().get(1));
 
     Alarm alarm =
-        new Alarm(TEST_ALARM_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME, TEST_ALARM_DESCRIPTION,
-            expr, Arrays.asList(subAlarm1, subAlarm2), AlarmState.UNDETERMINED, ALARM_ENABLED);
+        new Alarm(TEST_ALARM_ID, Arrays.asList(subAlarm1, subAlarm2), ALARM_DEF_ID,
+            AlarmState.UNDETERMINED);
 
-    assertFalse(alarm.evaluate());
+    assertFalse(alarm.evaluate(expr));
     assertEquals(alarm.getState(), AlarmState.UNDETERMINED);
 
     subAlarm1.setState(AlarmState.ALARM);
-    assertFalse(alarm.evaluate());
+    assertFalse(alarm.evaluate(expr));
 
     // UNDETERMINED -> ALARM
     subAlarm2.setState(AlarmState.OK);
-    assertTrue(alarm.evaluate());
+    assertTrue(alarm.evaluate(expr));
     assertEquals(alarm.getState(), AlarmState.ALARM);
 
     // ALARM -> OK
     subAlarm1.setState(AlarmState.OK);
     subAlarm2.setState(AlarmState.OK);
-    assertTrue(alarm.evaluate());
+    assertTrue(alarm.evaluate(expr));
     assertEquals(alarm.getState(), AlarmState.OK);
 
     // OK -> ALARM
     subAlarm2.setState(AlarmState.ALARM);
-    assertTrue(alarm.evaluate());
+    assertTrue(alarm.evaluate(expr));
     assertEquals(alarm.getState(), AlarmState.ALARM);
 
     // ALARM -> ALARM
-    assertFalse(alarm.evaluate());
+    assertFalse(alarm.evaluate(expr));
     assertEquals(alarm.getState(), AlarmState.ALARM);
 
     // ALARM -> UNDETERMINED
     subAlarm2.setState(AlarmState.UNDETERMINED);
-    assertTrue(alarm.evaluate());
+    assertTrue(alarm.evaluate(expr));
     assertEquals(alarm.getState(), AlarmState.UNDETERMINED);
   }
 

@@ -17,15 +17,16 @@
 
 package monasca.thresh.infrastructure.thresholding;
 
-import monasca.thresh.MetricSpoutConfig;
 import com.hpcloud.mon.common.model.metric.MetricEnvelope;
 import com.hpcloud.mon.common.model.metric.MetricEnvelopes;
-import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 
 import backtype.storm.spout.SpoutOutputCollector;
 import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Values;
+
+import monasca.thresh.MetricSpoutConfig;
+import monasca.thresh.domain.model.TenantIdAndMetricName;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +36,7 @@ public class MetricSpout extends KafkaSpout {
 
   private static final long serialVersionUID = 744004533863562119L;
 
-  public static final String[] FIELDS = new String[] {"metricDefinitionAndTenantId",
+  public static final String[] FIELDS = new String[] {"tenantIdAndMetricName",
       "apiTimeStamp", "metric"};
   public static final String DEFAULT_TENANT_ID = "TENANT_ID_NOT_SET";
 
@@ -60,8 +61,8 @@ public class MetricSpout extends KafkaSpout {
           metricEnvelope.metric);
       tenantId = DEFAULT_TENANT_ID;
     }
-    collector.emit(new Values(new MetricDefinitionAndTenantId(metricEnvelope.metric.definition(),
-        tenantId), metricEnvelope.creationTime, metricEnvelope.metric));
+    collector.emit(new Values(new TenantIdAndMetricName(tenantId, metricEnvelope.metric
+        .definition().name), metricEnvelope.creationTime, metricEnvelope.metric));
   }
 
   @Override

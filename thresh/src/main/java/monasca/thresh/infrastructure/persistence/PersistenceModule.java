@@ -17,14 +17,13 @@
 
 package monasca.thresh.infrastructure.persistence;
 
-import monasca.thresh.domain.service.AlarmDAO;
-import monasca.thresh.domain.service.MetricDefinitionDAO;
-import monasca.thresh.domain.service.SubAlarmDAO;
-import monasca.thresh.infrastructure.thresholding.DataSourceFactory;
-
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import com.google.inject.Scopes;
+
+import monasca.thresh.domain.service.AlarmDAO;
+import monasca.thresh.domain.service.AlarmDefinitionDAO;
+import monasca.thresh.infrastructure.thresholding.DataSourceFactory;
 
 import org.skife.jdbi.v2.DBI;
 
@@ -43,8 +42,7 @@ public class PersistenceModule extends AbstractModule {
   @Override
   protected void configure() {
     bind(AlarmDAO.class).to(AlarmDAOImpl.class).in(Scopes.SINGLETON);
-    bind(SubAlarmDAO.class).to(SubAlarmDAOImpl.class).in(Scopes.SINGLETON);
-    bind(MetricDefinitionDAO.class).to(MetricDefinitionDAOImpl.class).in(Scopes.SINGLETON);
+    bind(AlarmDefinitionDAO.class).to(AlarmDefinitionDAOImpl.class).in(Scopes.SINGLETON);
   }
 
   @Provides
