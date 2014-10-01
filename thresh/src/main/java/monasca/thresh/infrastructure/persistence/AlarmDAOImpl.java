@@ -35,7 +35,6 @@ import org.skife.jdbi.v2.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -44,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.UUID;
 
 import javax.inject.Inject;
 
@@ -123,47 +121,34 @@ public class AlarmDAOImpl implements AlarmDAO {
 
   private void createAlarmedMetric(Handle h, MetricDefinitionAndTenantId metricDefinition,
       String alarmId) {
-    final byte[] metricDefinitionDimensionId =
-        getOrCreateMetricDefinitionDimension(h, metricDefinition);
+    final Sha1HashId metricDefinitionDimensionId =
+        insertMetricDefinitionDimension(h, metricDefinition);
 
     h.insert("insert into alarm_metric (alarm_id, metric_definition_dimensions_id) values (?, ?)",
-        alarmId, metricDefinitionDimensionId);
+        alarmId, metricDefinitionDimensionId.getSha1Hash());
   }
 
-  private byte[] getOrCreateMetricDefinitionDimension(Handle h, MetricDefinitionAndTenantId mdtid) {
-    final byte[] metricDefinitionId = getOrCreateMetricDefinition(h, mdtid);
-    final byte[] metricDimensionSetId =
-        getOrCreateMetricDimensionSet(h, mdtid.metricDefinition.dimensions);
-    final List<Map<String, Object>> result =
-        h.createQuery(
-            "select * from metric_definition_dimensions where metric_definition_id = :metric_definition_id"
-                + " and metric_dimension_set_id = :metric_dimension_set_id")
-            .bind("metric_definition_id", metricDefinitionId)
-            .bind("metric_dimension_set_id", metricDimensionSetId).list();
-    if (result.size() > 0) {
-      return (byte[]) result.get(0).get("id");
-    }
-    final byte[] id = getNewBinaryId();
+  private Sha1HashId insertMetricDefinitionDimension(Handle h, MetricDefinitionAndTenantId mdtid) {
+    final Sha1HashId metricDefinitionId = insertMetricDefinition(h, mdtid);
+    final Sha1HashId metricDimensionSetId =
+        insertMetricDimensionSet(h, mdtid.metricDefinition.dimensions);
+    final byte[] definitionDimensionsIdSha1Hash =
+        DigestUtils.sha(metricDefinitionId.toHexString() + metricDimensionSetId.toHexString());
     h.insert(
-        "insert into metric_definition_dimensions (id, metric_definition_id, metric_dimension_set_id) values (?, ?, ?)",
-        id, metricDefinitionId, metricDimensionSetId);
-    return id;
+        "insert into metric_definition_dimensions (id, metric_definition_id, metric_dimension_set_id) values (?, ?, ?)"
+            + "on duplicate key update id=id", definitionDimensionsIdSha1Hash,
+        metricDefinitionId.getSha1Hash(), metricDimensionSetId.getSha1Hash());
+    return new Sha1HashId(definitionDimensionsIdSha1Hash);
   }
 
-  private byte[] getOrCreateMetricDimensionSet(Handle h, Map<String, String> dimensions) {
+  private Sha1HashId insertMetricDimensionSet(Handle h, Map<String, String> dimensions) {
     final byte[] dimensionSetId = calculateDimensionSHA1(dimensions);
-    final List<Map<String, Object>> result =
-        h.createQuery(
-            "select count(dimension_set_id) from metric_dimension where dimension_set_id = :dimension_set_id")
-            .bind("dimension_set_id", dimensionSetId).list();
-    Long count = (Long) result.get(0).get("count(dimension_set_id)");
-    if (count == 0) {
-      for (final Map.Entry<String, String> entry : dimensions.entrySet()) {
-        h.insert("insert into metric_dimension (dimension_set_id, name, value) values (?, ?, ?)",
-            dimensionSetId, entry.getKey(), entry.getValue());
-      }
+    for (final Map.Entry<String, String> entry : dimensions.entrySet()) {
+      h.insert("insert into metric_dimension(dimension_set_id, name, value) values (?, ?, ?) "
+          + "on duplicate key update dimension_set_id=dimension_set_id", dimensionSetId,
+          entry.getKey(), entry.getValue());
     }
-    return dimensionSetId;
+    return new Sha1HashId(dimensionSetId);
   }
 
   private byte[] calculateDimensionSHA1(final Map<String, String> dimensions) {
@@ -187,25 +172,15 @@ public class AlarmDAOImpl implements AlarmDAO {
     return dimensionIdSha1Hash;
   }
 
-  private byte[] getOrCreateMetricDefinition(Handle h, MetricDefinitionAndTenantId mdtid) {
-    final List<Map<String, Object>> result =
-        h.createQuery("select * from metric_definition where name = :name")
-            .bind("name", mdtid.metricDefinition.name).list();
-    if (result.size() > 0) {
-      return (byte[]) result.get(0).get("id");
-    }
-    final byte[] id = getNewBinaryId();
-    h.insert("insert into metric_definition (id, name, tenant_id) values (?, ?, ?)", id,
-        mdtid.metricDefinition.name, mdtid.tenantId);
-    return id;
-  }
-
-  private byte[] getNewBinaryId() {
-    final UUID uuid = UUID.randomUUID();
-    final ByteBuffer bb = ByteBuffer.wrap(new byte[16]);
-    bb.putLong(uuid.getMostSignificantBits());
-    bb.putLong(uuid.getLeastSignificantBits());
-    return bb.array();
+  private Sha1HashId insertMetricDefinition(Handle h, MetricDefinitionAndTenantId mdtid) {
+    final String region = ""; // TODO We currently don't have region
+    final String definitionIdStringToHash =
+        trunc(mdtid.metricDefinition.name, MAX_COLUMN_LENGTH)
+            + trunc(mdtid.tenantId, MAX_COLUMN_LENGTH) + trunc(region, MAX_COLUMN_LENGTH);
+    final byte[] id = DigestUtils.sha(definitionIdStringToHash);
+    h.insert("insert into metric_definition(id, name, tenant_id) values (?, ?, ?) " +
+             "on duplicate key update id=id", id, mdtid.metricDefinition.name, mdtid.tenantId);
+    return new Sha1HashId(id);
   }
 
   @Override
@@ -337,20 +312,20 @@ public class AlarmDAOImpl implements AlarmDAO {
 
     final List<Map<String, Object>> metricDefinitionRows =
         queryForIds(h, "select * from metric_definition where id in (%s)", metricDefinitionIds);
-    final Map<ByteArrayId, MetricDefinitionAndTenantId> mds = new HashMap<>(metricDefinitionRows.size());
+    final Map<Sha1HashId, MetricDefinitionAndTenantId> mds = new HashMap<>(metricDefinitionRows.size());
     for (final Map<String, Object> row : metricDefinitionRows) {
       final byte[] id = (byte[]) row.get("id");
       MetricDefinition md = new MetricDefinition();
       md.name = (String) row.get("name");
-      mds.put(new ByteArrayId(id), new MetricDefinitionAndTenantId(md, (String) row.get("tenant_id")));
+      mds.put(new Sha1HashId(id), new MetricDefinitionAndTenantId(md, (String) row.get("tenant_id")));
     }
 
     final List<Map<String, Object>> metricDimensionRows =
         queryForIds(h, "select * from metric_dimension where dimension_set_id in (%s)",
             metricDimensionSetIds);
-    final Map<ByteArrayId, Map<String, String>> dims = new HashMap<>(metricDimensionRows.size());
+    final Map<Sha1HashId, Map<String, String>> dims = new HashMap<>(metricDimensionRows.size());
     for (final Map<String, Object> row : metricDimensionRows) {
-      final ByteArrayId dimensionSetId = new ByteArrayId((byte[]) row.get("dimension_set_id"));
+      final Sha1HashId dimensionSetId = new Sha1HashId((byte[]) row.get("dimension_set_id"));
       Map<String, String> dim = dims.get(dimensionSetId);
       if (dim == null) {
         dim = new HashMap<>();
@@ -362,10 +337,10 @@ public class AlarmDAOImpl implements AlarmDAO {
     }
     final Set<MetricDefinitionAndTenantId> alarmedMetrics = new HashSet<>(result.size());
     for (Map<String, Object> row : result) {
-      final ByteArrayId metricDefinitionId = new ByteArrayId((byte[]) row.get("metric_definition_id"));
+      final Sha1HashId metricDefinitionId = new Sha1HashId((byte[]) row.get("metric_definition_id"));
       final MetricDefinitionAndTenantId mdtid = mds.get(metricDefinitionId);
       final Map<String, String> dim =
-          dims.get(new ByteArrayId((byte[]) row.get("metric_dimension_set_id")));
+          dims.get(new Sha1HashId((byte[]) row.get("metric_dimension_set_id")));
       if (dim != null) {
         mdtid.metricDefinition.dimensions = dim;
       } else {
@@ -432,28 +407,29 @@ public class AlarmDAOImpl implements AlarmDAO {
    * @author craigbr
    *
    */
-  private static class ByteArrayId {
-    private final byte[] bytes;
 
-    public ByteArrayId(byte[] sha1Hash) {
-      this.bytes = sha1Hash;
+  private static class Sha1HashId {
+    private final byte[] sha1Hash;
+
+    public Sha1HashId(byte[] sha1Hash) {
+      this.sha1Hash = sha1Hash;
     }
 
     @Override
     public String toString() {
-      return "ByteArrayId{" + Hex.encodeHexString(bytes) + "}";
+      return "Sha1HashId{" + "sha1Hash=" + Hex.encodeHexString(sha1Hash) + "}";
     }
 
     @Override
     public boolean equals(Object o) {
       if (this == o)
         return true;
-      if (!(o instanceof ByteArrayId))
+      if (!(o instanceof Sha1HashId))
         return false;
 
-      ByteArrayId that = (ByteArrayId) o;
+      Sha1HashId that = (Sha1HashId) o;
 
-      if (!Arrays.equals(bytes, that.bytes))
+      if (!Arrays.equals(sha1Hash, that.sha1Hash))
         return false;
 
       return true;
@@ -461,7 +437,15 @@ public class AlarmDAOImpl implements AlarmDAO {
 
     @Override
     public int hashCode() {
-      return Arrays.hashCode(bytes);
+      return Arrays.hashCode(sha1Hash);
+    }
+
+    public byte[] getSha1Hash() {
+      return sha1Hash;
+    }
+
+    public String toHexString() {
+      return Hex.encodeHexString(sha1Hash);
     }
   }
 }

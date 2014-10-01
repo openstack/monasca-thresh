@@ -59,5 +59,6 @@ CREATE TABLE `metric_definition_dimensions` (
 CREATE TABLE `metric_dimension` (
   `dimension_set_id` binary(20) NOT NULL DEFAULT '\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
   `name` varchar(255) NOT NULL DEFAULT '',
-  `value` varchar(255) NOT NULL DEFAULT ''
+  `value` varchar(255) NOT NULL DEFAULT '',
+   UNIQUE KEY `metric_dimension_key` (`dimension_set_id`,`name`)
 );

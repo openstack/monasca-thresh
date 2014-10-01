@@ -165,4 +165,21 @@ public class AlarmDAOImplTest {
     dao.updateState(alarmId, AlarmState.ALARM);
     assertEquals(dao.findById(alarmId).getState(), AlarmState.ALARM);
   }
+
+  public void validateNoDuplicates() {
+    final Alarm alarm1 = new Alarm(getNextId(), alarmDef, AlarmState.OK);
+    alarm1.addAlarmedMetric(newMetric);
+    dao.createAlarm(alarm1);
+    assertEquals(dao.findById(alarm1.getId()), alarm1);
+
+    final Alarm alarm2 = new Alarm(getNextId(), alarmDef, AlarmState.OK);
+    alarm2.addAlarmedMetric(newMetric);
+    dao.createAlarm(alarm2);
+    assertEquals(dao.findById(alarm2.getId()), alarm2);
+
+    assertEquals(1, handle.select("select * from metric_definition").size());
+    assertEquals(1, handle.select("select * from metric_definition_dimensions").size());
+    List<Map<String, Object>> rows = handle.select("select * from metric_dimension");
+    assertEquals(2, rows.size());
+  }
 }
