@@ -156,6 +156,30 @@ public class AlarmDAOImplTest {
     assertEquals(dao.findById(alarmId), newAlarm);
   }
 
+  public void checkComplexMetrics() {
+    String alarmId = getNextId();
+
+    final Alarm newAlarm = new Alarm(alarmId, alarmDef, AlarmState.ALARM);
+
+    for (final String hostname : Arrays.asList("vivi", "eleanore")) {
+      for (final String metricName : Arrays.asList("cpu", "load")) {
+        final Map<String, String> dimensions = new HashMap<String, String>();
+        dimensions.put("first", "first_value");
+        dimensions.put("second", "second_value");
+        dimensions.put("hostname", hostname);
+        final MetricDefinition md = new MetricDefinition(metricName, dimensions);
+        newAlarm.addAlarmedMetric(new MetricDefinitionAndTenantId(md, TENANT_ID));
+      }
+    }
+    dao.createAlarm(newAlarm);
+
+    final Alarm found = dao.findById(alarmId);
+    // Have to check both ways because there was a bug in AlarmDAOImpl and it showed up if both
+    // ways were tested
+    assertTrue(newAlarm.equals(found));
+    assertTrue(found.equals(newAlarm));
+  }
+
   public void shouldUpdateState() {
     String alarmId = getNextId();
 
