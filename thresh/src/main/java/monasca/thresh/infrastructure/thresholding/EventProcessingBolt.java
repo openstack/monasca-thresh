@@ -18,16 +18,16 @@
 package monasca.thresh.infrastructure.thresholding;
 
 import com.hpcloud.mon.common.event.AlarmDefinitionCreatedEvent;
+import com.hpcloud.mon.common.event.AlarmDefinitionDeletedEvent;
 import com.hpcloud.mon.common.event.AlarmDefinitionUpdatedEvent;
 import com.hpcloud.mon.common.event.AlarmDeletedEvent;
 import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
-import com.hpcloud.mon.common.model.alarm.AlarmExpression;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
 
-import monasca.thresh.domain.model.AlarmDefinition;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
+import monasca.thresh.domain.model.TenantIdAndMetricName;
 
 import com.hpcloud.streaming.storm.Logging;
 
@@ -39,10 +39,10 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
-import org.apache.commons.lang.NotImplementedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -72,10 +72,10 @@ public class EventProcessingBolt extends BaseRichBolt {
   public static final String[] ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType", "alarmId",
       "alarm"};
   public static final String[] METRIC_ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType",
-      "metricDefinitionAndTenantId", "subAlarmId"};
+    "tenantIdAndMetricName", "metricDefinitionAndTenantId", "alarmDefinitionId", "subAlarmId"};
   public static final String[] METRIC_SUB_ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType",
-      "metricDefinitionAndTenantId", "alarmDefinition", "subAlarm"};
-  public static final String[] ALARM_DEFINITION_EVENT_FIELDS = new String[] {"eventType", "alarmDefinition"};
+      "tenantIdAndMetricName", "metricDefinitionAndTenantId", "subAlarm"};
+  public static final String[] ALARM_DEFINITION_EVENT_FIELDS = new String[] {"eventType", "argument"};
 
   public static final String CREATED = "created";
   public static final String DELETED = "deleted";
@@ -103,6 +103,10 @@ public class EventProcessingBolt extends BaseRichBolt {
       logger.trace("Received event for processing {}", event);
       if (event instanceof AlarmDefinitionCreatedEvent) {
         handle((AlarmDefinitionCreatedEvent) event);
+      } else if (event instanceof AlarmDefinitionUpdatedEvent) {
+          handle((AlarmDefinitionUpdatedEvent) event);
+      } else if (event instanceof AlarmDefinitionDeletedEvent) {
+        handle((AlarmDefinitionDeletedEvent) event);
       } else if (event instanceof AlarmDeletedEvent) {
         handle((AlarmDeletedEvent) event);
       } else if (event instanceof AlarmUpdatedEvent) {
@@ -127,19 +131,13 @@ public class EventProcessingBolt extends BaseRichBolt {
     collector.emit(ALARM_DEFINITION_EVENT_STREAM_ID, new Values(CREATED, event));
   }
 
-  private void sendAddSubAlarm(String alarmId, String subAlarmId, String tenantId,
-      AlarmSubExpression alarmSubExpression) {
-    sendSubAlarm(CREATED, alarmId, subAlarmId, tenantId, alarmSubExpression);
+  void handle(AlarmDefinitionDeletedEvent event) {
+    collector.emit(ALARM_DEFINITION_EVENT_STREAM_ID, new Values(DELETED, event));
   }
 
   private void sendUpdateSubAlarm(String alarmId, String subAlarmId, String tenantId,
       AlarmSubExpression alarmSubExpression) {
     sendSubAlarm(UPDATED, alarmId, subAlarmId, tenantId, alarmSubExpression);
-  }
-
-  private void sendResendSubAlarm(String alarmId, String subAlarmId, String tenantId,
-      AlarmSubExpression alarmSubExpression) {
-    sendSubAlarm(RESEND, alarmId, subAlarmId, tenantId, alarmSubExpression);
   }
 
   private void sendSubAlarm(String eventType, String alarmId, String subAlarmId, String tenantId,
@@ -151,27 +149,55 @@ public class EventProcessingBolt extends BaseRichBolt {
   }
 
   void handle(AlarmDeletedEvent event) {
-    throw new NotImplementedException();
-    /* Not sure what this should do    for (Map.Entry<String, MetricDefinition> entry : event.subAlarmMetricDefinitions.entrySet()) {
-      sendDeletedSubAlarm(entry.getKey(), event.tenantId, entry.getValue());
-    }
+    processSubAlarms(DELETED, event.tenantId, event.alarmDefinitionId, event.alarmMetrics,
+        event.subAlarms);
 
     collector.emit(ALARM_EVENT_STREAM_ID, new Values(DELETED, event.alarmId, event));
-    */
   }
 
-  private void sendDeletedSubAlarm(String subAlarmId, String tenantId, MetricDefinition metricDef) {
-    collector.emit(METRIC_ALARM_EVENT_STREAM_ID, new Values(DELETED,
-        new MetricDefinitionAndTenantId(metricDef, tenantId), subAlarmId));
+  private void processSubAlarms(String command, final String tenantId,
+      final String alarmDefinitionId, final List<MetricDefinition> alarmMetrics,
+      final Map<String, AlarmSubExpression> subAlarms) {
+    for (final MetricDefinition alarmedMetric : alarmMetrics) {
+      for (Map.Entry<String, AlarmSubExpression> entry : subAlarms.entrySet()) {
+        if (isSuperSet(alarmedMetric, entry.getValue().getMetricDefinition())) {
+          sendSubAlarmMsg(command, entry.getKey(), tenantId, alarmDefinitionId, alarmedMetric);
+        }
+      }
+    }
+  }
+
+  private boolean isSuperSet(MetricDefinition toMatch, MetricDefinition match) {
+    if (!toMatch.name.equals(match.name)) {
+      return false;
+    }
+    if (match.dimensions == null || match.dimensions.isEmpty()) {
+      return true;
+    }
+    for (final Map.Entry<String, String> entry : toMatch.dimensions.entrySet()) {
+      final String value = match.dimensions.get(entry.getKey());
+      if (value != null) {
+        if (!value.equals(entry.getValue())) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  private void sendSubAlarmMsg(String command, String subAlarmId, String tenantId,
+      String alarmDefinitionId, MetricDefinition metricDef) {
+    collector.emit(METRIC_ALARM_EVENT_STREAM_ID, new Values(command, new TenantIdAndMetricName(
+        tenantId, metricDef.name), new MetricDefinitionAndTenantId(metricDef, tenantId),
+        alarmDefinitionId, subAlarmId));
   }
 
   void handle(AlarmDefinitionUpdatedEvent event) {
-    throw new NotImplementedException();
     /* Not sure what this should do
     if ((!event.oldAlarmState.equals(event.alarmState) || !event.oldAlarmSubExpressions.isEmpty())
         && event.changedSubExpressions.isEmpty() && event.newAlarmSubExpressions.isEmpty()) {
       for (Map.Entry<String, AlarmSubExpression> entry : event.unchangedSubExpressions.entrySet()) {
-        sendResendSubAlarm(event.alarmId, entry.getKey(), event.tenantId, entry.getValue());
+        sendSubAlarmMsg(RESEND, entry.getKey(), event.tenantId, event.alarmDefinitionId, entry.getValue());
       }
     }
     for (Map.Entry<String, AlarmSubExpression> entry : event.oldAlarmSubExpressions.entrySet()) {
@@ -180,23 +206,22 @@ public class EventProcessingBolt extends BaseRichBolt {
     for (Map.Entry<String, AlarmSubExpression> entry : event.changedSubExpressions.entrySet()) {
       sendUpdateSubAlarm(event.alarmId, entry.getKey(), event.tenantId, entry.getValue());
     }
+    // There won't be any way to add Sub Alarms any more. The alarms will have to be destroyed
+    // and then created again
     for (Map.Entry<String, AlarmSubExpression> entry : event.newAlarmSubExpressions.entrySet()) {
       sendAddSubAlarm(event.alarmId, entry.getKey(), event.tenantId, entry.getValue());
     }
-    collector.emit(ALARM_EVENT_STREAM_ID, new Values(UPDATED, event.alarmId, event));
     */
+    collector.emit(ALARM_DEFINITION_EVENT_STREAM_ID, new Values(UPDATED, event));
   }
 
   void handle(AlarmUpdatedEvent event) {
-    throw new NotImplementedException();
-    /*
-    if ((!event.oldAlarmState.equals(event.alarmState) || !event.oldAlarmSubExpressions.isEmpty())
-        && event.changedSubExpressions.isEmpty() && event.newAlarmSubExpressions.isEmpty()) {
-      for (Map.Entry<String, AlarmSubExpression> entry : event.unchangedSubExpressions.entrySet()) {
-        sendResendSubAlarm(event.alarmId, entry.getKey(), event.tenantId, entry.getValue());
-      }
+    if (event.oldAlarmState.equals(event.alarmState)) {
+      logger.info("No state change for {}, ignoring", event.alarmId);
     }
+    logger.info("Received AlarmUpdatedEvent {}", event);
+    processSubAlarms(RESEND, event.tenantId, event.alarmDefinitionId, event.alarmMetrics,
+        event.subAlarms);
     collector.emit(ALARM_EVENT_STREAM_ID, new Values(UPDATED, event.alarmId, event));
-    */
   }
 }

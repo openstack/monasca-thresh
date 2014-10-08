@@ -156,8 +156,9 @@ public class AlarmTest {
   /**
    * This test is here because this case happened in the Threshold Engine. The AlarmExpression
    * resulted in a MetricDefinition with null dimensions and SubAlarm had empty dimensions and that
-   * didn't match causing an IllegalArgumentException. MetricDefinition.equals() has been changed to
-   * consider those two values for dimensions the same
+   * didn't match causing an IllegalArgumentException. The AlarmSubExpressionListener has been
+   * changed to always generate empty dimensions and not null. This test will verify that logic
+   * is still working.
    */
   public void testDimensions() {
     final AlarmExpression expression = AlarmExpression.of("max(cpu_system_perc) > 1");

@@ -75,7 +75,6 @@ public class MetricAggregationBolt extends BaseRichBolt {
 
   final Map<MetricDefinitionAndTenantId, SubAlarmStatsRepository> metricDefToSubAlarmStatsRepos =
       new HashMap<>();
-  private final Map<String, List<MetricDefinitionAndTenantId>> subAlarmIdsToMetricDefinitions = new HashMap<>();
   private final Set<SubAlarmStats> subAlarmStatsSet = new HashSet<>();
   private final Map<String, SubAlarmStats> subAlarmToSubAlarmStats = new HashMap<>();
 
@@ -114,24 +113,28 @@ public class MetricAggregationBolt extends BaseRichBolt {
           processControl(tuple.getString(0));
         } else {
           String eventType = tuple.getString(0);
-          MetricDefinitionAndTenantId metricDefinitionAndTenantId =
-              (MetricDefinitionAndTenantId) tuple.getValue(2);
 
           if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
-            String subAlarmId = tuple.getString(2);
+            final MetricDefinitionAndTenantId metricDefinitionAndTenantId =
+                (MetricDefinitionAndTenantId) tuple.getValue(2);
+            final String subAlarmId = tuple.getString(4);
             if (EventProcessingBolt.DELETED.equals(eventType)) {
               handleAlarmDeleted(metricDefinitionAndTenantId, subAlarmId);
+            } else if (EventProcessingBolt.RESEND.equals(eventType)) {
+              handleAlarmResend(metricDefinitionAndTenantId, subAlarmId);
             }
           } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple
               .getSourceStreamId())) {
+            MetricDefinitionAndTenantId metricDefinitionAndTenantId =
+                (MetricDefinitionAndTenantId) tuple.getValue(2);
             SubAlarm subAlarm = (SubAlarm) tuple.getValue(3);
             if (EventProcessingBolt.UPDATED.equals(eventType)) {
               handleAlarmUpdated(metricDefinitionAndTenantId, subAlarm);
-            } else if (EventProcessingBolt.RESEND.equals(eventType)) {
-              handleAlarmResend(metricDefinitionAndTenantId, subAlarm);
             }
           } else if (AlarmCreationBolt.ALARM_CREATION_STREAM.equals(tuple
               .getSourceStreamId())) {
+            MetricDefinitionAndTenantId metricDefinitionAndTenantId =
+                (MetricDefinitionAndTenantId) tuple.getValue(2);
             final SubAlarm subAlarm = (SubAlarm) tuple.getValue(4);
             if (EventProcessingBolt.CREATED.equals(eventType)) {
               handleAlarmCreated(metricDefinitionAndTenantId, subAlarm);
@@ -236,7 +239,9 @@ public class MetricAggregationBolt extends BaseRichBolt {
       MetricDefinitionAndTenantId metricDefinitionAndTenantId) {
     SubAlarmStatsRepository subAlarmStatsRepo = metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId);
     if (subAlarmStatsRepo == null) {
-      logger.warn("Failed to find sub alarms for {}", metricDefinitionAndTenantId);
+      // This likely happened because MetricFilteringBolt is sending a MetricDefinitionAndTenantId
+      // before the AlarmCreationBolt has created a sub alarm for it
+      logger.debug("Failed to find sub alarms for {}", metricDefinitionAndTenantId);
     }
 
     return subAlarmStatsRepo;
@@ -246,28 +251,26 @@ public class MetricAggregationBolt extends BaseRichBolt {
    * Adds the {@code subAlarm} subAlarmStatsRepo for the {@code metricDefinitionAndTenantId}.
    */
   void handleAlarmCreated(MetricDefinitionAndTenantId metricDefinitionAndTenantId, SubAlarm subAlarm) {
-    logger.debug("Received AlarmCreatedEvent for {}", subAlarm);
+    logger.info("Received AlarmCreatedEvent for {}", subAlarm);
     addSubAlarm(metricDefinitionAndTenantId, subAlarm);
   }
 
   void handleAlarmResend(MetricDefinitionAndTenantId metricDefinitionAndTenantId,
-      SubAlarm resendSubAlarm) {
+      final String subAlarmId) {
     final RepoAndStats repoAndStats =
-        findExistingSubAlarmStats(metricDefinitionAndTenantId, resendSubAlarm);
+        findExistingSubAlarmStats(metricDefinitionAndTenantId, subAlarmId);
     if (repoAndStats == null) {
       return;
     }
 
     final SubAlarmStats oldSubAlarmStats = repoAndStats.subAlarmStats;
     final SubAlarm oldSubAlarm = oldSubAlarmStats.getSubAlarm();
-    resendSubAlarm.setState(oldSubAlarm.getState());
-    resendSubAlarm.setNoState(true); // Have it send its state again so the Alarm can be evaluated
-    logger.debug("Forcing SubAlarm {} to send state at next evaluation", oldSubAlarm);
-    oldSubAlarmStats.updateSubAlarm(resendSubAlarm);
+    oldSubAlarm.setNoState(true); // Have it send its state again so the Alarm can be evaluated
+    logger.info("Forcing SubAlarm {} to send state at next evaluation", oldSubAlarm);
   }
 
   private RepoAndStats findExistingSubAlarmStats(
-      MetricDefinitionAndTenantId metricDefinitionAndTenantId, SubAlarm oldSubAlarm) {
+      MetricDefinitionAndTenantId metricDefinitionAndTenantId, String subAlarmId) {
     final SubAlarmStatsRepository oldSubAlarmStatsRepo =
         metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId);
     if (oldSubAlarmStatsRepo == null) {
@@ -275,9 +278,9 @@ public class MetricAggregationBolt extends BaseRichBolt {
           metricDefinitionAndTenantId);
       return null;
     }
-    final SubAlarmStats oldSubAlarmStats = oldSubAlarmStatsRepo.get(oldSubAlarm.getId());
+    final SubAlarmStats oldSubAlarmStats = oldSubAlarmStatsRepo.get(subAlarmId);
     if (oldSubAlarmStats == null) {
-      logger.error("Did not find existing SubAlarm {} in SubAlarmStatsRepository", oldSubAlarm);
+      logger.error("Did not find existing SubAlarm {} in SubAlarmStatsRepository", subAlarmId);
       return null;
     }
     return new RepoAndStats(oldSubAlarmStatsRepo, oldSubAlarmStats);
@@ -298,12 +301,24 @@ public class MetricAggregationBolt extends BaseRichBolt {
       metricDefToSubAlarmStatsRepos.put(metricDefinitionAndTenantId, subAlarmStatsRepo);
     }
     subAlarmStatsRepo.add(subAlarm.getId(), subAlarmStats);
-    List<MetricDefinitionAndTenantId> metricDefs = subAlarmIdsToMetricDefinitions.get(subAlarm.getId());
-    if (metricDefs == null) {
-      metricDefs = new LinkedList<>();
-      subAlarmIdsToMetricDefinitions.put(subAlarm.getId(), metricDefs);
+  }
+
+  protected boolean subAlarmRemoved(final String subAlarmId, MetricDefinitionAndTenantId metricDefinitionAndTenantId) {
+    if (subAlarmToSubAlarmStats.containsKey(subAlarmId)) {
+      return false;
     }
-    metricDefs.add(metricDefinitionAndTenantId);
+    SubAlarmStatsRepository subAlarmStatsRepo = metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId);
+    if (subAlarmStatsRepo != null) {
+      if (metricDefToSubAlarmStatsRepos.containsKey(subAlarmId)) {
+        return false;
+      }
+    }
+    for (final SubAlarmStats subAlarmStats : subAlarmStatsSet) {
+      if (subAlarmStats.getSubAlarm().getId().equals(subAlarmId)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -314,7 +329,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
   void handleAlarmUpdated(MetricDefinitionAndTenantId metricDefinitionAndTenantId, SubAlarm subAlarm) {
     logger.debug("Received AlarmUpdatedEvent for {}", subAlarm);
     final RepoAndStats repoAndStats =
-        findExistingSubAlarmStats(metricDefinitionAndTenantId, subAlarm);
+        findExistingSubAlarmStats(metricDefinitionAndTenantId, subAlarm.getId());
     if (repoAndStats != null) {
       // Clear the old SubAlarm, but save the SubAlarm state
       final SubAlarmStats oldSubAlarmStats = repoAndStats.subAlarmStats;
@@ -322,15 +337,17 @@ public class MetricAggregationBolt extends BaseRichBolt {
       subAlarm.setState(oldSubAlarm.getState());
       subAlarm.setNoState(true); // Doesn't hurt to send too many state changes, just too few
       if (oldSubAlarm.isCompatible(subAlarm)) {
-        logger.debug("Changing SubAlarm {} to SubAlarm {} and keeping measurements", oldSubAlarm,
+        logger.debug("Changing {} to {} and keeping measurements", oldSubAlarm,
             subAlarm);
         oldSubAlarmStats.updateSubAlarm(subAlarm);
         return;
       }
       // Have to completely change the SubAlarmStats
-      logger.debug("Changing SubAlarm {} to SubAlarm {} and flushing measurements", oldSubAlarm,
+      logger.debug("Changing {} to {} and flushing measurements", oldSubAlarm,
           subAlarm);
       repoAndStats.subAlarmStatsRepository.remove(subAlarm.getId());
+      subAlarmToSubAlarmStats.remove(subAlarm.getId());
+      subAlarmStatsSet.remove(repoAndStats.subAlarmStats);
     }
     addSubAlarm(metricDefinitionAndTenantId, subAlarm);
   }
@@ -347,6 +364,10 @@ public class MetricAggregationBolt extends BaseRichBolt {
       if (subAlarmStatsRepo.isEmpty()) {
         metricDefToSubAlarmStatsRepos.remove(metricDefinitionAndTenantId);
       }
+    }
+    final SubAlarmStats subAlarmStats = subAlarmToSubAlarmStats.remove(subAlarmId);
+    if (subAlarmStats != null) {
+      subAlarmStatsSet.remove(subAlarmStats);
     }
   }
 

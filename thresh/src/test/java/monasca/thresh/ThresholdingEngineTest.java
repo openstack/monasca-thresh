@@ -91,7 +91,6 @@ public class ThresholdingEngineTest extends TopologyTestCase {
   private AlarmState previousState = AlarmState.UNDETERMINED;
   private AlarmState expectedState = AlarmState.ALARM;
   private volatile int alarmsSent = 0;
-  private boolean hasExtraMetric = false;
 
   public ThresholdingEngineTest() {
     // Fixtures
@@ -111,16 +110,6 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     // Mocks
     alarmDAO = mock(AlarmDAO.class);
     alarmDefinitionDAO = mock(AlarmDefinitionDAO.class);
-
-    /*
-    metricDefinitionDAO = mock(MetricDefinitionDAO.class);
-    final List<SubAlarmMetricDefinition> metricDefs =
-        Arrays.asList(new SubAlarmMetricDefinition(cpuMetricDefSubAlarm.getId(),
-            new MetricDefinitionAndTenantId(cpuMetricDef, TEST_ALARM_TENANT_ID)),
-            new SubAlarmMetricDefinition(memMetricDefSubAlarm.getId(),
-                new MetricDefinitionAndTenantId(memMetricDef, TEST_ALARM_TENANT_ID)));
-    when(metricDefinitionDAO.findForAlarms()).thenReturn(metricDefs);
-    */
 
     // Bindings
     Injector.reset();
@@ -149,13 +138,13 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     Injector.registerModules(new ProducerModule(alarmEventForwarder));
   }
 
-  private void testWithInitialAlarmDefinition() throws Exception {
+  public void testWithInitialAlarmDefinition() throws Exception {
     when(alarmDefinitionDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
     when(alarmDefinitionDAO.listAll()).thenReturn(Arrays.asList(alarmDefinition));
-    shouldThreshold(null);  
+    shouldThreshold(null, false);  
   }
 
-  private void testWithInitialAlarm() throws Exception {
+  public void testWithInitialAlarm() throws Exception {
     when(alarmDefinitionDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
     when(alarmDefinitionDAO.listAll()).thenReturn(Arrays.asList(alarmDefinition));
     final String alarmId = getNextId();
@@ -165,8 +154,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     when(alarmDAO.listAll()).thenReturn(Arrays.asList(alarm));
     when(alarmDAO.findById(alarm.getId())).thenReturn(alarm);
     when(alarmDAO.findForAlarmDefinitionId(alarmDefinition.getId())).thenReturn(Arrays.asList(alarm));
-    hasExtraMetric = true;
-    shouldThreshold(alarm.getId());  
+    shouldThreshold(alarm.getId(), true);  
   }
 
   public void testWithAlarmDefinitionCreatedEvent() throws Exception {
@@ -178,7 +166,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
                 .getAlarmExpression().getExpression(),
             createSubExpressionMap(alarmDefinition.getAlarmExpression()), Arrays.asList("id"));
     eventSpout.feed(new Values(event));
-    shouldThreshold(null);
+    shouldThreshold(null, false);
   }
 
   private Map<String, AlarmSubExpression> createSubExpressionMap(AlarmExpression alarmExpression) {
@@ -193,7 +181,8 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     return UUID.randomUUID().toString();
   }
 
-  private void shouldThreshold(final String expectedAlarmId) throws Exception {
+  private void shouldThreshold(final String expectedAlarmId,
+                               final boolean hasExtraMetric) throws Exception {
     doAnswer(new Answer<Object>() {
       public Object answer(InvocationOnMock invocation) {
         final Object[] args = invocation.getArguments();
@@ -280,7 +269,11 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     }
 
     // Give it some extra time if it needs it for the alarm to come out
-    for (int i = 0; i < 30 && alarmsSent == 0; i++) {
+    final int maxWait = 30;
+    for (int i = 0; i < maxWait && alarmsSent == 0; i++) {
+      if ((i % 5) == 0) {
+        System.out.printf("Waiting %d more seconds for alarms to be sent\n", maxWait - i);
+      }
       try {
         Thread.sleep(1000);
       } catch (InterruptedException e) {
@@ -288,5 +281,6 @@ public class ThresholdingEngineTest extends TopologyTestCase {
       }
     }
     assertTrue(alarmsSent > 0, "Not enough alarms");
+    System.out.println("All expected Alarms received");
   }
 }

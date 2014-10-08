@@ -18,6 +18,7 @@
 package monasca.thresh.infrastructure.thresholding;
 
 import com.hpcloud.mon.common.event.AlarmDefinitionCreatedEvent;
+import com.hpcloud.mon.common.event.AlarmDefinitionDeletedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmExpression;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.Metric;
@@ -47,6 +48,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,20 +58,19 @@ import java.util.concurrent.ConcurrentHashMap;
  * Filters metrics for which there is no associated alarm and forwards metrics for which there is an
  * alarm. Receives metric alarm and metric sub-alarm events to update metric definitions.
  *
- * METRIC_DEFS table and the matcher are shared between any bolts in the same worker process so that
+ * The alreadyFound and the matcher are shared between any bolts in the same worker process so that
  * all of the MetricDefinitionAndTenantIds for existing SubAlarms only have to be read once and
  * because it is not possible to predict which bolt gets which Metrics so all Bolts know about all
  * starting MetricDefinitionAndTenantIds.
  *
- * The current topology uses shuffleGrouping for the incoming Metrics and allGrouping for the
- * events. So, any Bolt may get any Metric so the METRIC_DEFS table and the matcher must be kept up
- * to date for all MetricDefinitionAndTenantIds.
+ * The current topology uses fieldGrouping for the incoming Metrics and allGrouping for the
+ * events. So, a Bolt will always get the same Metrics it just can't be predicted which ones.
  *
- * The METRIC_DEFS table contains a List of SubAlarms IDs that reference the same
- * MetricDefinitionAndTenantId so if a SubAlarm is deleted, the MetricDefinitionAndTenantId will
- * only be deleted from it and the matcher if no more SubAlarms reference it. Incrementing and
- * decrementing the count is done under the static lock SENTINAL to ensure it is correct across all
- * Bolts sharing the same METRIC_DEFS table and the matcher. The amount of adds and deletes will be
+ * The alreadyFound contains a Set of AlarmDefinition IDs that reference the same
+ * MetricDefinitionAndTenantId so if a AlarmDefinition is deleted, the MetricDefinitionAndTenantId will
+ * only be deleted from it and the matcher if no more AlarmDefinitions reference it. Adding and
+ * deleting to list is done under the static lock SENTINAL to ensure it is correct across all
+ * Bolts sharing the same alreadyFound and the matcher. The amount of adds and deletes will be
  * very small compared to the number of Metrics so it shouldn't block the Metric handling.
  *
  * <ul>
@@ -100,13 +102,11 @@ public class MetricFilteringBolt extends BaseRichBolt {
       MAX_LAG_MESSAGES_DEFAULT, 0, Integer.MAX_VALUE);
   private static final int LAG_MESSAGE_PERIOD = PropertyFinder.getIntProperty(
       LAG_MESSAGE_PERIOD_KEY, LAG_MESSAGE_PERIOD_DEFAULT, 1, 600);
-  private static final Map<MetricDefinitionAndTenantId, Set<String>> METRIC_DEFS =
-      new ConcurrentHashMap<>();
   private static final MetricDefinitionAndTenantIdMatcher matcher =
       new MetricDefinitionAndTenantIdMatcher();
+  private static final ExistingHolder alreadyFound = new ExistingHolder();
   private static final Object SENTINAL = new Object();
   private static final Map<String, AlarmDefinition> alarmDefinitions = new ConcurrentHashMap<>();
-
   private transient Logger logger;
   private DataSourceFactory dbConfig;
   private transient AlarmDAO alarmDAO;
@@ -160,9 +160,7 @@ public class MetricFilteringBolt extends BaseRichBolt {
         // UPDATED events can be ignored because the MetricDefinitionAndTenantId doesn't change
         if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
           if (EventProcessingBolt.DELETED.equals(eventType)) {
-            MetricDefinitionAndTenantId metricDefinitionAndTenantId =
-                (MetricDefinitionAndTenantId) tuple.getValue(1);
-            removeAlarm(metricDefinitionAndTenantId, tuple.getString(2));
+            removeAlarm((MetricDefinitionAndTenantId) tuple.getValue(2), tuple.getString(3));
           }
         } else if (EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID.equals(tuple
             .getSourceStreamId())) {
@@ -177,6 +175,10 @@ public class MetricFilteringBolt extends BaseRichBolt {
               newAlarmDefinition(alarmDefinition);
             }
           }
+          else if (EventProcessingBolt.DELETED.equals(eventType)) {
+            final AlarmDefinitionDeletedEvent event = (AlarmDefinitionDeletedEvent) tuple.getValue(1);
+            deleteAlarmDefinition(event.alarmDefinitionId);
+          }
         }
       }
     } catch (Exception e) {
@@ -186,13 +188,37 @@ public class MetricFilteringBolt extends BaseRichBolt {
     }
   }
 
-  private void newAlarmDefinition(final AlarmDefinition alarmDefinition) {
-    alarmDefinitions.put(alarmDefinition.getId(), alarmDefinition);
+  private void deleteAlarmDefinition(final String alarmDefinitionId) {
+    synchronized (SENTINAL) {
+      final AlarmDefinition alarmDefinition = alarmDefinitions.get(alarmDefinitionId);
+      if (alarmDefinition != null) {
+        logger.info("Deleting Alarm Definition {}", alarmDefinitionId);
+        alarmDefinitions.remove(alarmDefinitionId);
+        alreadyFound.removeAlarmDefinition(alarmDefinitionId);
+        for (final MetricDefinitionAndTenantId mtid : getAllMetricDefinitions(alarmDefinition)) {
+          matcher.remove(mtid, alarmDefinition.getId());
+        }
+      }
+    }
+  }
+
+  private Set<MetricDefinitionAndTenantId> getAllMetricDefinitions(
+      final AlarmDefinition alarmDefinition) {
+    final Set<MetricDefinitionAndTenantId> result =
+        new HashSet<>(alarmDefinition.getAlarmExpression().getSubExpressions().size());
     for (final AlarmSubExpression subExpr : alarmDefinition.getAlarmExpression()
         .getSubExpressions()) {
       final MetricDefinitionAndTenantId mtid =
           new MetricDefinitionAndTenantId(subExpr.getMetricDefinition(),
               alarmDefinition.getTenantId());
+      result.add(mtid);
+    }
+    return result;
+  }
+
+  private void newAlarmDefinition(final AlarmDefinition alarmDefinition) {
+    alarmDefinitions.put(alarmDefinition.getId(), alarmDefinition);
+    for (final MetricDefinitionAndTenantId mtid : getAllMetricDefinitions(alarmDefinition)) {
       matcher.add(mtid, alarmDefinition.getId());
     }
   }
@@ -202,18 +228,21 @@ public class MetricFilteringBolt extends BaseRichBolt {
     if (alarmDefinitionIds.isEmpty()) {
       return false;
     }
-    final Set<String> existing = METRIC_DEFS.get(metricDefinitionAndTenantId);
+    final Set<String> existing = alreadyFound.matches(metricDefinitionAndTenantId);
     if (existing != null) {
       alarmDefinitionIds.removeAll(existing);
     }
+
     if (!alarmDefinitionIds.isEmpty()) {
       for (final String alarmDefinitionId : alarmDefinitionIds) {
         final AlarmDefinition alarmDefinition = alarmDefinitions.get(alarmDefinitionId);
-        logger.info("Should add metric for id = {} name = {}", alarmDefinitionId,
-            alarmDefinition.getName());
+        logger.info("Add metric {} for Alarm Definition id = {} name = {}",
+            metricDefinitionAndTenantId, alarmDefinitionId, alarmDefinition.getName());
         collector.emit(NEW_METRIC_FOR_ALARM_DEFINITION_STREAM,
             new Values(metricDefinitionAndTenantId, alarmDefinitionId));
-        addMetricDef(metricDefinitionAndTenantId, alarmDefinitionId);
+        synchronized (SENTINAL) {
+          alreadyFound.add(metricDefinitionAndTenantId, alarmDefinitionId);
+        }
       }
     }
     return true;
@@ -251,13 +280,10 @@ public class MetricFilteringBolt extends BaseRichBolt {
 
   private void removeAlarm(MetricDefinitionAndTenantId metricDefinitionAndTenantId,
       String alarmDefinitionId) {
-    synchronized (SENTINAL) {
-      matcher.remove(metricDefinitionAndTenantId, alarmDefinitionId);
-      final Set<String> alarms = METRIC_DEFS.get(metricDefinitionAndTenantId);
-      if (alarms != null) {
-        if (alarms.remove(alarmDefinitionId) && alarms.isEmpty()) {
-          METRIC_DEFS.remove(metricDefinitionAndTenantId);
-        }
+    final AlarmDefinition alarmDefinition = alarmDefinitions.get(alarmDefinitionId);
+    if (alarmDefinition != null) {
+      synchronized (SENTINAL) {
+        alreadyFound.remove(metricDefinitionAndTenantId, alarmDefinitionId);
       }
     }
   }
@@ -280,9 +306,9 @@ public class MetricFilteringBolt extends BaseRichBolt {
     }
 
     // DCL
-    if (METRIC_DEFS.isEmpty()) {
+    if (alreadyFound.isEmpty()) {
       synchronized (SENTINAL) {
-        if (METRIC_DEFS.isEmpty()) {
+        if (alreadyFound.isEmpty()) {
           for (AlarmDefinition alarmcDef : alarmDefDAO.listAll()) {
             newAlarmDefinition(alarmcDef);
           }
@@ -297,9 +323,10 @@ public class MetricFilteringBolt extends BaseRichBolt {
               continue;
             }
             for (final MetricDefinitionAndTenantId mtid : alarm.getAlarmedMetrics()) {
-              addMetricDef(mtid, alarm.getAlarmDefinitionId());
+              alreadyFound.add(mtid, alarm.getAlarmDefinitionId());
               for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
-                if (AlarmCreationBolt.metricFitsInSubAlarm(subAlarm, mtid.metricDefinition)) {
+                if (AlarmCreationBolt.metricFitsInAlarmSubExpr(subAlarm.getExpression(),
+                    mtid.metricDefinition)) {
                   final TenantIdAndMetricName timn = new TenantIdAndMetricName(mtid);
                   final Values values =
                       new Values(EventProcessingBolt.CREATED, timn, mtid,
@@ -311,7 +338,7 @@ public class MetricFilteringBolt extends BaseRichBolt {
             }
           }
 
-          logger.info("Found {} Metric Definitions", METRIC_DEFS.size());
+          logger.info("Found {} Alarmed Metrics", alreadyFound.size());
           // Just output these here so they are only output once per JVM
           logger.info("MIN_LAG_VALUE set to {} seconds", MIN_LAG_VALUE);
           logger.info("MAX_LAG_MESSAGES set to {}", MAX_LAG_MESSAGES);
@@ -329,31 +356,97 @@ public class MetricFilteringBolt extends BaseRichBolt {
     return System.currentTimeMillis() / 1000;
   }
 
-  private void addMetricDef(MetricDefinitionAndTenantId metricDefinitionAndTenantId,
-      String alarmDefinitionId) {
-    Set<String> subAlarmIds = METRIC_DEFS.get(metricDefinitionAndTenantId);
-    if (subAlarmIds == null) {
-      subAlarmIds = new HashSet<>();
-      METRIC_DEFS.put(metricDefinitionAndTenantId, subAlarmIds);
-    } else if (subAlarmIds.contains(alarmDefinitionId)) {
-      return; // Make sure it is only added once. Multiple bolts process the same AlarmCreatedEvent
-    }
-    subAlarmIds.add(alarmDefinitionId);
-    matcher.add(metricDefinitionAndTenantId, alarmDefinitionId);
-  }
-
   /**
    * Only use for testing.
    */
   static void clearMetricDefinitions() {
-    METRIC_DEFS.clear();
+    alreadyFound.clear();
     matcher.clear();
+    alarmDefinitions.clear();
   }
 
   /**
    * Only use for testing.
    */
   static int sizeMetricDefinitions() {
-    return METRIC_DEFS.size();
+    return alreadyFound.size();
+  }
+
+  private static class ExistingHolder {
+    private final Map<MetricDefinitionAndTenantId, Set<String>> metricDefs =
+        new ConcurrentHashMap<>();
+
+    /** Have to track which metric defs are used by which Alarm Definition Id
+     *  so deletion of an Alarm Definition will work
+     */
+    private static final Map<String, List<MetricDefinitionAndTenantId>> usedMetrics = new ConcurrentHashMap<>();
+
+    public void add(MetricDefinitionAndTenantId metricDefinitionAndTenantId,
+        String alarmDefinitionId) {
+
+      Set<String> alarmDefinitionIds = metricDefs.get(metricDefinitionAndTenantId);
+      if (alarmDefinitionIds == null) {
+        alarmDefinitionIds = new HashSet<>();
+        metricDefs.put(metricDefinitionAndTenantId, alarmDefinitionIds);
+      } else if (alarmDefinitionIds.contains(alarmDefinitionId)) {
+        return; // Make sure it is only added once. Multiple bolts process the same
+                // AlarmCreatedEvent
+      }
+      alarmDefinitionIds.add(alarmDefinitionId);
+      List<MetricDefinitionAndTenantId> metrics = usedMetrics.get(alarmDefinitionId);
+      if (metrics == null) {
+        metrics = new LinkedList<>();
+        usedMetrics.put(alarmDefinitionId, metrics);
+      }
+      metrics.add(metricDefinitionAndTenantId);
+    }
+
+    public void removeAlarmDefinition(String alarmDefinitionId) {
+      final List<MetricDefinitionAndTenantId> metrics = usedMetrics.get(alarmDefinitionId);
+      if (metrics != null) {
+        for (final MetricDefinitionAndTenantId mtid : metrics) {
+          removeFromMetricDefs(mtid, alarmDefinitionId);
+        }
+        usedMetrics.remove(alarmDefinitionId);
+      }
+    }
+
+    public void remove(MetricDefinitionAndTenantId metricDefinitionAndTenantId,
+        String alarmDefinitionId) {
+      removeFromMetricDefs(metricDefinitionAndTenantId, alarmDefinitionId);
+      final List<MetricDefinitionAndTenantId> metrics = usedMetrics.get(alarmDefinitionId);
+      if (metrics != null) {
+        if (metrics.remove(metricDefinitionAndTenantId) && metrics.isEmpty()) {
+          usedMetrics.remove(alarmDefinitionId);
+        }
+      }
+    }
+
+    private void removeFromMetricDefs(MetricDefinitionAndTenantId metricDefinitionAndTenantId,
+        String alarmDefinitionId) {
+      final Set<String> alarmDefinitionIds = matches(metricDefinitionAndTenantId);
+      if (alarmDefinitionIds != null) {
+        if (alarmDefinitionIds.remove(alarmDefinitionId) && alarmDefinitionIds.isEmpty()) {
+          metricDefs.remove(metricDefinitionAndTenantId);
+        }
+      }
+    }
+
+    public Set<String> matches(MetricDefinitionAndTenantId mtid) {
+      return metricDefs.get(mtid);
+    }
+
+    public int size() {
+      return metricDefs.size();
+    }
+
+    public boolean isEmpty() {
+      return metricDefs.isEmpty();
+    }
+
+    public void clear() {
+      metricDefs.clear();
+      usedMetrics.clear();
+    }
   }
 }

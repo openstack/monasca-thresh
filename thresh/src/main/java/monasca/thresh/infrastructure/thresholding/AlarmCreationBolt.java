@@ -17,7 +17,9 @@
 
 package monasca.thresh.infrastructure.thresholding;
 
+import com.hpcloud.mon.common.event.AlarmDefinitionDeletedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
+import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.streaming.storm.Logging;
 import com.hpcloud.util.Injector;
@@ -42,7 +44,7 @@ import monasca.thresh.infrastructure.persistence.PersistenceModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -58,16 +60,16 @@ public class AlarmCreationBolt extends BaseRichBolt {
   private static final long serialVersionUID = 1096706128973976599L;
 
   public static final String ALARM_CREATION_STREAM = "alarm-creation-stream";
-  public static final String[] ALARM_CREATION_FIELDS = new String[] {"control", "tenantIdAndMetricName", "metricDefinitionAndTenantId", "alarmDefinitionId", "subAlarm"};
+  public static final String[] ALARM_CREATION_FIELDS = new String[] {"control",
+      "tenantIdAndMetricName", "metricDefinitionAndTenantId", "alarmDefinitionId", "subAlarm"};
 
   private transient Logger logger;
   private DataSourceFactory dbConfig;
   private transient AlarmDefinitionDAO alarmDefDAO;
   private transient AlarmDAO alarmDAO;
   private OutputCollector collector;
-  private final Map<String, AlarmDefinition> alarmDefinitions = new HashMap<>();
   private final Map<String, List<Alarm>> waitingAlarms = new HashMap<>();
-  private static final List<Alarm> EMPTY_LIST = new ArrayList<>(0);
+  private static final List<Alarm> EMPTY_LIST = Collections.<Alarm>emptyList();
 
   public AlarmCreationBolt(DataSourceFactory dbConfig) {
     this.dbConfig = dbConfig;
@@ -91,21 +93,19 @@ public class AlarmCreationBolt extends BaseRichBolt {
       if (MetricFilteringBolt.NEW_METRIC_FOR_ALARM_DEFINITION_STREAM.equals(tuple.getSourceStreamId())) {
         final MetricDefinitionAndTenantId metricDefinitionAndTenantId =
             (MetricDefinitionAndTenantId) tuple.getValue(0);
-        final String alarmDefinitionId = tuple.getString(1);
-        handleNewMetricDefinition(metricDefinitionAndTenantId, alarmDefinitionId);
+        handleNewMetricDefinition(metricDefinitionAndTenantId, tuple.getString(1));
       } else {
-        String eventType = tuple.getString(0);
-        MetricDefinitionAndTenantId metricDefinitionAndTenantId =
-            (MetricDefinitionAndTenantId) tuple.getValue(1);
-
-        logger.debug("Received {} for {}", eventType, metricDefinitionAndTenantId);
-        // UPDATED events can be ignored because the MetricDefinitionAndTenantId doesn't change
-        if (EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
+        final String eventType = tuple.getString(0);
+        logger.debug("Received {} Event", eventType);
+        if (EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
           if (EventProcessingBolt.DELETED.equals(eventType)) {
-          }
-        } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple
-            .getSourceStreamId())) {
-          if (EventProcessingBolt.CREATED.equals(eventType)) {
+            final AlarmDefinitionDeletedEvent event =
+                (AlarmDefinitionDeletedEvent) tuple.getValue(1);
+            final List<Alarm> waiting = waitingAlarms.remove(event.alarmDefinitionId);
+            if (waiting != null && !waiting.isEmpty()) {
+              logger.info("{} waiting alarms removed for Alarm Definition Id {}", waiting != null
+                  && !waiting.isEmpty() ? waiting.size() : "No", event.alarmDefinitionId);
+            }
           }
         }
       }
@@ -129,7 +129,13 @@ public class AlarmCreationBolt extends BaseRichBolt {
 
     final List<Alarm> existingAlarms = alarmDAO.findForAlarmDefinitionId(alarmDefinitionId);
     if (alreadyCreated(existingAlarms, metricDefinitionAndTenantId)) {
-      logger.warn("MetricDefinition {} is already in Alarm", metricDefinitionAndTenantId);
+      logger.warn("MetricDefinition {} is already in existing Alarm", metricDefinitionAndTenantId);
+      return;
+    }
+
+    if (alreadyCreated(getWaitingAlarmsForAlarmDefinition(alarmDefinition),
+        metricDefinitionAndTenantId)) {
+      logger.warn("MetricDefinition {} is already in waiting Alarm", metricDefinitionAndTenantId);
       return;
     }
 
@@ -137,11 +143,11 @@ public class AlarmCreationBolt extends BaseRichBolt {
         fitsInExistingAlarm(metricDefinitionAndTenantId, alarmDefinition, existingAlarms);
 
     if (existingAlarm != null) {
-      logger.info("Metric {} fits into existing alarm {}", metricDefinitionAndTenantId, existingAlarm);
+      logger.info("Metric {} fits into existing alarm {}", metricDefinitionAndTenantId,
+          existingAlarm);
       addToExistingAlarm(existingAlarm, metricDefinitionAndTenantId);
       sendNewMetricDefinition(existingAlarm, metricDefinitionAndTenantId);
-    }
- else {
+    } else {
       final List<Alarm> newAlarms =
           finishesAlarm(alarmDefinition, metricDefinitionAndTenantId, existingAlarms);
       for (final Alarm newAlarm : newAlarms) {
@@ -178,31 +184,24 @@ public class AlarmCreationBolt extends BaseRichBolt {
     alarmDAO.addAlarmedMetric(existingAlarm.getId(), metricDefinitionAndTenantId);
   }
 
-  protected boolean fitsInAlarm(Alarm alarm, MetricDefinition md) {
-    for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
-      if (metricFitsInSubAlarm(subAlarm, md)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   private void sendNewMetricDefinition(Alarm existingAlarm,
       MetricDefinitionAndTenantId metricDefinitionAndTenantId) {
     for (final SubAlarm subAlarm : existingAlarm.getSubAlarms()) {
-      if (metricFitsInSubAlarm(subAlarm, metricDefinitionAndTenantId.metricDefinition)) {
+      if (metricFitsInAlarmSubExpr(subAlarm.getExpression(),
+          metricDefinitionAndTenantId.metricDefinition)) {
         final TenantIdAndMetricName timn = new TenantIdAndMetricName(metricDefinitionAndTenantId);
-        final Values values = new Values(EventProcessingBolt.CREATED, timn, metricDefinitionAndTenantId, existingAlarm.getAlarmDefinitionId(),
-            subAlarm);
+        final Values values =
+            new Values(EventProcessingBolt.CREATED, timn, metricDefinitionAndTenantId,
+                existingAlarm.getAlarmDefinitionId(), subAlarm);
         logger.debug("Emitting new SubAlarm {}", values);
         collector.emit(ALARM_CREATION_STREAM, values);
       }
     }
   }
 
-  public static boolean metricFitsInSubAlarm(SubAlarm subAlarm,
+  public static boolean metricFitsInAlarmSubExpr(AlarmSubExpression subExpr,
       MetricDefinition check) {
-    final MetricDefinition md = subAlarm.getExpression().getMetricDefinition();
+    final MetricDefinition md = subExpr.getMetricDefinition();
     if (!md.name.equals(check.name)) {
       return false;
     }
@@ -216,14 +215,33 @@ public class AlarmCreationBolt extends BaseRichBolt {
     return true;
   }
 
-  private boolean validMetricDefinition(AlarmDefinition alarmDefinition,
-      MetricDefinitionAndTenantId metricDefinitionAndTenantId) {
-    // TODO Auto-generated method stub
-    return true;
+  protected boolean validMetricDefinition(AlarmDefinition alarmDefinition,
+      MetricDefinitionAndTenantId check) {
+    if (!alarmDefinition.getTenantId().equals(check.tenantId)) {
+      return false;
+    }
+    for (final AlarmSubExpression subExpr : alarmDefinition.getAlarmExpression()
+        .getSubExpressions()) {
+      if (metricFitsInAlarmSubExpr(subExpr, check.metricDefinition)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   protected String getNextId() {
     return UUID.randomUUID().toString(); 
+  }
+
+  /**
+   * This is only used for testing
+   *
+   * @param alarmDefinitionId
+   * @return
+   */
+  protected Integer countWaitingAlarms(final String alarmDefinitionId) {
+    final List<Alarm> waiting = waitingAlarms.get(alarmDefinitionId);
+    return waiting == null ? null: Integer.valueOf(waiting.size());
   }
 
   private List<Alarm> finishesAlarm(AlarmDefinition alarmDefinition,
@@ -300,7 +318,7 @@ public class AlarmCreationBolt extends BaseRichBolt {
     final Map<String, String> matchesByValues = getMatchesByValues(alarmDefinition, alarm);
     boolean result = false;
     for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
-      if (metricFitsInSubAlarm(subAlarm, check.metricDefinition)) {
+      if (metricFitsInAlarmSubExpr(subAlarm.getExpression(), check.metricDefinition)) {
         result = true;
         if (!matchesByValues.isEmpty()) {
           boolean foundOne = false;
@@ -365,7 +383,7 @@ public class AlarmCreationBolt extends BaseRichBolt {
     for (final SubAlarm subAlarm : newAlarm.getSubAlarms()) {
       boolean found = false;
       for (final MetricDefinitionAndTenantId md : newAlarm.getAlarmedMetrics()) {
-        if (metricFitsInSubAlarm(subAlarm, md.metricDefinition)) {
+        if (metricFitsInAlarmSubExpr(subAlarm.getExpression(), md.metricDefinition)) {
           found = true;
           break;
         }
@@ -386,7 +404,6 @@ public class AlarmCreationBolt extends BaseRichBolt {
         }
       }
     }
-    // TODO Need to check waiting alarms as well
     return false;
   }
 
@@ -396,7 +413,6 @@ public class AlarmCreationBolt extends BaseRichBolt {
       logger.warn("Did not find AlarmDefinition for ID {}", alarmDefinitionId);
       return null;
     }
-    alarmDefinitions.put(found.getId(), found);
 
     return found;
   }
@@ -424,11 +440,5 @@ public class AlarmCreationBolt extends BaseRichBolt {
    */
   protected long getCurrentTime() {
     return System.currentTimeMillis() / 1000;
-  }
-
-  /**
-   * Only use for testing.
-   */
-  static void clearMetricDefinitions() {
   }
 }

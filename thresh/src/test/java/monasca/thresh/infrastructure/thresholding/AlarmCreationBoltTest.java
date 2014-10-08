@@ -26,15 +26,20 @@ import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
+import com.hpcloud.mon.common.event.AlarmDefinitionDeletedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmExpression;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.MetricDefinition;
 
+import backtype.storm.Testing;
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;
+import backtype.storm.testing.MkTupleParam;
+import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
 import monasca.thresh.domain.model.Alarm;
@@ -73,8 +78,6 @@ public class AlarmCreationBoltTest {
   final private List<Alarm> createdAlarms = new LinkedList<>();
   final private Map<String, List<Alarm>> existingAlarms = new HashMap<>();;
 
-  private final String ALARM_DEF_ID = getNextId();
-
   @BeforeMethod
   public void beforeMethod() {
     final Map<String, String> config = new HashMap<>();
@@ -99,7 +102,7 @@ public class AlarmCreationBoltTest {
     }).when(alarmDAO).createAlarm((Alarm) any());
   }
 
-  public void testMetricFitsInSubAlarm() {
+  public void testmetricFitsInAlarmSubExpr() {
     final String expression =
         "max(cpu{hostname=eleanore}) > 90 and max(load_avg{hostname=eleanore,cpu=1}) > 10";
     final AlarmExpression alarmExpression = new AlarmExpression(expression);
@@ -109,35 +112,68 @@ public class AlarmCreationBoltTest {
     final SubAlarm load_avg =
         new SubAlarm(getNextId(), alarmId, alarmExpression.getSubExpressions().get(1));
 
-    assertTrue(AlarmCreationBolt.metricFitsInSubAlarm(cpu, cpu.getExpression()
+    assertTrue(AlarmCreationBolt.metricFitsInAlarmSubExpr(cpu.getExpression(), cpu.getExpression()
         .getMetricDefinition()));
-    assertTrue(AlarmCreationBolt.metricFitsInSubAlarm(load_avg, load_avg.getExpression()
-        .getMetricDefinition()));
-    assertFalse(AlarmCreationBolt.metricFitsInSubAlarm(load_avg, cpu.getExpression()
-        .getMetricDefinition()));
-    assertFalse(AlarmCreationBolt.metricFitsInSubAlarm(cpu, load_avg.getExpression()
-        .getMetricDefinition()));
+    assertTrue(AlarmCreationBolt.metricFitsInAlarmSubExpr(load_avg.getExpression(), load_avg
+        .getExpression().getMetricDefinition()));
+    assertFalse(AlarmCreationBolt.metricFitsInAlarmSubExpr(load_avg.getExpression(), cpu
+        .getExpression().getMetricDefinition()));
+    assertFalse(AlarmCreationBolt.metricFitsInAlarmSubExpr(cpu.getExpression(), load_avg
+        .getExpression().getMetricDefinition()));
     MetricDefinition load_avgSuperSet =
         build(load_avg.getExpression().getMetricDefinition().name, "hostname", "eleanore", "cpu",
             "1", "other", "vivi");
-    assertTrue(AlarmCreationBolt.metricFitsInSubAlarm(load_avg, load_avgSuperSet));
-    assertFalse(AlarmCreationBolt.metricFitsInSubAlarm(
-        load_avg,
+    assertTrue(AlarmCreationBolt.metricFitsInAlarmSubExpr(load_avg.getExpression(),
+        load_avgSuperSet));
+    assertFalse(AlarmCreationBolt.metricFitsInAlarmSubExpr(
+        load_avg.getExpression(),
         build(cpu.getExpression().getMetricDefinition().name, "hostname", "eleanore", "cpu", "2",
             "other", "vivi")));
+  }
 
-    final Alarm alarm =
-        new Alarm(getNextId(), Arrays.asList(cpu, load_avg), ALARM_DEF_ID, AlarmState.UNDETERMINED);
-    assertTrue(bolt.fitsInAlarm(alarm, load_avgSuperSet));
+  public void testmetricFitsInAlarmDefinition() {
+    final AlarmDefinition alarmDefinition =
+        createAlarmDefinition("max(cpu{service=2}) > 90 and max(load_avg) > 10", "hostname");
+    final MetricDefinitionAndTenantId goodCpu =
+        new MetricDefinitionAndTenantId(build("cpu", "hostname", "eleanore", "service", "2",
+            "other", "vivi"), TENANT_ID);
+
+    assertTrue(bolt.validMetricDefinition(alarmDefinition, goodCpu));
+
+    final MetricDefinitionAndTenantId goodLoad =
+        new MetricDefinitionAndTenantId(build("load_avg", "hostname", "eleanore", "service", "2",
+            "other", "vivi"), TENANT_ID);
+
+    assertTrue(bolt.validMetricDefinition(alarmDefinition, goodLoad));
+
+    final MetricDefinitionAndTenantId goodLoadNoDim =
+        new MetricDefinitionAndTenantId(build("load_avg"), TENANT_ID);
+
+    assertTrue(bolt.validMetricDefinition(alarmDefinition, goodLoadNoDim));
+
+    final MetricDefinitionAndTenantId badCpuDim =
+        new MetricDefinitionAndTenantId(build("cpu", "hostname", "eleanore", "service", "1",
+            "other", "vivi"), TENANT_ID);
+    assertFalse(bolt.validMetricDefinition(alarmDefinition, badCpuDim));
+
+    final MetricDefinitionAndTenantId wrongMetricName =
+        new MetricDefinitionAndTenantId(build("mem", "hostname", "eleanore", "service", "1",
+            "other", "vivi"), TENANT_ID);
+    assertFalse(bolt.validMetricDefinition(alarmDefinition, wrongMetricName));
+
+    final MetricDefinitionAndTenantId badCpuNoDim =
+        new MetricDefinitionAndTenantId(build("cpu"), TENANT_ID);
+    assertFalse(bolt.validMetricDefinition(alarmDefinition, badCpuNoDim));
+
+    final MetricDefinitionAndTenantId badCpuWrongTenant =
+        new MetricDefinitionAndTenantId(build("cpu"), TENANT_ID + "2");
+    assertFalse(bolt.validMetricDefinition(alarmDefinition, badCpuWrongTenant));
   }
 
   public void testMetricFitsInAlarm() {
-    final String expression = "max(cpu{service=2}) > 90 and max(load_avg{service=2}) > 10";
-    final AlarmExpression alarmExpression = new AlarmExpression(expression);
-
     final AlarmDefinition alarmDefinition =
-        new AlarmDefinition(getNextId(), TENANT_ID, "max cpu", "", alarmExpression, true,
-            Arrays.asList("hostname"));
+        createAlarmDefinition("max(cpu{service=2}) > 90 and max(load_avg{service=2}) > 10",
+            "hostname");
 
     String alarmId = getNextId();
     final Alarm alarm = new Alarm(alarmId, alarmDefinition, AlarmState.ALARM);
@@ -172,6 +208,64 @@ public class AlarmCreationBoltTest {
             "1", "other", "vivi");
     assertFalse(bolt.metricFitsInAlarm(alarm, alarmDefinition, new MetricDefinitionAndTenantId(
         check4, TENANT_ID)));
+  }
+
+  public void testAlarmDefinitionDeleted() {
+    final AlarmDefinition alarmDefinition =
+        createAlarmDefinition("max(cpu{service=2}) > 90 and max(load{service=2}) > 2", "hostname");
+
+    // Create some waiting alarms.
+    final AlarmSubExpression subExpr =
+        alarmDefinition.getAlarmExpression().getSubExpressions().get(0);
+    final List<String> hostnames = Arrays.asList("eleanore", "vivi", "maddyie");
+    for (final String hostname : hostnames) {
+      final MetricDefinition metric =
+          build(subExpr.getMetricDefinition().name, "hostname", hostname, "service", "2");
+      sendNewMetric(new MetricDefinitionAndTenantId(metric, TENANT_ID), alarmDefinition.getId());
+    }
+
+    assertEquals(bolt.countWaitingAlarms(alarmDefinition.getId()), Integer.valueOf(hostnames.size()));
+
+    sendAlarmDefinitionDeleted(alarmDefinition);
+
+    // Ensure they are gone
+    assertNull(bolt.countWaitingAlarms(alarmDefinition.getId()));
+
+    final AlarmDefinition alarmDefinition2 =
+        createAlarmDefinition("max(cpu{service=2}) > 90 and max(load{service=2}) > 3", "hostname");
+
+    sendAlarmDefinitionDeleted(alarmDefinition2);
+
+    // Ensure there are no waiting alarms
+    assertNull(bolt.countWaitingAlarms(alarmDefinition2.getId()));
+  }
+
+  private void sendAlarmDefinitionDeleted(final AlarmDefinition alarmDefinition) {
+    final Map<String, MetricDefinition> subAlarmMetricDefinitions = new HashMap<>();
+    for (final AlarmSubExpression subExpr : alarmDefinition.getAlarmExpression().getSubExpressions()) {
+      subAlarmMetricDefinitions.put(getNextId(), subExpr.getMetricDefinition());
+    }
+    // Delete the Alarm Definition
+    final AlarmDefinitionDeletedEvent event =
+        new AlarmDefinitionDeletedEvent(alarmDefinition.getId(), subAlarmMetricDefinitions);
+    final MkTupleParam tupleParam = new MkTupleParam();
+    tupleParam.setFields(EventProcessingBolt.ALARM_DEFINITION_EVENT_FIELDS);
+    tupleParam.setStream(EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID);
+    final Tuple tuple =
+        Testing.testTuple(Arrays.asList(EventProcessingBolt.DELETED, event), tupleParam);
+
+    bolt.execute(tuple);
+  }
+
+  private void sendNewMetric(MetricDefinitionAndTenantId metricDefinitionAndTenantId,
+                             String alarmDefinitionId) {
+    final MkTupleParam tupleParam = new MkTupleParam();
+    tupleParam.setFields(MetricFilteringBolt.NEW_METRIC_FOR_ALARM_DEFINITION_FIELDS);
+    tupleParam.setStream(MetricFilteringBolt.NEW_METRIC_FOR_ALARM_DEFINITION_STREAM);
+    final Tuple tuple =
+        Testing.testTuple(Arrays.asList(metricDefinitionAndTenantId, alarmDefinitionId), tupleParam);
+
+    bolt.execute(tuple);
   }
 
   public void testCreateSimpleAlarmWithMatchBy() {
@@ -224,18 +318,11 @@ public class AlarmCreationBoltTest {
 
   private void testMultipleExpressions(final List<MetricDefinition> metricDefinitionsToSend,
       final int numAlarms) {
-    final String expression = "max(cpu) > 90 and max(disk.io) > 10";
-    final AlarmExpression alarmExpression = new AlarmExpression(expression);
-
     final AlarmDefinition alarmDefinition =
-        new AlarmDefinition(getNextId(), TENANT_ID, "max cpu and disk", "", alarmExpression, true,
-            Arrays.asList("hostname", "dev"));
-
-    when(alarmDefDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
+        createAlarmDefinition("max(cpu) > 90 and max(disk.io) > 10", "hostname", "dev");
 
     for (final MetricDefinition md : metricDefinitionsToSend) {
-      bolt.handleNewMetricDefinition(new MetricDefinitionAndTenantId(md, TENANT_ID),
-          alarmDefinition.getId());
+      sendNewMetric(new MetricDefinitionAndTenantId(md, TENANT_ID), alarmDefinition.getId());
     }
 
     assertEquals(this.createdAlarms.size(), numAlarms);
@@ -244,12 +331,7 @@ public class AlarmCreationBoltTest {
   private void runCreateSimpleAlarm(final String... matchBy) {
 
     final String expression = "max(cpu{service=2}) > 90";
-    final AlarmExpression alarmExpression = new AlarmExpression(expression);
-
-    final AlarmDefinition alarmDefinition =
-        new AlarmDefinition(getNextId(), TENANT_ID, "max cpu", "", alarmExpression, true,
-            Arrays.asList(matchBy));
-    when(alarmDefDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
+    final AlarmDefinition alarmDefinition = createAlarmDefinition(expression, matchBy);
     final MetricDefinition metric =
         build("cpu", "hostname", "eleanore", "service", "2", "other", "vivi");
 
@@ -264,8 +346,7 @@ public class AlarmCreationBoltTest {
     final MetricDefinition metric2 =
         build("cpu", "hostname", "vivi", "service", "2", "other", "eleanore");
 
-    bolt.handleNewMetricDefinition(new MetricDefinitionAndTenantId(metric2, TENANT_ID),
-        alarmDefinition.getId());
+    sendNewMetric(new MetricDefinitionAndTenantId(metric2, TENANT_ID), alarmDefinition.getId());
     if (matchBy.length == 0) {
       assertEquals(this.createdAlarms.size(), 0,
           "A second alarm was created instead of the metric fitting into the first");
@@ -275,22 +356,34 @@ public class AlarmCreationBoltTest {
 
       verifyCreatedAlarm(this.createdAlarms.get(0), alarmDefinition, collector,
           new MetricDefinitionAndTenantId(metric2, TENANT_ID));
+
+      // Now send a metric that must fit into the just created alarm to test that
+      // code path
+      final MetricDefinition metric3 =
+          build("cpu", "hostname", "vivi", "service", "2", "other", "maddyie");
+
+      sendNewMetric(new MetricDefinitionAndTenantId(metric3, TENANT_ID), alarmDefinition.getId());
+
+      assertEquals(this.createdAlarms.size(), 1,
+          "The metric created a new alarm instead of fitting into the second");
+
+      verifyCreatedAlarm(this.createdAlarms.get(0), alarmDefinition, collector,
+          new MetricDefinitionAndTenantId(metric2, TENANT_ID), new MetricDefinitionAndTenantId(metric3, TENANT_ID));
     }
   }
 
   private void runCreateComplexAlarm(final String... matchBy) {
-    final String expression = "max(cpu{service=2}) > 90 or max(load.avg{service=2}) > 5";
-    final AlarmExpression alarmExpression = new AlarmExpression(expression);
-
     final AlarmDefinition alarmDefinition =
-        new AlarmDefinition(getNextId(), TENANT_ID, "max cpu", "", alarmExpression, true,
-            Arrays.asList(matchBy));
-    when(alarmDefDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
+        createAlarmDefinition("max(cpu{service=2}) > 90 or max(load.avg{service=2}) > 5", matchBy);
 
     final MetricDefinition cpuMetric =
         build("cpu", "hostname", "eleanore", "service", "2", "other", "vivi");
 
     MetricDefinitionAndTenantId cpuMtid = new MetricDefinitionAndTenantId(cpuMetric, TENANT_ID);
+    bolt.handleNewMetricDefinition(cpuMtid, alarmDefinition.getId());
+
+    // Send it again to ensure it handles case where the metric is sent twice.
+    // Should not happen but make sure bolt handles it
     bolt.handleNewMetricDefinition(cpuMtid, alarmDefinition.getId());
 
     final MetricDefinition loadAvgMetric =
@@ -302,6 +395,25 @@ public class AlarmCreationBoltTest {
 
     assertEquals(this.createdAlarms.size(), 1);
     verifyCreatedAlarm(this.createdAlarms.get(0), alarmDefinition, collector, cpuMtid, loadAvgMtid);
+
+    // Send it again to ensure it handles case where the metric is sent after
+    // the alarm has been created.
+    // Should not happen but make sure bolt handles it
+    bolt.handleNewMetricDefinition(cpuMtid, alarmDefinition.getId());
+
+    assertEquals(this.createdAlarms.size(), 1);
+    // Make sure it did not get added to the existing alarm
+    verifyCreatedAlarm(this.createdAlarms.get(0), alarmDefinition, collector, cpuMtid, loadAvgMtid);
+  }
+
+  private AlarmDefinition createAlarmDefinition(final String expression, final String... matchBy) {
+    final AlarmExpression alarmExpression = new AlarmExpression(expression);
+
+    final AlarmDefinition alarmDefinition =
+        new AlarmDefinition(getNextId(), TENANT_ID, "max cpu", "", alarmExpression, true,
+            Arrays.asList(matchBy));
+    when(alarmDefDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
+    return alarmDefinition;
   }
 
   private void verifyCreatedAlarm(final Alarm newAlarm, final AlarmDefinition alarmDefinition,

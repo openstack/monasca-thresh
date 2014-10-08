@@ -20,17 +20,24 @@ package monasca.thresh;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotEquals;
+import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
 
 import com.hpcloud.configuration.KafkaProducerConfiguration;
 import com.hpcloud.mon.common.event.AlarmDefinitionCreatedEvent;
+import com.hpcloud.mon.common.event.AlarmDefinitionDeletedEvent;
+import com.hpcloud.mon.common.event.AlarmDefinitionUpdatedEvent;
+import com.hpcloud.mon.common.event.AlarmDeletedEvent;
 import com.hpcloud.mon.common.event.AlarmStateTransitionedEvent;
 import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmExpression;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
 import com.hpcloud.mon.common.model.metric.Metric;
+import com.hpcloud.mon.common.model.metric.MetricDefinition;
 import com.hpcloud.streaming.storm.TopologyTestCase;
 import com.hpcloud.util.Injector;
 import com.hpcloud.util.Serialization;
@@ -46,6 +53,7 @@ import monasca.thresh.domain.model.Alarm;
 import monasca.thresh.domain.model.AlarmDefinition;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
+import monasca.thresh.domain.model.TenantIdAndMetricName;
 import monasca.thresh.domain.service.AlarmDAO;
 import monasca.thresh.domain.service.AlarmDefinitionDAO;
 import monasca.thresh.infrastructure.thresholding.AlarmEventForwarder;
@@ -62,13 +70,18 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
  * Simulates a real'ish run of the thresholding engine with alarms being created, updated and
  * deleted
+ *
+ * This doesn't currently do everything it used to because thresh doesn't handle updating
+ * expressions of Alarm Definitions. So lots of stuff commented
  */
 @Test(groups = "integration")
 public class ThresholdingEngineAlarmTest extends TopologyTestCase {
@@ -79,7 +92,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
   private static final String TEST_ALARM_DESCRIPTION = "Description of test-alarm";
   private FeederSpout metricSpout;
   private FeederSpout eventSpout;
-  private AlarmDAO alarmDAO;
+  private MockAlarmDAO alarmDAO;
   private AlarmDefinitionDAO alarmDefinitionDAO;
   private final AlarmEventForwarder alarmEventForwarder;
   private int nextSubAlarmId = 4242;
@@ -90,21 +103,18 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
   private AlarmState currentState = AlarmState.UNDETERMINED;
   private volatile int alarmsSent = 0;
 
+  /**
+   * This still doesn't work. Needs more updates
+   */
   public ThresholdingEngineAlarmTest() {
+
     // Fixtures
     subAlarms = subAlarmsFor(TEST_ALARM_ID, expression);
 
+    alarmDefinitionDAO = mock(AlarmDefinitionDAO.class);
+
     // Mocks
-    alarmDAO = mock(AlarmDAO.class);
-    /* FIX THIS TO MATCH THE CORRECT METHOD
-    when(alarmDAO.findById(anyString())).thenAnswer(new Answer<Alarm>() {
-      @Override
-      public Alarm answer(InvocationOnMock invocation) throws Throwable {
-        return new Alarm(TEST_ALARM_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME,
-            TEST_ALARM_DESCRIPTION, expression, subAlarms, currentState, Boolean.TRUE);
-      }
-    });
-    */
+    alarmDAO = new MockAlarmDAO();
 
     // Bindings
     Injector.reset();
@@ -153,8 +163,11 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
     return result;
   }
 
-  final AlarmState[] expectedStates = {AlarmState.ALARM, AlarmState.OK, AlarmState.ALARM,
-      AlarmState.OK};
+  final AlarmState[] expectedStates = {AlarmState.ALARM, AlarmState.ALARM, AlarmState.OK,
+      AlarmState.ALARM, AlarmState.OK};
+
+  private String expectedAlarmName = TEST_ALARM_NAME;
+  private String expectedAlarmDescription = TEST_ALARM_DESCRIPTION;
 
   public void shouldThreshold() throws Exception {
     doAnswer(new Answer<Object>() {
@@ -162,16 +175,19 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
         final Object[] args = invocation.getArguments();
         AlarmStateTransitionedEvent event = Serialization.fromJson((String) args[2]);
         System.out.printf("Alarm transitioned from %s to %s%n", event.oldState, event.newState);
-        assertEquals(event.alarmName, TEST_ALARM_NAME);
-        assertEquals(event.alarmId, TEST_ALARM_ID);
+        assertEquals(event.alarmName, expectedAlarmName);
+        assertEquals(event.alarmDefinitionId, TEST_ALARM_DEFINITION_ID);
+        assertEquals(event.alarmDescription, expectedAlarmDescription);
         assertEquals(event.tenantId, TEST_ALARM_TENANT_ID);
         assertEquals(event.oldState, currentState);
         currentState = event.newState;
         assertEquals(event.newState, expectedStates[alarmsSent++]);
+        // TODO Check Alarmed Metrics
         return null;
       }
     }).when(alarmEventForwarder).send(anyString(), anyString(), anyString());
     int goodValueCount = 0;
+    boolean waitForAlarmCreation = true;
     boolean firstUpdate = true;
     boolean secondUpdate = true;
     boolean thirdUpdate = true;
@@ -181,16 +197,98 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
     final Alarm initialAlarm =
         new Alarm(TEST_ALARM_ID, subAlarms, initialAlarmDefinition.getId(), AlarmState.UNDETERMINED);
     final int expectedAlarms = expectedStates.length;
+
+    final Set<MetricDefinitionAndTenantId> mtids = new HashSet<MetricDefinitionAndTenantId>();
+    for (final AlarmSubExpression subExpr : expression.getSubExpressions()) {
+      final Map<String, String> dimensions = new HashMap<>(subExpr.getMetricDefinition().dimensions);
+      dimensions.put("hostname", "eleanore");
+      final MetricDefinition metricDefinition = new MetricDefinition(subExpr.getMetricDefinition().name, dimensions);
+      final MetricDefinitionAndTenantId metricDefinitionAndTenantId =
+          new MetricDefinitionAndTenantId(metricDefinition, TEST_ALARM_TENANT_ID);
+      mtids.add(metricDefinitionAndTenantId);
+    }
+
+    final AlarmDefinition alarmDefinition =
+        new AlarmDefinition(TEST_ALARM_DEFINITION_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME,
+            TEST_ALARM_DESCRIPTION, expression, true, Arrays.asList("hostname"));
+    Alarm alarm = null;
     AlarmExpression savedAlarmExpression = null;
     for (int i = 1; alarmsSent != expectedAlarms && i < 300; i++) {
       if (i == 5) {
         final Map<String, AlarmSubExpression> exprs = createSubExpressionMap();
         final AlarmDefinitionCreatedEvent event =
-            new AlarmDefinitionCreatedEvent(TEST_ALARM_TENANT_ID, TEST_ALARM_DEFINITION_ID, TEST_ALARM_NAME, TEST_ALARM_DESCRIPTION,
+            new AlarmDefinitionCreatedEvent(alarmDefinition.getTenantId(), alarmDefinition.getId(),
+                alarmDefinition.getName(), alarmDefinition.getDescription(),
                 expression.getExpression(), exprs, Arrays.asList("hostname"));
+        when(alarmDefinitionDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
         eventSpout.feed(new Values(event));
-        System.out.printf("Send AlarmCreatedEvent for expression %s%n", expression.getExpression());
+        System.out.printf("Sent AlarmDefinitionCreatedEvent for expression %s%n", expression.getExpression());
+      } else if (waitForAlarmCreation) {
+          final List<Alarm> alarms = alarmDAO.listAll();
+          if (alarms.size() > 0) {
+            waitForAlarmCreation = false;
+            assertEquals(1, alarms.size());
+            alarm = alarms.get(0);
+            System.out.printf("Alarm %s created with state %s", alarm.getId(), alarm.getState());
+            System.out.printf("Waiting for state change");
+          }
       } else if (alarmsSent == 1 && firstUpdate) {
+        Map<String, AlarmSubExpression> empty = new HashMap<>();
+        Map<String, AlarmSubExpression> unchangedSubExpressions = new HashMap<>(); // TODO -
+                                                                                   // initialize
+                                                                                   // this
+        expectedAlarmName = "New Alarm Name";
+        expectedAlarmDescription = "New Alarm Description";
+        final AlarmDefinitionUpdatedEvent alarmDefinitionUpdatedEvent =
+            new AlarmDefinitionUpdatedEvent(TEST_ALARM_TENANT_ID, alarmDefinition.getId(),
+                expectedAlarmName, expectedAlarmDescription, alarmDefinition.getAlarmExpression()
+                    .getExpression(), alarmDefinition.getMatchBy(), false, "MAJOR", empty, empty,
+                unchangedSubExpressions, empty);
+        eventSpout.feed(new Values(alarmDefinitionUpdatedEvent));
+        System.out.println("Sent AlarmDefinitionUpdatedEvent");
+        firstUpdate = false;
+      } else if (alarmsSent == 1 && secondUpdate) {
+        final AlarmUpdatedEvent alarmUpdatedEvent =
+            EventProcessingBoltTest.createAlarmUpdatedEvent(alarmDefinition, alarm,
+                AlarmState.OK);
+        eventSpout.feed(new Values(alarmUpdatedEvent));
+        System.out.println("Sent AlarmUpdatedEvent to " + alarmUpdatedEvent.alarmState);
+        // An AlarmStateTransitionedEvent doesn't get generated for this so change the current state
+        // manually
+        currentState = AlarmState.OK;
+        secondUpdate = false;
+      } else if (alarmsSent == 2 && thirdUpdate) {
+        /* TODO TAKE THIS OUT */
+
+        final Map<String, MetricDefinition> subAlarmMetricDefinitions = new HashMap<>();
+        for (final AlarmSubExpression subExpr : alarmDefinition.getAlarmExpression().getSubExpressions()) {
+          subAlarmMetricDefinitions.put(UUID.randomUUID().toString(), subExpr.getMetricDefinition());
+        }
+        final AlarmDefinitionDeletedEvent alarmDefinitionDeletedEvent = new AlarmDefinitionDeletedEvent(alarmDefinition.getId(),
+            subAlarmMetricDefinitions);
+
+        when(alarmDefinitionDAO.findById(alarmDefinition.getId())).thenReturn(null);
+        eventSpout.feed(new Values(alarmDefinitionDeletedEvent));
+        System.out.println("Sent AlarmDefinitionDeletedEvent");
+
+        final List<MetricDefinition> alarmedMetrics = new ArrayList<>();
+        for (final MetricDefinitionAndTenantId mtid : alarm.getAlarmedMetrics()) {
+          alarmedMetrics.add(mtid.metricDefinition);
+        }
+        final Map<String, AlarmSubExpression> subAlarms = new HashMap<>();
+        for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
+          subAlarms.put(subAlarm.getId(), subAlarm.getExpression());
+        }
+        final AlarmDeletedEvent deleteEvent =
+            new AlarmDeletedEvent(TEST_ALARM_TENANT_ID, alarm.getId(), alarmedMetrics,
+                alarm.getAlarmDefinitionId(), subAlarms);
+        assertTrue(alarmDAO.deleteAlarm(alarm));
+        eventSpout.feed(new Values(deleteEvent));
+        System.out.println("Sent AlarmDeletedEvent");
+
+        secondUpdate = false;
+        /* TODO Through here */
+        /*
         firstUpdate = false;
         final String originalExpression = expression.getExpression();
         expression = new AlarmExpression(originalExpression.replace(">= 3", ">= 556"));
@@ -256,19 +354,16 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
         eventSpout.feed(new Values(event));
 
         System.out.printf("Send AlarmUpdatedEvent for expression %s%n", expression.getExpression());
-      } else {
-        System.out.println("Feeding metrics...");
+        */
+      }
+      System.out.println("Feeding metrics...");
 
-        long time = System.currentTimeMillis() / 1000;
-        ++goodValueCount;
-        for (final SubAlarm subAlarm : subAlarms) {
-          final MetricDefinitionAndTenantId metricDefinitionAndTenantId =
-              new MetricDefinitionAndTenantId(subAlarm.getExpression().getMetricDefinition(),
-                  TEST_ALARM_TENANT_ID);
-          metricSpout.feed(new Values(metricDefinitionAndTenantId, time, new Metric(
-              metricDefinitionAndTenantId.metricDefinition, time,
-              (double) (goodValueCount == 15 ? 1 : 555))));
-        }
+      long time = System.currentTimeMillis() / 1000;
+      ++goodValueCount;
+      for (final MetricDefinitionAndTenantId metricDefinitionAndTenantId : mtids) {
+        metricSpout.feed(new Values(new TenantIdAndMetricName(metricDefinitionAndTenantId), time,
+            new Metric(metricDefinitionAndTenantId.metricDefinition, time,
+                (double) (++goodValueCount == 15 ? 1 : 555))));
       }
       try {
         Thread.sleep(500);
@@ -294,5 +389,62 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
       exprs.put(subAlarm.getId(), subAlarm.getExpression());
     }
     return exprs;
+  }
+
+  final class MockAlarmDAO implements AlarmDAO {
+
+    final List<Alarm> alarms = new LinkedList<>();
+
+    @Override
+    public Alarm findById(String id) {
+      for (final Alarm alarm : alarms) {
+        if (alarm.getId().equals(id)) {
+          return alarm;
+        }
+      }
+      fail("Did not find Alarm for id=" + id);
+      return null;
+    }
+
+    @Override
+    public List<Alarm> findForAlarmDefinitionId(String alarmDefinitionId) {
+      final List<Alarm> result = new LinkedList<>();
+      for (final Alarm alarm : alarms) {
+        if (alarm.getAlarmDefinitionId().equals(alarmDefinitionId)) {
+          result.add(alarm);
+        }
+      }
+      return result;
+    }
+
+    @Override
+    public List<Alarm> listAll() {
+      return alarms;
+    }
+
+    @Override
+    public void updateState(String id, AlarmState state) {
+      findById(id).setState(state);
+    }
+
+    @Override
+    public void addAlarmedMetric(String id, MetricDefinitionAndTenantId metricDefinition) {
+      findById(id).addAlarmedMetric(metricDefinition);
+    }
+
+    @Override
+    public void createAlarm(Alarm newAlarm) {
+      alarms.add(newAlarm);
+    }
+
+    public boolean deleteAlarm(final Alarm toDelete) {
+      for (final Alarm alarm : alarms) {
+        if (alarm.getId().equals(toDelete.getId())) {
+           alarms.remove(alarm);
+           return true;
+        }
+      }
+      return false;
+    }
   }
 }

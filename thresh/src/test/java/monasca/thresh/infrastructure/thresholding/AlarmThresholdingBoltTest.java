@@ -153,12 +153,10 @@ public class AlarmThresholdingBoltTest {
   }
 
   public void simpleAlarmUpdate() {
-    String alarmId = setUpInitialAlarm();
-
     // Now send an AlarmUpdatedEvent
     final AlarmState newState = AlarmState.OK;
     final AlarmUpdatedEvent event =
-        new AlarmUpdatedEvent(alarmId, alarmDefinition.getId(), alarm.getState(), newState);
+        EventProcessingBoltTest.createAlarmUpdatedEvent(alarmDefinition, alarm, newState);
     final Tuple updateTuple = createAlarmUpdateTuple(event);
     bolt.execute(updateTuple);
     verify(collector, times(1)).ack(updateTuple);
@@ -168,22 +166,29 @@ public class AlarmThresholdingBoltTest {
   public void simpleAlarmDefinitionUpdate() {
     String alarmDefId = alarmDefinition.getId();
 
+    // Ensure the Alarm Definition gets loaded
+    final SubAlarm subAlarm = subAlarms.get(0);
+    final String alarmId = alarm.getId();
+    when(alarmDAO.findById(alarmId)).thenReturn(alarm);
+    when(alarmDefinitionDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
+    emitSubAlarmStateChange(alarmId, subAlarm, AlarmState.ALARM);
+
     // Now send an AlarmDefinitionUpdatedEvent
     final Map<String, AlarmSubExpression> empty = new HashMap<>();
     final String newName = "New Name";
     final String newDescription = "New Description";
-    final List<String> newMatchBy = Arrays.asList("new match");
     boolean newEnabled = false;
+    final String newSeverity  = "MAJOR";
     final AlarmDefinitionUpdatedEvent event =
-        new AlarmDefinitionUpdatedEvent(tenantId, alarmDefId, newName, newDescription, alarmDefinition
-            .getAlarmExpression().getExpression(), newMatchBy, newEnabled, empty,
-            empty, empty, empty);
+        new AlarmDefinitionUpdatedEvent(tenantId, alarmDefId, newName, newDescription,
+            alarmDefinition.getAlarmExpression().getExpression(), alarmDefinition.getMatchBy(),
+            newEnabled, newSeverity, empty, empty, empty, empty);
     final Tuple updateTuple = createAlarmDefinitionUpdateTuple(event);
     bolt.execute(updateTuple);
     verify(collector, times(1)).ack(updateTuple);
     assertEquals(alarmDefinition.getName(), newName);
+    assertEquals(alarmDefinition.getDescription(), newDescription);
     assertEquals(alarmDefinition.isActionsEnabled(), newEnabled);
-    assertEquals(alarmDefinition.getMatchBy(), newMatchBy);
   }
 
   public void complexAlarmUpdate() {
@@ -270,8 +275,7 @@ public class AlarmThresholdingBoltTest {
     tupleParam.setFields(EventProcessingBolt.ALARM_DEFINITION_EVENT_FIELDS);
     tupleParam.setStream(EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID);
     final Tuple tuple =
-        Testing.testTuple(Arrays.asList(EventProcessingBolt.UPDATED, event.alarmDefinitionId, event),
-            tupleParam);
+        Testing.testTuple(Arrays.asList(EventProcessingBolt.UPDATED, event), tupleParam);
     return tuple;
   }
 

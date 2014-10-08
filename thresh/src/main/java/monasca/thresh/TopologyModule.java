@@ -151,6 +151,7 @@ public class TopologyModule extends AbstractModule {
         .fieldsGrouping("aggregation-bolt", new Fields(MetricAggregationBolt.FIELDS[0]))
         .fieldsGrouping("event-bolt", EventProcessingBolt.ALARM_EVENT_STREAM_ID,
             new Fields(EventProcessingBolt.ALARM_EVENT_STREAM_FIELDS[1]))
+        .allGrouping("event-bolt", EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID)
         .setNumTasks(config.thresholdingBoltTasks);
 
     return builder.createTopology();

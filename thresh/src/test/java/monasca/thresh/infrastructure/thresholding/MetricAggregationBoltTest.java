@@ -60,6 +60,7 @@ import java.util.List;
 @Test
 public class MetricAggregationBoltTest {
   private static final String TENANT_ID = "42";
+  private static final String ALARM_ID_1 = "123";
   private MockMetricAggregationBolt bolt;
   private TopologyContext context;
   private OutputCollector collector;
@@ -89,7 +90,7 @@ public class MetricAggregationBoltTest {
   @BeforeMethod
   protected void beforeMethod() {
     // Fixtures
-    subAlarm1 = new SubAlarm("123", "1", subExpr1, AlarmState.UNDETERMINED);
+    subAlarm1 = new SubAlarm(ALARM_ID_1, "1", subExpr1, AlarmState.UNDETERMINED);
     subAlarm2 = new SubAlarm("456", "1", subExpr2, AlarmState.UNDETERMINED);
     subAlarm3 = new SubAlarm("789", "2", subExpr3, AlarmState.UNDETERMINED);
     subAlarms = new ArrayList<>();
@@ -208,7 +209,15 @@ public class MetricAggregationBoltTest {
   }
 
   private void sendSubAlarmCreated(MetricDefinition metricDef, SubAlarm subAlarm) {
-    sendSubAlarmMsg(EventProcessingBolt.CREATED, metricDef, subAlarm);
+    final MkTupleParam tupleParam = new MkTupleParam();
+    tupleParam.setFields(AlarmCreationBolt.ALARM_CREATION_FIELDS);
+    tupleParam.setStream(AlarmCreationBolt.ALARM_CREATION_STREAM);
+    final String alarmDefinitionString = ""; // TODO - Figure out what this needs to be
+    final Tuple tuple =
+        Testing.testTuple(Arrays.asList(EventProcessingBolt.CREATED, new TenantIdAndMetricName(
+            TENANT_ID, metricDef.name), new MetricDefinitionAndTenantId(metricDef, TENANT_ID),
+            alarmDefinitionString, subAlarm), tupleParam);
+    bolt.execute(tuple);
   }
 
   private void sendSubAlarmResend(MetricDefinition metricDef, SubAlarm subAlarm) {
@@ -217,13 +226,14 @@ public class MetricAggregationBoltTest {
 
   private void sendSubAlarmMsg(String command, MetricDefinition metricDef, SubAlarm subAlarm) {
     final MkTupleParam tupleParam = new MkTupleParam();
-    tupleParam.setFields(AlarmCreationBolt.ALARM_CREATION_FIELDS);
-    tupleParam.setStream(AlarmCreationBolt.ALARM_CREATION_STREAM);
-    final String alarmDefinitionString = ""; // TODO - Figure out what this needs to be
-    final Tuple resendTuple =
-        Testing.testTuple(Arrays.asList(command, new TenantIdAndMetricName(TENANT_ID, metricDef.name),
-            new MetricDefinitionAndTenantId(metricDef, TENANT_ID), alarmDefinitionString, subAlarm), tupleParam);
-    bolt.execute(resendTuple);
+    tupleParam.setFields(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_FIELDS);
+    tupleParam.setStream(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID);
+    final String alarmDefinitionId = "";
+    final MetricDefinitionAndTenantId mdtid = new MetricDefinitionAndTenantId(metricDef, TENANT_ID);
+    final Tuple tuple =
+        Testing.testTuple(Arrays.asList(command, new TenantIdAndMetricName(mdtid), mdtid,
+            alarmDefinitionId, subAlarm.getId()), tupleParam);
+    bolt.execute(tuple);
   }
 
   public void shouldSendUndeterminedIfStateChanges() {
@@ -295,7 +305,7 @@ public class MetricAggregationBoltTest {
 
     sendSubAlarmCreated(metricDef1, subAlarm1);
 
-    assertNotNull(bolt.metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId).get("123"));
+    assertNotNull(bolt.metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId).get(ALARM_ID_1));
   }
 
   public void validateMetricDefUpdatedThreshold() {
@@ -345,6 +355,7 @@ public class MetricAggregationBoltTest {
   }
 
   private SubAlarmStats updateSubAlarmsStats(AlarmSubExpression subExpr, String newSubExpression) {
+
     final MkTupleParam tupleParam = new MkTupleParam();
     tupleParam.setFields(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_FIELDS);
     tupleParam.setStream(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID);
@@ -353,21 +364,25 @@ public class MetricAggregationBoltTest {
         new MetricDefinitionAndTenantId(subExpr.getMetricDefinition(), TENANT_ID);
     assertNull(bolt.metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId));
 
+    SubAlarm subAlarm = new SubAlarm(ALARM_ID_1, "1", subExpr);
+    sendSubAlarmCreated(metricDefinitionAndTenantId.metricDefinition, subAlarm);
+
     bolt.execute(Testing.testTuple(Arrays.asList(EventProcessingBolt.CREATED,
-        metricDefinitionAndTenantId, new SubAlarm("123", "1", subExpr)), tupleParam));
+        new TenantIdAndMetricName(metricDefinitionAndTenantId), metricDefinitionAndTenantId,
+        subAlarm), tupleParam));
     final SubAlarmStats oldStats =
-        bolt.metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId).get("123");
+        bolt.metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId).get(ALARM_ID_1);
     assertEquals(oldStats.getSubAlarm().getExpression().getThreshold(), 90.0);
     assertTrue(oldStats.getStats().addValue(80.0, System.currentTimeMillis() / 1000));
     assertFalse(Double.isNaN(oldStats.getStats().getWindowValues()[0]));
-    assertNotNull(bolt.metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId).get("123"));
+    assertNotNull(bolt.metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId).get(ALARM_ID_1));
 
     final AlarmSubExpression newExpr = AlarmSubExpression.of(newSubExpression);
-
     bolt.execute(Testing.testTuple(Arrays.asList(EventProcessingBolt.UPDATED,
-        metricDefinitionAndTenantId, new SubAlarm("123", "1", newExpr)), tupleParam));
+        new TenantIdAndMetricName(metricDefinitionAndTenantId), metricDefinitionAndTenantId,
+        new SubAlarm(ALARM_ID_1, "1", newExpr)), tupleParam));
 
-    return bolt.metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId).get("123");
+    return bolt.metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId).get(ALARM_ID_1);
   }
 
   public void validateMetricDefDeleted() {
@@ -378,12 +393,19 @@ public class MetricAggregationBoltTest {
         new MetricDefinitionAndTenantId(metricDef1, TENANT_ID);
     bolt.getOrCreateSubAlarmStatsRepo(metricDefinitionAndTenantId);
 
-    assertNotNull(bolt.metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId).get("123"));
+    sendSubAlarmCreated(metricDef1, subAlarm1);
+    
+    assertNotNull(bolt.metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId).get(ALARM_ID_1));
 
-    bolt.execute(Testing.testTuple(
-        Arrays.asList(EventProcessingBolt.DELETED, metricDefinitionAndTenantId, "123"), tupleParam));
+    // We don't have an AlarmDefinition so no id, but the MetricAggregationBolt doesn't use this
+    // field anyways
+    final String alarmDefinitionId = "";
+    bolt.execute(Testing.testTuple(Arrays.asList(EventProcessingBolt.DELETED,
+        new TenantIdAndMetricName(metricDefinitionAndTenantId), metricDefinitionAndTenantId,
+        alarmDefinitionId, ALARM_ID_1), tupleParam));
 
     assertNull(bolt.metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId));
+    assertTrue(bolt.subAlarmRemoved(ALARM_ID_1, metricDefinitionAndTenantId));
   }
 
   private Tuple createMetricTuple(final MetricDefinition metricDef, final Metric metric) {

@@ -116,11 +116,31 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
           handleAlarmUpdated(alarmId, (AlarmUpdatedEvent) tuple.getValue(2));
         }
       }
+      else if (EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
+        String eventType = tuple.getString(0);
+        if (EventProcessingBolt.UPDATED.equals(eventType)) {
+          handle((AlarmDefinitionUpdatedEvent) tuple.getValue(1));
+        }
+      }
     } catch (Exception e) {
       logger.error("Error processing tuple {}", tuple, e);
     } finally {
       collector.ack(tuple);
     }
+  }
+
+  private void handle(AlarmDefinitionUpdatedEvent event) {
+    final AlarmDefinition alarmDefinition = alarmDefinitions.get(event.alarmDefinitionId);
+    if (alarmDefinition == null) {
+      // This is OK. No Alarms are using this AlarmDefinition
+      logger.info("Update of AlarmDefinition {} skipped. Not in use by this bolt",
+          event.alarmDefinitionId);
+      return;
+    }
+    logger.info("Updating AlarmDefinition {}", event.alarmDefinitionId);
+    alarmDefinition.setName(event.alarmName);
+    alarmDefinition.setDescription(event.alarmDescription);
+    alarmDefinition.setActionsEnabled(event.alarmActionsEnabled);
   }
 
   @Override

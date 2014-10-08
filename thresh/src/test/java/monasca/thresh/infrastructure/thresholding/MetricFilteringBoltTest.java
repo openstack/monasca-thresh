@@ -22,8 +22,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.testng.Assert.assertEquals;
 
 import com.hpcloud.mon.common.event.AlarmDefinitionCreatedEvent;
+import com.hpcloud.mon.common.event.AlarmDefinitionDeletedEvent;
 import com.hpcloud.mon.common.model.alarm.AlarmExpression;
 import com.hpcloud.mon.common.model.alarm.AlarmState;
 import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
@@ -112,15 +114,18 @@ public class MetricFilteringBoltTest {
       for (final Alarm alarm : initialAlarms) {
         final AlarmDefinition alarmDefinition = alarmDefinitions.get(alarm.getAlarmDefinitionId());
         for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
-          final MetricDefinitionAndTenantId mtid =
-              new MetricDefinitionAndTenantId(subAlarm.getExpression().getMetricDefinition(),
-                  alarmDefinition.getTenantId());
-          final TenantIdAndMetricName timn = new TenantIdAndMetricName(mtid);
-          verify(collector, times(1))
-              .emit(
-                  AlarmCreationBolt.ALARM_CREATION_STREAM,
-                  new Values(EventProcessingBolt.CREATED, timn, mtid, alarmDefinition.getId(),
-                      subAlarm));
+          for (MetricDefinitionAndTenantId mtid : alarm.getAlarmedMetrics()) {
+            // Skip metrics that don't match this sub alarm. The real check checks dimensions but
+            // for this test, the name match is sufficient
+            if (!mtid.metricDefinition.name.equals(subAlarm.getExpression().getMetricDefinition().name)) {
+              continue;
+            }
+            final TenantIdAndMetricName timn = new TenantIdAndMetricName(mtid);
+            verify(collector, times(1)).emit(
+                AlarmCreationBolt.ALARM_CREATION_STREAM,
+                new Values(EventProcessingBolt.CREATED, timn, mtid, alarmDefinition.getId(),
+                    subAlarm));
+          }
         }
       }
     }
@@ -234,65 +239,53 @@ public class MetricFilteringBoltTest {
     final MetricFilteringBolt bolt2 =
         createBolt(new ArrayList<AlarmDefinition>(0), new ArrayList<Alarm>(0), collector2, false);
 
+    final List<Alarm> alarms = createMatchingAlarms(Arrays.asList(alarmDef1, dupMetricAlarmDef));
+
     // First ensure metrics don't pass the filter
-    verifyMetricFiltered(collector1, bolt1);
-    verifyMetricFiltered(collector2, bolt2);
+    verifyMetricFiltered(alarms, collector1, bolt1);
+    verifyMetricFiltered(alarms, collector2, bolt2);
 
     sendAlarmDefinitionCreation(collector1, bolt1);
     sendAlarmDefinitionCreation(collector2, bolt2);
 
     // Now ensure metrics pass the filter
-    verifyMetricPassed(collector1, bolt1);
-    verifyNewMetricDefinitionMessagesSent(collector1, bolt1);
-    verifyMetricPassed(collector2, bolt2);
-    verifyNoNewMetricDefinitionMessagesSent(collector2, bolt2);
+    verifyMetricPassed(alarms, collector1, bolt1);
+    verifyNewMetricDefinitionMessagesSent(alarms, collector1, bolt1);
+    verifyMetricPassed(alarms, collector2, bolt2);
+    verifyNoNewMetricDefinitionMessagesSent(alarms, collector2, bolt2);
 
-    testDeleteSubAlarms(bolt1, collector1, bolt2, collector2);
+    testDeleteAlarms(alarms, bolt1, collector1, bolt2, collector2, true);
   }
 
   private void sendAlarmDefinitionCreation(final OutputCollector collector1, final MetricFilteringBolt bolt1) {
     for (final AlarmDefinition alarmDef : Arrays.asList(alarmDef1, dupMetricAlarmDef)) {
-      final Tuple tuple = createAlarmDefinitionTuple(alarmDef);
+      final Tuple tuple = createNewAlarmDefinitionTuple(alarmDef);
       bolt1.execute(tuple);
       verify(collector1, times(1)).ack(tuple);
     }
   }
 
-  private void verifyMetricFiltered(final OutputCollector collector1,
+  private void verifyMetricFiltered(List<Alarm> alarms, final OutputCollector collector1,
       final MetricFilteringBolt bolt1) {
-    sendMetricsAndVerify(collector1, bolt1, never());
+    sendMetricsAndVerify(alarms, collector1, bolt1, never());
   }
 
-  private void verifyMetricPassed(final OutputCollector collector1, final MetricFilteringBolt bolt1) {
-    sendMetricsAndVerify(collector1, bolt1, times(1));
+  private void verifyMetricPassed(List<Alarm> alarms, final OutputCollector collector1, final MetricFilteringBolt bolt1) {
+    sendMetricsAndVerify(alarms, collector1, bolt1, times(1));
   }
 
-  private List<AlarmSubExpression> getAllSubAlarms() {
-    final List<AlarmSubExpression> result = new ArrayList<>(alarmDef1.getAlarmExpression().getSubExpressions());
-    result.addAll(dupMetricAlarmDef.getAlarmExpression().getSubExpressions());
-    return result;
-  }
-
-  private void sendMetricsAndVerify(final OutputCollector collector1,
+  private void sendMetricsAndVerify(List<Alarm> alarms, final OutputCollector collector1,
       final MetricFilteringBolt bolt1, VerificationMode howMany) {
-    for (final AlarmSubExpression subExpr : getAllSubAlarms()) {
-      // First do a MetricDefinition that is an exact match
-      final MetricDefinition metricDefinition = subExpr.getMetricDefinition();
-      final Tuple exactTuple =
-          createMetricTuple(metricDefinition, metricTimestamp++, new Metric(metricDefinition,
-              metricTimestamp, 42.0));
-      bolt1.execute(exactTuple);
-      verify(collector1, times(1)).ack(exactTuple);
-      verify(collector1, howMany).emit(new Values(exactTuple.getValue(0), exactTuple.getValue(2)));
-
-      // Now do a MetricDefinition with an extra dimension that should still match the SubExpression
-      final MetricDefinition inexactMetricDef = addExtraDimension(metricDefinition);
-      final Metric inexactMetric = new Metric(inexactMetricDef, metricTimestamp, 42.0);
-      final Tuple inexactTuple =
-          createMetricTuple(metricDefinition, metricTimestamp++, inexactMetric);
-      bolt1.execute(inexactTuple);
-      verify(collector1, times(1)).ack(inexactTuple);
-      verify(collector1, howMany).emit(new Values(exactTuple.getValue(0), inexactMetric));
+    for (final Alarm alarm : alarms) {
+      for (MetricDefinitionAndTenantId mtid : alarm.getAlarmedMetrics()) {
+        final Tuple exactTuple =
+            createMetricTuple(mtid.metricDefinition, metricTimestamp++, new Metric(
+                mtid.metricDefinition, metricTimestamp, 42.0));
+        bolt1.execute(exactTuple);
+        verify(collector1, times(1)).ack(exactTuple);
+        verify(collector1, howMany)
+            .emit(new Values(exactTuple.getValue(0), exactTuple.getValue(2)));
+      }
     }
   }
 
@@ -304,35 +297,22 @@ public class MetricFilteringBoltTest {
     return inexactMetricDef;
   }
 
-  private void verifyNewMetricDefinitionMessagesSent(final OutputCollector collector,
+  private void verifyNewMetricDefinitionMessagesSent(List<Alarm> alarms, final OutputCollector collector,
       final MetricFilteringBolt bolt) {
-    verifyNewMetricDefinitionMessages(collector, bolt, times(1));
+    verifyNewMetricDefinitionMessages(alarms, collector, bolt, times(1));
   }
 
-  private void verifyNoNewMetricDefinitionMessagesSent(final OutputCollector collector,
+  private void verifyNoNewMetricDefinitionMessagesSent(List<Alarm> alarms, final OutputCollector collector,
       final MetricFilteringBolt bolt) {
-    verifyNewMetricDefinitionMessages(collector, bolt, never());
+    verifyNewMetricDefinitionMessages(alarms, collector, bolt, never());
   }
 
-  private void verifyNewMetricDefinitionMessages(final OutputCollector collector,
+  private void verifyNewMetricDefinitionMessages(List<Alarm> alarms, final OutputCollector collector,
         final MetricFilteringBolt bolt, VerificationMode howMany) {
-    for (final AlarmDefinition alarmDefinition : Arrays.asList(alarmDef1, dupMetricAlarmDef)) {
-      for (final AlarmSubExpression subExpr : alarmDefinition.getAlarmExpression()
-          .getSubExpressions()) {
-        final MetricDefinitionAndTenantId mtid =
-            new MetricDefinitionAndTenantId(subExpr.getMetricDefinition(),
-                alarmDefinition.getTenantId()); // First do a MetricDefinition that is an exact
-                                                // match
+    for (final Alarm alarm : alarms) {
+      for (MetricDefinitionAndTenantId mtid : alarm.getAlarmedMetrics()) {
         verify(collector, howMany)
-            .emit(MetricFilteringBolt.NEW_METRIC_FOR_ALARM_DEFINITION_STREAM, new Values(mtid, alarmDefinition.getId()));
-
-        // Now do a MetricDefinition with an extra dimension that should still match the
-        // SubExpression
-        final MetricDefinition inexactMetricDef = addExtraDimension(subExpr.getMetricDefinition());
-        verify(collector, howMany).emit(
-            MetricFilteringBolt.NEW_METRIC_FOR_ALARM_DEFINITION_STREAM,
-            new Values(new MetricDefinitionAndTenantId(inexactMetricDef, alarmDefinition
-                .getTenantId()), alarmDefinition.getId()));
+            .emit(MetricFilteringBolt.NEW_METRIC_FOR_ALARM_DEFINITION_STREAM, new Values(mtid, alarm.getAlarmDefinitionId()));
       }
     }
   }
@@ -351,19 +331,19 @@ public class MetricFilteringBoltTest {
     final MetricFilteringBolt bolt2 = createBolt(initialAlarmDefinitions, initialAlarms, collector2, false);
 
     // Now ensure metrics pass the filter
-    verifyMetricPassed(collector1, bolt1);
-    verifyNoNewMetricDefinitionMessagesSent(collector1, bolt1);
-    verifyMetricPassed(collector2, bolt2);
-    verifyNoNewMetricDefinitionMessagesSent(collector2, bolt2);
+    verifyMetricPassed(initialAlarms, collector1, bolt1);
+    verifyNoNewMetricDefinitionMessagesSent(initialAlarms, collector1, bolt1);
+    verifyMetricPassed(initialAlarms, collector2, bolt2);
+    verifyNoNewMetricDefinitionMessagesSent(initialAlarms, collector2, bolt2);
 
-    testDeleteSubAlarms(bolt1, collector1, bolt2, collector2);
+    testDeleteAlarms(initialAlarms, bolt1, collector1, bolt2, collector2, false);
   }
 
   private List<Alarm> createMatchingAlarms(List<AlarmDefinition> alarmDefinitions) {
     final List<Alarm> alarms = new LinkedList<>();
     for (final AlarmDefinition alarmDef : alarmDefinitions) {
       final Alarm alarm = new Alarm(getNextId(), alarmDef, AlarmState.UNDETERMINED);
-      for (final AlarmSubExpression subExpr : getAllSubAlarms()) {
+      for (final AlarmSubExpression subExpr : alarmDef.getAlarmExpression().getSubExpressions()) {
         // First do a MetricDefinition that is an exact match
         final MetricDefinition metricDefinition = subExpr.getMetricDefinition();
         alarm.addAlarmedMetric(new MetricDefinitionAndTenantId(metricDefinition, alarmDef
@@ -381,38 +361,78 @@ public class MetricFilteringBoltTest {
     return alarms;
   }
 
-  private void testDeleteSubAlarms(MetricFilteringBolt bolt1, OutputCollector collector1,
-      MetricFilteringBolt bolt2, OutputCollector collector2) {
+  private void testDeleteAlarms(List<Alarm> alarms, MetricFilteringBolt bolt1, OutputCollector collector1,
+      MetricFilteringBolt bolt2, OutputCollector collector2, boolean newMetricsAlreadySent) {
 
-    // Now delete the SubAlarm that duplicated a MetricDefinition
-    deleteSubAlarms(bolt1, collector1, dupMetricAlarmDef);
-    deleteSubAlarms(bolt2, collector2, dupMetricAlarmDef);
+    final List<Alarm> deletedAlarms = new LinkedList<>();
+    final List<Alarm> notDeletedAlarms = new LinkedList<>();
+    // Now delete the alarm that duplicated a MetricDefinition
+    for (final Alarm alarm : alarms) {
+      if (alarm.getAlarmDefinitionId().equals(dupMetricAlarmDef.getId())) {
+        deleteSubAlarms(bolt1, collector1, alarm);
+        deleteSubAlarms(bolt2, collector2, alarm);
+        deletedAlarms.add(alarm);
+      }
+      else {
+        notDeletedAlarms.add(alarm);
+      }
+    }
 
     // Ensure metrics still pass the filter
-    verifyMetricPassed(collector1, bolt1);
-    verifyMetricPassed(collector2, bolt2);
+    verifyMetricPassed(alarms, collector1, bolt1);
+    verifyMetricPassed(alarms, collector2, bolt2);
 
-    /** TODO FIX ME, deleting sub alarms doesn't work yet
-    deleteSubAlarms(bolt1, collector1, alarmDef1);
+    int expected = newMetricsAlreadySent ? 1 : 0;
+    // New alarms will be created for dupMetricAlarmDef because it still exists
+    verifyNewMetricDefinitionMessages(deletedAlarms, collector1, bolt1, times(expected + 1));
+    verifyNoNewMetricDefinitionMessagesSent(deletedAlarms, collector2, bolt2);
+    verifyNewMetricDefinitionMessages(notDeletedAlarms, collector1, bolt1, times(expected));
+    verifyNoNewMetricDefinitionMessagesSent(notDeletedAlarms, collector2, bolt2);
+
+    // Now delete all the alarms
+    for (final Alarm alarm : alarms) {
+      deleteSubAlarms(bolt1, collector1, alarm);
+    }
+
     // All MetricDefinitions should be deleted
     assertEquals(MetricFilteringBolt.sizeMetricDefinitions(), 0);
-    deleteSubAlarms(bolt2, collector2, alarmDef1);
 
-    verifyMetricFiltered(collector1, bolt1);
-    verifyMetricFiltered(collector2, bolt2);
-    */
+    // Ensure bolt2 handles the fact that bolt1 deleted the metrics
+    for (final Alarm alarm : alarms) {
+      deleteSubAlarms(bolt2, collector2, alarm);
+    }
+
+    for (final AlarmDefinition alarmDefinition : Arrays.asList(alarmDef1, dupMetricAlarmDef)) {
+      deleteAlarmDefinition(alarmDefinition, bolt1, collector1);
+      deleteAlarmDefinition(alarmDefinition, bolt2, collector2);
+    }
+
+    verifyMetricFiltered(alarms, collector1, bolt1);
+    verifyMetricFiltered(alarms, collector2, bolt2);
+
+    verifyNewMetricDefinitionMessages(deletedAlarms, collector1, bolt1, times(expected + 1));
+    verifyNoNewMetricDefinitionMessagesSent(deletedAlarms, collector2, bolt2);
+    verifyNewMetricDefinitionMessages(notDeletedAlarms, collector1, bolt1, times(expected));
+    verifyNoNewMetricDefinitionMessagesSent(notDeletedAlarms, collector2, bolt2);
+  }
+
+  private void deleteAlarmDefinition(final AlarmDefinition alarmDefinition,
+      MetricFilteringBolt bolt, OutputCollector collector) {
+    final Tuple tuple = createDeleteAlarmDefinitionTuple(alarmDefinition);
+    bolt.execute(tuple);
+    verify(collector, times(1)).ack(tuple);
   }
 
   private void deleteSubAlarms(MetricFilteringBolt bolt, OutputCollector collector,
-      final AlarmDefinition alarmDefinition) {
-    for (final AlarmSubExpression subAlarm : alarmDefinition.getAlarmExpression().getSubExpressions()) {
-      final Tuple tuple = createMetricDefinitionDeletionTuple(alarmDefinition, subAlarm);
+      final Alarm alarm) {
+    for (final MetricDefinitionAndTenantId mtid : alarm.getAlarmedMetrics()) {
+      final Tuple tuple = createMetricDefinitionDeletionTuple(mtid, alarm.getAlarmDefinitionId());
       bolt.execute(tuple);
       verify(collector, times(1)).ack(tuple);
     }
   }
 
-  private Tuple createAlarmDefinitionTuple(final AlarmDefinition alarmDef) {
+  private Tuple createNewAlarmDefinitionTuple(final AlarmDefinition alarmDef) {
     final MkTupleParam tupleParam = new MkTupleParam();
     tupleParam.setFields(EventProcessingBolt.ALARM_DEFINITION_EVENT_FIELDS);
     tupleParam.setStream(EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID);
@@ -425,14 +445,31 @@ public class MetricFilteringBoltTest {
     return tuple;
   }
 
-  private Tuple createMetricDefinitionDeletionTuple(final AlarmDefinition alarmDef, final AlarmSubExpression subAlarm) {
+  private Tuple createDeleteAlarmDefinitionTuple(final AlarmDefinition alarmDef) {
+    final MkTupleParam tupleParam = new MkTupleParam();
+    tupleParam.setFields(EventProcessingBolt.ALARM_DEFINITION_EVENT_FIELDS);
+    tupleParam.setStream(EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID);
+    final Map<String, MetricDefinition> subAlarmMetricDefinitions = new HashMap<>();
+    for (final AlarmSubExpression subExpr : alarmDef.getAlarmExpression().getSubExpressions()) {
+      subAlarmMetricDefinitions.put(getNextId(), subExpr.getMetricDefinition());
+    }
+    final AlarmDefinitionDeletedEvent event =
+        new AlarmDefinitionDeletedEvent(alarmDef.getId(), subAlarmMetricDefinitions);
+    final Tuple tuple =
+        Testing.testTuple(Arrays.asList(EventProcessingBolt.DELETED, event), tupleParam);
+    return tuple;
+  }
+
+  private Tuple createMetricDefinitionDeletionTuple(final MetricDefinitionAndTenantId mtid,
+      final String alarmDefinitionId) {
     final MkTupleParam tupleParam = new MkTupleParam();
     tupleParam.setFields(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_FIELDS);
     tupleParam.setStream(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID);
+    // This code doesn't know the sub alarm id and the metric filtering bolt doesn't care
+    final String subAlarmId = "";
     final Tuple tuple =
         Testing.testTuple(Arrays.asList(EventProcessingBolt.DELETED,
-            new MetricDefinitionAndTenantId(subAlarm.getMetricDefinition(),
-                TEST_TENANT_ID), alarmDef.getId()), tupleParam);
+            new TenantIdAndMetricName(mtid), mtid, alarmDefinitionId, subAlarmId), tupleParam);
 
     return tuple;
   }
