@@ -170,8 +170,8 @@ public class MetricFilteringBolt extends BaseRichBolt {
                   (AlarmDefinitionCreatedEvent) tuple.getValue(1);
               final AlarmDefinition alarmDefinition =
                   new AlarmDefinition(event.alarmDefinitionId, event.tenantId, event.alarmName,
-                      event.alarmDescription, new AlarmExpression(event.alarmExpression), true,
-                      event.matchBy);
+                      event.alarmDescription, new AlarmExpression(event.alarmExpression), "LOW",
+                      true, event.matchBy);
               newAlarmDefinition(alarmDefinition);
             }
           }

@@ -140,6 +140,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     logger.info("Updating AlarmDefinition {}", event.alarmDefinitionId);
     alarmDefinition.setName(event.alarmName);
     alarmDefinition.setDescription(event.alarmDescription);
+    alarmDefinition.setSeverity(event.severity);
     alarmDefinition.setActionsEnabled(event.alarmActionsEnabled);
   }
 
@@ -202,7 +203,8 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
         new AlarmStateTransitionedEvent(alarmDefinition.getTenantId(), alarm.getId(),
             alarmDefinition.getId(), alarmedMetrics, alarmDefinition.getName(),
             alarmDefinition.getDescription(), initialState, alarm.getState(),
-            alarmDefinition.isActionsEnabled(), stateChangeReason, getTimestamp());
+            alarmDefinition.getSeverity(), alarmDefinition.isActionsEnabled(), stateChangeReason,
+            getTimestamp());
     try {
       alarmEventForwarder.send(alertExchange, alertRoutingKey, Serialization.toJson(event));
     } catch (Exception ignore) {

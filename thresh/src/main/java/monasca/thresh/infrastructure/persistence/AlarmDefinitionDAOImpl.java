@@ -18,20 +18,23 @@
 package monasca.thresh.infrastructure.persistence;
 
 import com.hpcloud.mon.common.model.alarm.AlarmExpression;
-import com.hpcloud.persistence.BeanMapper;
+
+import monasca.thresh.domain.model.AlarmDefinition;
+import monasca.thresh.domain.service.AlarmDefinitionDAO;
 
 import org.skife.jdbi.v2.DBI;
 import org.skife.jdbi.v2.Handle;
 import org.skife.jdbi.v2.Query;
+import org.skife.jdbi.v2.StatementContext;
+import org.skife.jdbi.v2.tweak.ResultSetMapper;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import javax.inject.Inject;
-
-import monasca.thresh.domain.model.AlarmDefinition;
-import monasca.thresh.domain.service.AlarmDefinitionDAO;
 
 public class AlarmDefinitionDAOImpl implements AlarmDefinitionDAO {
   private final DBI db;
@@ -47,98 +50,41 @@ public class AlarmDefinitionDAOImpl implements AlarmDefinitionDAO {
       final String sql =
           "select * from alarm_definition where deleted_at is NULL order by created_at";
 
-      final Query<?> q =
-          h.createQuery(sql).map(new BeanMapper<AlarmDefinitionHack>(AlarmDefinitionHack.class));
+      final Query<AlarmDefinition> q =
+          h.createQuery(sql).map(new AlarmDefinitionMapper());
 
-      @SuppressWarnings("unchecked")
-      final List<AlarmDefinitionHack> alarmDefHacks = (List<AlarmDefinitionHack>) q.list();
-      
-      final List<AlarmDefinition> alarmDefs = new ArrayList<>(alarmDefHacks.size());
-      for (final AlarmDefinitionHack alarmDefHack : alarmDefHacks) {
-        alarmDefs.add(transform(alarmDefHack));
-      }
+      final List<AlarmDefinition> alarmDefs = q.list();
       return alarmDefs;
     }
   }
 
-  public static class AlarmDefinitionHack {
-    private String id;
-    private String tenantId;
-    private String name;
-    private String description;
-    private String expression;
-    private boolean actionsEnabled;
-    private String matchBy;
-    public String getId() {
-      return id;
-    }
-    public void setId(String id) {
-      this.id = id;
-    }
-    public String getTenantId() {
-      return tenantId;
-    }
-    public void setTenantId(String tenantId) {
-      this.tenantId = tenantId;
-    }
-    public String getName() {
-      return name;
-    }
-    public void setName(String name) {
-      this.name = name;
-    }
-    public String getDescription() {
-      return description;
-    }
-    public void setDescription(String description) {
-      this.description = description;
-    }
-    public String getExpression() {
-      return expression;
-    }
-    public void setExpression(String expression) {
-      this.expression = expression;
-    }
-    public boolean isActionsEnabled() {
-      return actionsEnabled;
-    }
-    public void setActionsEnabled(boolean actionsEnabled) {
-      this.actionsEnabled = actionsEnabled;
-    }
-    public String getMatchBy() {
-      return matchBy;
-    }
-    public void setMatchBy(String matchBy) {
-      this.matchBy = matchBy;
+  private static class AlarmDefinitionMapper implements ResultSetMapper<AlarmDefinition> {
+    public AlarmDefinition map(int rowIndex, ResultSet rs, StatementContext ctxt)
+        throws SQLException {
+      final String matchByString = rs.getString("match_by");
+      final List<String> matchBy;
+      if (matchByString == null || matchByString.isEmpty()) {
+        matchBy = new ArrayList<>(0);
+      } else {
+        matchBy = new ArrayList<String>(Arrays.asList(matchByString.split(",")));
+      }
+      final AlarmDefinition real =
+          new AlarmDefinition(rs.getString("id"), rs.getString("tenant_id"), rs.getString("name"),
+              rs.getString("description"), new AlarmExpression(rs.getString("expression")),
+              rs.getString("severity"), rs.getBoolean("actions_enabled"), matchBy);
+      return real;
+
     }
   }
 
   @Override
   public AlarmDefinition findById(String id) {
     try (Handle h = db.open()) {
-      AlarmDefinitionHack alarmDefHack =
+      AlarmDefinition alarmDefinition =
           h.createQuery("select * from alarm_definition where id = :id and deleted_at is NULL")
-              .bind("id", id).map(new BeanMapper<AlarmDefinitionHack>(AlarmDefinitionHack.class)).first();
+              .bind("id", id).map(new AlarmDefinitionMapper()).first();
 
-      if (alarmDefHack == null) {
-        return null;
-      }
-      return transform(alarmDefHack);
+      return alarmDefinition;
     }
-  }
-
-  private AlarmDefinition transform(AlarmDefinitionHack alarmDefHack) {
-    final List<String> matchBy;
-    if (alarmDefHack.getMatchBy() == null || alarmDefHack.getMatchBy().isEmpty()) {
-      matchBy = new ArrayList<>(0);
-    }
-    else {
-      matchBy = new ArrayList<String>(Arrays.asList(alarmDefHack.getMatchBy().split(",")));
-    }
-    final AlarmDefinition real =
-        new AlarmDefinition(alarmDefHack.getId(), alarmDefHack.getTenantId(),
-            alarmDefHack.getName(), alarmDefHack.getDescription(), new AlarmExpression(
-                alarmDefHack.getExpression()), alarmDefHack.isActionsEnabled(), matchBy);
-    return real;
   }
 }

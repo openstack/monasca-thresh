@@ -96,8 +96,8 @@ public class EventProcessingBoltTest {
             + "and max(hpcs.compute.load{instance_id=123,device=42}) > 5";
     alarmExpression = new AlarmExpression(expression);
     alarmDefinition =
-        new AlarmDefinition("424242", TENANT_ID, name, description, alarmExpression, Boolean.TRUE,
-            Arrays.asList("hostname"));
+        new AlarmDefinition("424242", TENANT_ID, name, description, alarmExpression, "LOW",
+            Boolean.TRUE, Arrays.asList("hostname"));
     alarm = new Alarm(alarmId, alarmDefinition, AlarmState.UNDETERMINED);
     for (final AlarmSubExpression subExpr : alarmDefinition.getAlarmExpression()
         .getSubExpressions()) {
@@ -298,7 +298,7 @@ public class EventProcessingBoltTest {
     final AlarmDefinitionUpdatedEvent event =
         new AlarmDefinitionUpdatedEvent(alarmDefinition.getTenantId(), alarmDefinition.getId(),
             "New Name", "New Description", alarmDefinition.getAlarmExpression().getExpression(), alarmDefinition.getMatchBy(),
-            false, "MAJOR", emptySubExpressions, emptySubExpressions, unchangedSubExpressions, emptySubExpressions);
+            false, "HIGH", emptySubExpressions, emptySubExpressions, unchangedSubExpressions, emptySubExpressions);
 
     final Tuple tuple = createTuple(event);
     bolt.execute(tuple);

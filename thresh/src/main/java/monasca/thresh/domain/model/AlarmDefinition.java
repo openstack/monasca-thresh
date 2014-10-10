@@ -33,17 +33,19 @@ public class AlarmDefinition extends AbstractEntity {
   private AlarmExpression expression;
   private List<String> matchBy = new ArrayList<>();
   private boolean actionsEnabled = true;
+  private String severity;
 
   public AlarmDefinition() {
   }
 
   public AlarmDefinition(String id, String tenantId, String name, String description,
-      AlarmExpression expression, boolean actionsEnabled, List<String> matchBy) {
+      AlarmExpression expression, String severity, boolean actionsEnabled, List<String> matchBy) {
     this.id = id;
     this.tenantId = tenantId;
     this.name = name;
     this.description = description;
     this.expression = expression;
+    this.severity = severity;
     this.actionsEnabled = actionsEnabled;
     this.setMatchBy(matchBy);
   }
@@ -64,6 +66,9 @@ public class AlarmDefinition extends AbstractEntity {
       return false;
     }
     if (!compareObjects(name, other.name)) {
+      return false;
+    }
+    if (!compareObjects(severity, other.severity)) {
       return false;
     }
     if (!compareObjects(description, other.description)) {
@@ -108,6 +113,10 @@ public class AlarmDefinition extends AbstractEntity {
     this.description = description;
   }
 
+  public String getSeverity() {
+    return severity;
+  }
+
   public boolean isActionsEnabled() {
     return actionsEnabled;
   }
@@ -123,6 +132,7 @@ public class AlarmDefinition extends AbstractEntity {
     result = prime * result + ((expression == null) ? 0 : expression.hashCode());
     result = prime * result + ((name == null) ? 0 : name.hashCode());
     result = prime * result + ((description == null) ? 0 : description.hashCode());
+    result = prime * result + ((severity == null) ? 0 : severity.hashCode());
     result = prime * result + (actionsEnabled ? 1783 : 0);
     result = prime * result + ((tenantId == null) ? 0 : tenantId.hashCode());
     result = prime * result + matchBy.hashCode();
@@ -139,6 +149,10 @@ public class AlarmDefinition extends AbstractEntity {
 
   public void setName(String name) {
     this.name = name;
+  }
+
+  public void setSeverity(String severity) {
+    this.severity = severity;
   }
 
   public void setActionsEnabled(boolean actionsEnabled) {
@@ -160,8 +174,8 @@ public class AlarmDefinition extends AbstractEntity {
     }
     builder.append(']');
     return String.format(
-        "Alarm [tenantId=%s, name=%s, description=%s, actionsEnabled=%s, matchBy=%s]", tenantId,
-        name, description, actionsEnabled, builder);
+        "Alarm [tenantId=%s, name=%s, description=%s, expression=%s, severity=%s, actionsEnabled=%s, matchBy=%s]", tenantId,
+        name, description, expression.getExpression(), severity, actionsEnabled, builder);
   }
 
   public List<String> getMatchBy() {

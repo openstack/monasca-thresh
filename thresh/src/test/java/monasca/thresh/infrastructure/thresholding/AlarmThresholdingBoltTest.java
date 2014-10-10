@@ -22,6 +22,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotEquals;
 import monasca.thresh.ThresholdingConfiguration;
 
 import com.hpcloud.mon.common.event.AlarmDefinitionUpdatedEvent;
@@ -89,7 +90,7 @@ public class AlarmThresholdingBoltTest {
     alarmExpression = new AlarmExpression(expression);
     alarmDefinition =
         new AlarmDefinition("42424242", tenantId, "Test CPU Alarm", "Description of Alarm",
-            alarmExpression, true, new ArrayList<String>());
+            alarmExpression, "LOW", true, new ArrayList<String>());
     alarm = new Alarm(alarmId, alarmDefinition, AlarmState.OK);
     subAlarms = new ArrayList<SubAlarm>(alarm.getSubAlarms());
 
@@ -128,7 +129,7 @@ public class AlarmThresholdingBoltTest {
             + "\"alarmDescription\":\"Description of Alarm\",\"oldState\":\"OK\",\"newState\":\"ALARM\","
             + "\"actionsEnabled\":true,"
             + "\"stateChangeReason\":\"Thresholds were exceeded for the sub-alarms: ["
-            + subAlarm.getExpression().getExpression() + "]\"," + "\"timestamp\":1395587091}}";
+            + subAlarm.getExpression().getExpression() + "]\"," + "\"severity\":\"LOW\",\"timestamp\":1395587091}}";
 
     verify(alarmEventForwarder, times(1)).send(ALERTS_EXCHANGE, ALERT_ROUTING_KEY, alarmJson);
     verify(alarmDAO, times(1)).updateState(alarmId, AlarmState.ALARM);
@@ -147,7 +148,7 @@ public class AlarmThresholdingBoltTest {
             + "\"alarmName\":\"Test CPU Alarm\","
             + "\"alarmDescription\":\"Description of Alarm\",\"oldState\":\"ALARM\",\"newState\":\"OK\","
             + "\"actionsEnabled\":true,"
-            + "\"stateChangeReason\":\"The alarm threshold(s) have not been exceeded\",\"timestamp\":1395587091}}";
+            + "\"stateChangeReason\":\"The alarm threshold(s) have not been exceeded\",\"severity\":\"LOW\",\"timestamp\":1395587091}}";
     verify(alarmEventForwarder, times(1)).send(ALERTS_EXCHANGE, ALERT_ROUTING_KEY, okJson);
     verify(alarmDAO, times(1)).updateState(alarmId, AlarmState.OK);
   }
@@ -178,7 +179,8 @@ public class AlarmThresholdingBoltTest {
     final String newName = "New Name";
     final String newDescription = "New Description";
     boolean newEnabled = false;
-    final String newSeverity  = "MAJOR";
+    final String newSeverity  = "HIGH";
+    assertNotEquals(newSeverity, alarmDefinition.getSeverity());
     final AlarmDefinitionUpdatedEvent event =
         new AlarmDefinitionUpdatedEvent(tenantId, alarmDefId, newName, newDescription,
             alarmDefinition.getAlarmExpression().getExpression(), alarmDefinition.getMatchBy(),
@@ -188,6 +190,7 @@ public class AlarmThresholdingBoltTest {
     verify(collector, times(1)).ack(updateTuple);
     assertEquals(alarmDefinition.getName(), newName);
     assertEquals(alarmDefinition.getDescription(), newDescription);
+    assertEquals(alarmDefinition.getSeverity(), newSeverity);
     assertEquals(alarmDefinition.isActionsEnabled(), newEnabled);
   }
 

@@ -90,6 +90,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
   private static final String TEST_ALARM_DEFINITION_ID = "1";
   private static final String TEST_ALARM_NAME = "test-alarm";
   private static final String TEST_ALARM_DESCRIPTION = "Description of test-alarm";
+  private static final String TEST_ALARM_SEVERITY = "LOW";
   private FeederSpout metricSpout;
   private FeederSpout eventSpout;
   private MockAlarmDAO alarmDAO;
@@ -168,6 +169,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
 
   private String expectedAlarmName = TEST_ALARM_NAME;
   private String expectedAlarmDescription = TEST_ALARM_DESCRIPTION;
+  private String expectedAlarmSeverity = TEST_ALARM_SEVERITY;
 
   public void shouldThreshold() throws Exception {
     doAnswer(new Answer<Object>() {
@@ -178,6 +180,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
         assertEquals(event.alarmName, expectedAlarmName);
         assertEquals(event.alarmDefinitionId, TEST_ALARM_DEFINITION_ID);
         assertEquals(event.alarmDescription, expectedAlarmDescription);
+        assertEquals(event.severity, expectedAlarmSeverity);
         assertEquals(event.tenantId, TEST_ALARM_TENANT_ID);
         assertEquals(event.oldState, currentState);
         currentState = event.newState;
@@ -193,7 +196,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
     boolean thirdUpdate = true;
     final AlarmDefinition initialAlarmDefinition =
         new AlarmDefinition(TEST_ALARM_DEFINITION_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME,
-            TEST_ALARM_DESCRIPTION, expression, Boolean.TRUE, new ArrayList<String>());
+            TEST_ALARM_DESCRIPTION, expression, "LOW", Boolean.TRUE, new ArrayList<String>());
     final Alarm initialAlarm =
         new Alarm(TEST_ALARM_ID, subAlarms, initialAlarmDefinition.getId(), AlarmState.UNDETERMINED);
     final int expectedAlarms = expectedStates.length;
@@ -210,7 +213,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
 
     final AlarmDefinition alarmDefinition =
         new AlarmDefinition(TEST_ALARM_DEFINITION_ID, TEST_ALARM_TENANT_ID, TEST_ALARM_NAME,
-            TEST_ALARM_DESCRIPTION, expression, true, Arrays.asList("hostname"));
+            TEST_ALARM_DESCRIPTION, expression, "LOW", true, Arrays.asList("hostname"));
     Alarm alarm = null;
     AlarmExpression savedAlarmExpression = null;
     for (int i = 1; alarmsSent != expectedAlarms && i < 300; i++) {
@@ -239,11 +242,12 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
                                                                                    // this
         expectedAlarmName = "New Alarm Name";
         expectedAlarmDescription = "New Alarm Description";
+        expectedAlarmSeverity = "HIGH";
         final AlarmDefinitionUpdatedEvent alarmDefinitionUpdatedEvent =
             new AlarmDefinitionUpdatedEvent(TEST_ALARM_TENANT_ID, alarmDefinition.getId(),
                 expectedAlarmName, expectedAlarmDescription, alarmDefinition.getAlarmExpression()
-                    .getExpression(), alarmDefinition.getMatchBy(), false, "MAJOR", empty, empty,
-                unchangedSubExpressions, empty);
+                    .getExpression(), alarmDefinition.getMatchBy(), false, expectedAlarmSeverity,
+                empty, empty, unchangedSubExpressions, empty);
         eventSpout.feed(new Values(alarmDefinitionUpdatedEvent));
         System.out.println("Sent AlarmDefinitionUpdatedEvent");
         firstUpdate = false;
@@ -286,7 +290,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
         eventSpout.feed(new Values(deleteEvent));
         System.out.println("Sent AlarmDeletedEvent");
 
-        secondUpdate = false;
+        thirdUpdate = false;
         /* TODO Through here */
         /*
         firstUpdate = false;

@@ -87,7 +87,7 @@ public class AlarmDAOImplTest {
     final String expr = "avg(load{first=first_value}) > 10 and max(cpu) < 90";
     alarmDef =
         new AlarmDefinition(getNextId(), TENANT_ID, ALARM_NAME, ALARM_DESCR, new AlarmExpression(
-            expr), ALARM_ENABLED, new ArrayList<String>());
+            expr), "LOW", ALARM_ENABLED, new ArrayList<String>());
 
     final Map<String, String> dimensions = new HashMap<String, String>();
     dimensions.put("first", "first_value");
@@ -113,7 +113,7 @@ public class AlarmDAOImplTest {
 
     final AlarmDefinition secondAlarmDef =
         new AlarmDefinition(getNextId(), TENANT_ID, "Second", null, new AlarmExpression(
-            "avg(cpu{disk=vda, instance_id=123}) > 10"), true, Arrays.asList("dev"));
+            "avg(cpu{disk=vda, instance_id=123}) > 10"), "LOW", true, Arrays.asList("dev"));
 
     final Alarm thirdAlarm = new Alarm(getNextId(), secondAlarmDef, AlarmState.OK);
     dao.createAlarm(thirdAlarm);

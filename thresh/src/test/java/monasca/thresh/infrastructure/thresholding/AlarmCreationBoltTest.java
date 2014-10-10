@@ -410,7 +410,7 @@ public class AlarmCreationBoltTest {
     final AlarmExpression alarmExpression = new AlarmExpression(expression);
 
     final AlarmDefinition alarmDefinition =
-        new AlarmDefinition(getNextId(), TENANT_ID, "max cpu", "", alarmExpression, true,
+        new AlarmDefinition(getNextId(), TENANT_ID, "max cpu", "", alarmExpression, "LOW", true,
             Arrays.asList(matchBy));
     when(alarmDefDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
     return alarmDefinition;

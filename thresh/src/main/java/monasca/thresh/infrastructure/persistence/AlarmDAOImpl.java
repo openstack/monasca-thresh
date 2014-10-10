@@ -191,7 +191,7 @@ public class AlarmDAOImpl implements AlarmDAO {
       for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
         h.insert(
             "insert into sub_alarm (id, alarm_id, expression, created_at, updated_at) values (?, ?, ?, NOW(), NOW())",
-            subAlarm.getId(), subAlarm.getAlarmId(), getExpression(subAlarm.getExpression()));
+            subAlarm.getId(), subAlarm.getAlarmId(), subAlarm.getExpression().getExpression());
       }
       for (final MetricDefinitionAndTenantId md : alarm.getAlarmedMetrics()) {
         createAlarmedMetric(h, md, alarm.getId());
@@ -203,22 +203,6 @@ public class AlarmDAOImpl implements AlarmDAO {
     } finally {
       h.close();
     }
-  }
-
-  /**
-   * Returns the sub-alarm's expression.
-   */
-  private String getExpression(final AlarmSubExpression subExpression) {
-    StringBuilder sb = new StringBuilder();
-    sb.append(subExpression.getFunction()).append('(')
-        .append(subExpression.getMetricDefinition().toExpression());
-    if (subExpression.getPeriod() != 60)
-      sb.append(", ").append(subExpression.getPeriod());
-    sb.append(") ").append(subExpression.getOperator()).append(' ')
-        .append((int) subExpression.getThreshold());
-    if (subExpression.getPeriods() != 1)
-      sb.append(" times ").append(subExpression.getPeriods());
-    return sb.toString();
   }
 
   @Override

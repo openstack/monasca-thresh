@@ -83,14 +83,14 @@ public class AlarmDefinitionDAOImplTest {
 
     final AlarmExpression expression = new AlarmExpression("max(cpu{service=nova}) > 90");
     final AlarmDefinition alarmDefinition =
-        new AlarmDefinition(getNextId(), TENANT_ID, ALARM_NAME, ALARM_DESCR, expression, false,
-            Arrays.asList("fred"));
+        new AlarmDefinition(getNextId(), TENANT_ID, ALARM_NAME, ALARM_DESCR, expression, "LOW",
+            false, Arrays.asList("fred"));
     insertAndCheck(alarmDefinition);
 
     final AlarmExpression expression2 = new AlarmExpression("max(cpu{service=swift}) > 90");
     final AlarmDefinition alarmDefinition2 =
-        new AlarmDefinition(getNextId(), TENANT_ID, ALARM_NAME, ALARM_DESCR, expression2, false,
-            Arrays.asList("hostname", "dev"));
+        new AlarmDefinition(getNextId(), TENANT_ID, ALARM_NAME, ALARM_DESCR, expression2, "LOW",
+            false, Arrays.asList("hostname", "dev"));
     insertAndCheck(alarmDefinition2);
   }
 
@@ -99,15 +99,15 @@ public class AlarmDefinitionDAOImplTest {
 
     final AlarmExpression expression = new AlarmExpression("max(cpu{service=nova}) > 90");
     final AlarmDefinition alarmDefinition =
-        new AlarmDefinition(getNextId(), TENANT_ID, ALARM_NAME, ALARM_DESCR, expression, false,
-            Arrays.asList("fred", "barney"));
+        new AlarmDefinition(getNextId(), TENANT_ID, ALARM_NAME, ALARM_DESCR, expression, "LOW",
+            false, Arrays.asList("fred", "barney"));
     insert(alarmDefinition);
 
     verifyListAllMatches(alarmDefinition);
     final AlarmExpression expression2 = new AlarmExpression("max(cpu{service=swift}) > 90");
     final AlarmDefinition alarmDefinition2 =
-        new AlarmDefinition(getNextId(), TENANT_ID, ALARM_NAME, ALARM_DESCR, expression2, false,
-            Arrays.asList("fred", "barney", "wilma", "betty"));
+        new AlarmDefinition(getNextId(), TENANT_ID, ALARM_NAME, ALARM_DESCR, expression2, "LOW",
+            false, Arrays.asList("fred", "barney", "wilma", "betty"));
     insert(alarmDefinition2);
 
     verifyListAllMatches(alarmDefinition, alarmDefinition2);

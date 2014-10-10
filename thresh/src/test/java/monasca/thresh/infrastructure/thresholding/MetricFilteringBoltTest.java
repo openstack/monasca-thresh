@@ -84,8 +84,8 @@ public class MetricFilteringBoltTest {
   private AlarmDefinition createAlarmDefinition(final String expression, String name) {
     final AlarmExpression alarm1Expression = new AlarmExpression(expression);
     final String alarmId = getNextId();
-    return new AlarmDefinition(alarmId, TEST_TENANT_ID, name, "Alarm1 Description", alarm1Expression, true,
-        Arrays.asList("hostname"));
+    return new AlarmDefinition(alarmId, TEST_TENANT_ID, name, "Alarm1 Description",
+        alarm1Expression, "LOW", true, Arrays.asList("hostname"));
   }
 
   private String getNextId() {

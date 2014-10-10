@@ -105,7 +105,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
 
     alarmDefinition =
         new AlarmDefinition("424242", TEST_ALARM_TENANT_ID, TEST_ALARM_NAME,
-            TEST_ALARM_DESCRIPTION, expression, true, new ArrayList<String>());
+            TEST_ALARM_DESCRIPTION, expression, "LOW", true, new ArrayList<String>());
 
     // Mocks
     alarmDAO = mock(AlarmDAO.class);
