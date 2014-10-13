@@ -17,7 +17,7 @@
 
 package monasca.thresh;
 
-import com.hpcloud.configuration.KafkaProducerConfiguration;
+import monasca.common.configuration.KafkaProducerConfiguration;
 import monasca.thresh.infrastructure.thresholding.DataSourceFactory;
 
 import org.hibernate.validator.constraints.NotEmpty;

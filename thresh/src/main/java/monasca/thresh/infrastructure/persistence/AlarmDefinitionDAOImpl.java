@@ -17,7 +17,7 @@
 
 package monasca.thresh.infrastructure.persistence;
 
-import com.hpcloud.mon.common.model.alarm.AlarmExpression;
+import monasca.common.model.alarm.AlarmExpression;
 
 import monasca.thresh.domain.model.AlarmDefinition;
 import monasca.thresh.domain.service.AlarmDefinitionDAO;

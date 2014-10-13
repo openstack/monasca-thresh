@@ -17,8 +17,8 @@
 
 package monasca.thresh.infrastructure.thresholding;
 
-import com.hpcloud.mon.common.model.metric.MetricEnvelope;
-import com.hpcloud.mon.common.model.metric.MetricEnvelopes;
+import monasca.common.model.metric.MetricEnvelope;
+import monasca.common.model.metric.MetricEnvelopes;
 
 import backtype.storm.spout.SpoutOutputCollector;
 import backtype.storm.topology.OutputFieldsDeclarer;

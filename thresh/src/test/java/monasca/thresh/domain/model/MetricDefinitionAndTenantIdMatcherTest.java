@@ -20,7 +20,7 @@ package monasca.thresh.domain.model;
 import static org.testng.Assert.assertEqualsNoOrder;
 import static org.testng.Assert.assertTrue;
 
-import com.hpcloud.mon.common.model.metric.MetricDefinition;
+import monasca.common.model.metric.MetricDefinition;
 
 import monasca.thresh.domain.model.MetricDefinitionAndTenantIdMatcher.DimensionPair;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantIdMatcher.DimensionSet;

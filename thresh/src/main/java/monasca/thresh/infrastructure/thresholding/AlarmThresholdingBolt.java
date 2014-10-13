@@ -17,16 +17,16 @@
 
 package monasca.thresh.infrastructure.thresholding;
 
-import com.hpcloud.configuration.KafkaProducerConfiguration;
-import com.hpcloud.mon.common.event.AlarmDefinitionUpdatedEvent;
-import com.hpcloud.mon.common.event.AlarmStateTransitionedEvent;
-import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
-import com.hpcloud.mon.common.model.alarm.AlarmState;
-import com.hpcloud.mon.common.model.metric.MetricDefinition;
-import com.hpcloud.streaming.storm.Logging;
-import com.hpcloud.streaming.storm.Streams;
-import com.hpcloud.util.Injector;
-import com.hpcloud.util.Serialization;
+import monasca.common.configuration.KafkaProducerConfiguration;
+import monasca.common.model.event.AlarmDefinitionUpdatedEvent;
+import monasca.common.model.event.AlarmStateTransitionedEvent;
+import monasca.common.model.event.AlarmUpdatedEvent;
+import monasca.common.model.alarm.AlarmState;
+import monasca.common.model.metric.MetricDefinition;
+import monasca.common.streaming.storm.Logging;
+import monasca.common.streaming.storm.Streams;
+import monasca.common.util.Injector;
+import monasca.common.util.Serialization;
 
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;

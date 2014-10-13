@@ -17,8 +17,8 @@
 
 package monasca.thresh.infrastructure.thresholding;
 
-import com.hpcloud.configuration.KafkaProducerConfiguration;
-import com.hpcloud.configuration.KafkaProducerProperties;
+import monasca.common.configuration.KafkaProducerConfiguration;
+import monasca.common.configuration.KafkaProducerProperties;
 
 import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;

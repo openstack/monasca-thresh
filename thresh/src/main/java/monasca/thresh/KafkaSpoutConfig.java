@@ -17,7 +17,7 @@
 
 package monasca.thresh;
 
-import com.hpcloud.configuration.KafkaConsumerConfiguration;
+import monasca.common.configuration.KafkaConsumerConfiguration;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 

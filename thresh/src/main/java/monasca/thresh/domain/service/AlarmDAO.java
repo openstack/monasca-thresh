@@ -17,7 +17,7 @@
 
 package monasca.thresh.domain.service;
 
-import com.hpcloud.mon.common.model.alarm.AlarmState;
+import monasca.common.model.alarm.AlarmState;
 
 import monasca.thresh.domain.model.Alarm;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;

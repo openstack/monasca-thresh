@@ -17,10 +17,10 @@
 
 package monasca.thresh.infrastructure.thresholding;
 
-import com.hpcloud.mon.common.model.metric.Metric;
-import com.hpcloud.streaming.storm.Logging;
-import com.hpcloud.streaming.storm.Streams;
-import com.hpcloud.streaming.storm.Tuples;
+import monasca.common.model.metric.Metric;
+import monasca.common.streaming.storm.Logging;
+import monasca.common.streaming.storm.Streams;
+import monasca.common.streaming.storm.Tuples;
 
 import backtype.storm.Config;
 import backtype.storm.task.OutputCollector;

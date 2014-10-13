@@ -20,14 +20,14 @@ package monasca.thresh.infrastructure.thresholding.deserializer;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNull;
 
-import com.hpcloud.mon.common.event.AlarmDefinitionCreatedEvent;
-import com.hpcloud.mon.common.event.AlarmDeletedEvent;
-import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
-import com.hpcloud.mon.common.model.alarm.AlarmExpression;
-import com.hpcloud.mon.common.model.alarm.AlarmState;
-import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
-import com.hpcloud.mon.common.model.metric.MetricDefinition;
-import com.hpcloud.util.Serialization;
+import monasca.common.model.event.AlarmDefinitionCreatedEvent;
+import monasca.common.model.event.AlarmDeletedEvent;
+import monasca.common.model.event.AlarmUpdatedEvent;
+import monasca.common.model.alarm.AlarmExpression;
+import monasca.common.model.alarm.AlarmState;
+import monasca.common.model.alarm.AlarmSubExpression;
+import monasca.common.model.metric.MetricDefinition;
+import monasca.common.util.Serialization;
 
 import monasca.thresh.domain.model.Alarm;
 import monasca.thresh.domain.model.AlarmDefinition;

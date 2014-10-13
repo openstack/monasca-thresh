@@ -24,14 +24,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
 
-import com.hpcloud.mon.common.event.AlarmDefinitionCreatedEvent;
-import com.hpcloud.mon.common.event.AlarmDefinitionDeletedEvent;
-import com.hpcloud.mon.common.model.alarm.AlarmExpression;
-import com.hpcloud.mon.common.model.alarm.AlarmState;
-import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
-import com.hpcloud.mon.common.model.metric.Metric;
-import com.hpcloud.mon.common.model.metric.MetricDefinition;
-import com.hpcloud.streaming.storm.Streams;
+import monasca.common.model.event.AlarmDefinitionCreatedEvent;
+import monasca.common.model.event.AlarmDefinitionDeletedEvent;
+import monasca.common.model.alarm.AlarmExpression;
+import monasca.common.model.alarm.AlarmState;
+import monasca.common.model.alarm.AlarmSubExpression;
+import monasca.common.model.metric.Metric;
+import monasca.common.model.metric.MetricDefinition;
+import monasca.common.streaming.storm.Streams;
 
 import backtype.storm.Testing;
 import backtype.storm.task.OutputCollector;

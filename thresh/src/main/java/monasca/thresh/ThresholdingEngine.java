@@ -20,8 +20,8 @@ package monasca.thresh;
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.core.util.StatusPrinter;
 
-import com.hpcloud.util.Injector;
-import com.hpcloud.util.config.ConfigurationFactory;
+import monasca.common.util.Injector;
+import monasca.common.util.config.ConfigurationFactory;
 
 import backtype.storm.Config;
 import backtype.storm.LocalCluster;

@@ -17,10 +17,10 @@
 
 package monasca.thresh.domain.model;
 
-import com.hpcloud.mon.common.model.alarm.AlarmExpression;
-import com.hpcloud.mon.common.model.alarm.AlarmState;
-import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
-import com.hpcloud.mon.domain.common.AbstractEntity;
+import monasca.common.model.alarm.AlarmExpression;
+import monasca.common.model.alarm.AlarmState;
+import monasca.common.model.alarm.AlarmSubExpression;
+import monasca.common.model.domain.common.AbstractEntity;
 
 import java.util.ArrayList;
 import java.util.Collection;

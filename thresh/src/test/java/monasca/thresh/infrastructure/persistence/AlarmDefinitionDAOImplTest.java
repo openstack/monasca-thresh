@@ -21,7 +21,7 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
-import com.hpcloud.mon.common.model.alarm.AlarmExpression;
+import monasca.common.model.alarm.AlarmExpression;
 
 import com.google.common.base.Joiner;
 import com.google.common.io.Resources;

@@ -17,7 +17,7 @@
 
 package monasca.thresh.infrastructure.thresholding;
 
-import com.hpcloud.configuration.KafkaConsumerProperties;
+import monasca.common.configuration.KafkaConsumerProperties;
 import monasca.thresh.KafkaSpoutConfig;
 
 import backtype.storm.spout.SpoutOutputCollector;

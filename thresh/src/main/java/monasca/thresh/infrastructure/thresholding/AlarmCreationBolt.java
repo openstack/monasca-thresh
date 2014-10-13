@@ -17,12 +17,12 @@
 
 package monasca.thresh.infrastructure.thresholding;
 
-import com.hpcloud.mon.common.event.AlarmDefinitionDeletedEvent;
-import com.hpcloud.mon.common.model.alarm.AlarmState;
-import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
-import com.hpcloud.mon.common.model.metric.MetricDefinition;
-import com.hpcloud.streaming.storm.Logging;
-import com.hpcloud.util.Injector;
+import monasca.common.model.event.AlarmDefinitionDeletedEvent;
+import monasca.common.model.alarm.AlarmState;
+import monasca.common.model.alarm.AlarmSubExpression;
+import monasca.common.model.metric.MetricDefinition;
+import monasca.common.streaming.storm.Logging;
+import monasca.common.util.Injector;
 
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;

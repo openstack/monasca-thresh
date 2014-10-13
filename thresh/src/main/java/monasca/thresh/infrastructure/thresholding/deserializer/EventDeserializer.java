@@ -17,13 +17,14 @@
 
 package monasca.thresh.infrastructure.thresholding.deserializer;
 
-import com.hpcloud.mon.common.event.AlarmDefinitionCreatedEvent;
-import com.hpcloud.mon.common.event.AlarmDefinitionDeletedEvent;
-import com.hpcloud.mon.common.event.AlarmDefinitionUpdatedEvent;
-import com.hpcloud.mon.common.event.AlarmDeletedEvent;
-import com.hpcloud.mon.common.event.AlarmUpdatedEvent;
-import com.hpcloud.streaming.storm.TupleDeserializer;
-import com.hpcloud.util.Serialization;
+import monasca.common.model.event.AlarmDefinitionCreatedEvent;
+import monasca.common.model.event.AlarmDefinitionDeletedEvent;
+import monasca.common.model.event.AlarmDefinitionUpdatedEvent;
+import monasca.common.model.event.AlarmCreatedEvent;
+import monasca.common.model.event.AlarmDeletedEvent;
+import monasca.common.model.event.AlarmUpdatedEvent;
+import monasca.common.streaming.storm.TupleDeserializer;
+import monasca.common.util.Serialization;
 
 import backtype.storm.tuple.Fields;
 

@@ -28,12 +28,12 @@ import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
-import com.hpcloud.mon.common.model.alarm.AlarmOperator;
-import com.hpcloud.mon.common.model.alarm.AlarmState;
-import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
-import com.hpcloud.mon.common.model.metric.Metric;
-import com.hpcloud.mon.common.model.metric.MetricDefinition;
-import com.hpcloud.streaming.storm.Streams;
+import monasca.common.model.alarm.AlarmOperator;
+import monasca.common.model.alarm.AlarmState;
+import monasca.common.model.alarm.AlarmSubExpression;
+import monasca.common.model.metric.Metric;
+import monasca.common.model.metric.MetricDefinition;
+import monasca.common.streaming.storm.Streams;
 
 import backtype.storm.Constants;
 import backtype.storm.Testing;

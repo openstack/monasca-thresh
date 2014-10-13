@@ -26,17 +26,17 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
-import com.hpcloud.configuration.KafkaProducerConfiguration;
-import com.hpcloud.mon.common.event.AlarmDefinitionCreatedEvent;
-import com.hpcloud.mon.common.event.AlarmStateTransitionedEvent;
-import com.hpcloud.mon.common.model.alarm.AlarmExpression;
-import com.hpcloud.mon.common.model.alarm.AlarmState;
-import com.hpcloud.mon.common.model.alarm.AlarmSubExpression;
-import com.hpcloud.mon.common.model.metric.Metric;
-import com.hpcloud.mon.common.model.metric.MetricDefinition;
-import com.hpcloud.streaming.storm.TopologyTestCase;
-import com.hpcloud.util.Injector;
-import com.hpcloud.util.Serialization;
+import monasca.common.configuration.KafkaProducerConfiguration;
+import monasca.common.model.event.AlarmDefinitionCreatedEvent;
+import monasca.common.model.event.AlarmStateTransitionedEvent;
+import monasca.common.model.alarm.AlarmExpression;
+import monasca.common.model.alarm.AlarmState;
+import monasca.common.model.alarm.AlarmSubExpression;
+import monasca.common.model.metric.Metric;
+import monasca.common.model.metric.MetricDefinition;
+import monasca.common.streaming.storm.TopologyTestCase;
+import monasca.common.util.Injector;
+import monasca.common.util.Serialization;
 
 import backtype.storm.Config;
 import backtype.storm.testing.FeederSpout;

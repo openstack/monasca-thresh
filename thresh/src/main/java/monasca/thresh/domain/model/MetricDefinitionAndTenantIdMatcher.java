@@ -17,7 +17,7 @@
 
 package monasca.thresh.domain.model;
 
-import com.hpcloud.mon.common.model.metric.MetricDefinition;
+import monasca.common.model.metric.MetricDefinition;
 
 import java.util.Arrays;
 import java.util.Collections;

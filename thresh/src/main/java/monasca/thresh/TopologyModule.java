@@ -26,7 +26,7 @@ import monasca.thresh.infrastructure.thresholding.MetricFilteringBolt;
 import monasca.thresh.infrastructure.thresholding.MetricSpout;
 import monasca.thresh.infrastructure.thresholding.deserializer.EventDeserializer;
 
-import com.hpcloud.util.Injector;
+import monasca.common.util.Injector;
 
 import backtype.storm.Config;
 import backtype.storm.generated.StormTopology;

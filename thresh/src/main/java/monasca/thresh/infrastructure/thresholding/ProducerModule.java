@@ -17,7 +17,7 @@
 
 package monasca.thresh.infrastructure.thresholding;
 
-import com.hpcloud.configuration.KafkaProducerConfiguration;
+import monasca.common.configuration.KafkaProducerConfiguration;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;

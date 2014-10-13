@@ -17,9 +17,9 @@
 
 package monasca.thresh.domain.model;
 
-import com.hpcloud.mon.common.model.alarm.AlarmState;
-import com.hpcloud.util.stats.SlidingWindowStats;
-import com.hpcloud.util.time.TimeResolution;
+import monasca.common.model.alarm.AlarmState;
+import monasca.common.util.stats.SlidingWindowStats;
+import monasca.common.util.time.TimeResolution;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
