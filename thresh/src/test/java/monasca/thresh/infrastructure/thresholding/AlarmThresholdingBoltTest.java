@@ -23,19 +23,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotEquals;
-
+import static org.testng.Assert.assertNotNull;
 import monasca.thresh.ThresholdingConfiguration;
-
 import monasca.common.model.event.AlarmDefinitionUpdatedEvent;
 import monasca.common.model.event.AlarmUpdatedEvent;
+import monasca.common.model.alarm.AggregateFunction;
 import monasca.common.model.alarm.AlarmExpression;
 import monasca.common.model.alarm.AlarmState;
 import monasca.common.model.alarm.AlarmSubExpression;
 import monasca.common.streaming.storm.Streams;
-
 import monasca.thresh.domain.model.Alarm;
 import monasca.thresh.domain.model.AlarmDefinition;
 import monasca.thresh.domain.model.SubAlarm;
+import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.service.AlarmDAO;
 import monasca.thresh.domain.service.AlarmDefinitionDAO;
 
@@ -53,7 +53,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @Test
 public class AlarmThresholdingBoltTest {
@@ -78,7 +77,6 @@ public class AlarmThresholdingBoltTest {
 
   @BeforeMethod
   protected void beforeMethod() {
-    final String alarmId = "111111112222222222233333333334";
     final StringBuilder builder = new StringBuilder();
     for (final String subExpression : subExpressions) {
       if (builder.length() > 0) {
@@ -89,9 +87,9 @@ public class AlarmThresholdingBoltTest {
     final String expression = builder.toString();
     alarmExpression = new AlarmExpression(expression);
     alarmDefinition =
-        new AlarmDefinition("42424242", tenantId, "Test CPU Alarm", "Description of Alarm",
+        new AlarmDefinition(tenantId, "Test CPU Alarm", "Description of Alarm",
             alarmExpression, "LOW", true, new ArrayList<String>());
-    alarm = new Alarm(alarmId, alarmDefinition, AlarmState.OK);
+    alarm = new Alarm(alarmDefinition, AlarmState.OK);
     subAlarms = new ArrayList<SubAlarm>(alarm.getSubAlarms());
 
     alarmEventForwarder = mock(AlarmEventForwarder.class);
@@ -196,53 +194,63 @@ public class AlarmThresholdingBoltTest {
 
   public void complexAlarmUpdate() {
     String alarmId = setUpInitialAlarm();
+    when(alarmDAO.findById(alarmId)).thenReturn(alarm);
+    when(alarmDefinitionDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
 
+    // Make sure the Alarm gets loaded
+    for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
+      emitSubAlarmStateChange(alarmId, subAlarm, AlarmState.OK);
+    }
+
+    assertNotNull(bolt.alarms.get(alarmId));
     // Now send an AlarmUpdatedEvent
     final Map<String, AlarmSubExpression> newSubExpressions = new HashMap<>();
     final Map<String, AlarmSubExpression> oldSubExpressions = new HashMap<>();
     final Map<String, AlarmSubExpression> changedSubExpressions = new HashMap<>();
     final Map<String, AlarmSubExpression> unchangedSubExpressions = new HashMap<>();
     final String newExpression =
-        subExpressions[1] + " or " + subExpressions[2].replace("max", "avg") + " or "
-            + "sum(diskio{instance_id=123,device=4242}, 1) > 5000";
+        alarmExpression.getExpression().replaceAll(" or ", " and ").replace("max", "avg");
 
-    final AlarmExpression newAlarmExpression = new AlarmExpression(newExpression);
-    final SubAlarm newSubAlarm =
-        new SubAlarm(UUID.randomUUID().toString(), alarmId, newAlarmExpression.getSubExpressions()
-            .get(2));
-    newSubExpressions.put(newSubAlarm.getId(), newSubAlarm.getExpression());
-    final SubAlarm deletedSubAlarm = subAlarms.get(0);
-    oldSubExpressions.put(deletedSubAlarm.getId(), deletedSubAlarm.getExpression());
-    final SubAlarm changedSubAlarm =
-        new SubAlarm(subAlarms.get(2).getId(), alarmId, newAlarmExpression.getSubExpressions().get(
-            1));
-    changedSubExpressions.put(changedSubAlarm.getId(), changedSubAlarm.getExpression());
-    final SubAlarm unChangedSubAlarm =
-        new SubAlarm(subAlarms.get(1).getId(), alarmId, subAlarms.get(1).getExpression());
-    unchangedSubExpressions.put(unChangedSubAlarm.getId(), unChangedSubAlarm.getExpression());
+    final SubExpression changedSubExpression = alarmDefinition.getSubExpressions().get(2);
+    changedSubExpression.getAlarmSubExpression().setFunction(AggregateFunction.AVG);
+    changedSubExpressions.put(changedSubExpression.getId(), changedSubExpression.getAlarmSubExpression());
+    for (int i = 0; i < 2; i++) {
+      final SubExpression unChangedSubExpr = alarmDefinition.getSubExpressions().get(i);
+      unchangedSubExpressions.put(unChangedSubExpr.getId(), unChangedSubExpr.getAlarmSubExpression());
+    }
 
-    emitSubAlarmStateChange(alarmId, changedSubAlarm, AlarmState.OK);
-    emitSubAlarmStateChange(alarmId, unChangedSubAlarm, AlarmState.OK);
-    unChangedSubAlarm.setState(AlarmState.OK);
-
-    /* TODO FIX THIS!
-    final AlarmUpdatedEvent event =
-        new AlarmUpdatedEvent(tenantId, alarmId, alarmDefinition.getName(), alarmDefinition.getDescription(),
-            newExpression, alarm.getState(), alarm.getState(), alarmDefinition.isActionsEnabled(),
+    final AlarmDefinitionUpdatedEvent event =
+        new AlarmDefinitionUpdatedEvent(tenantId, alarmDefinition.getId(), alarmDefinition.getName(), alarmDefinition.getDescription(),
+            newExpression, alarmDefinition.getMatchBy(), alarmDefinition.isActionsEnabled(), alarmDefinition.getSeverity(),
             oldSubExpressions, changedSubExpressions, unchangedSubExpressions, newSubExpressions);
-    final Tuple updateTuple = createAlarmUpdateTuple(event);
+    final Tuple updateTuple = createAlarmDefinitionUpdateTuple(event);
     bolt.execute(updateTuple);
     verify(collector, times(1)).ack(updateTuple);
+    assertEquals(alarmDefinition.getAlarmExpression().getExpression(), newExpression);
+
+    final Tuple updateSubExprTuple = createSubExpressionUpdated(changedSubExpression, alarmDefinition.getId());
+    bolt.execute(updateSubExprTuple);
+    verify(collector, times(1)).ack(updateSubExprTuple);
 
     final Alarm changedAlarm = bolt.alarms.get(alarmId);
-    assertEquals(changedAlarm.getAlarmExpression(), newAlarmExpression);
-    assertEquals(changedAlarm.getSubAlarms().size(), 3);
-    assertEquals(changedAlarm.getSubAlarm(unChangedSubAlarm.getId()), unChangedSubAlarm);
-    assertEquals(changedAlarm.getSubAlarm(newSubAlarm.getId()), newSubAlarm);
-    changedSubAlarm.setState(AlarmState.OK);
-    assertEquals(changedAlarm.getSubAlarm(changedSubAlarm.getId()), changedSubAlarm);
-    assertEquals(changedSubAlarm.isNoState(), false);
-    */
+    for (final SubAlarm subAlarm : changedAlarm.getSubAlarms()) {
+      final AlarmSubExpression check;
+      if (subAlarm.getAlarmSubExpressionId().equals(changedSubExpression.getId())) {
+        check = changedSubExpression.getAlarmSubExpression();
+      } else {
+        check = unchangedSubExpressions.get(subAlarm.getAlarmSubExpressionId());
+      }
+      assertEquals(subAlarm.getExpression(), check);
+    }
+  }
+
+  private Tuple createSubExpressionUpdated(final SubExpression newExpr,
+                                           final String alarmDefinitionId) {
+    final MkTupleParam tupleParam = new MkTupleParam();
+    tupleParam.setFields(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_FIELDS);
+    tupleParam.setStream(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID);
+    return Testing.testTuple(
+        Arrays.asList(EventProcessingBolt.UPDATED, newExpr, alarmDefinitionId), tupleParam);
   }
 
   private String setUpInitialAlarm() {
@@ -256,7 +264,8 @@ public class AlarmThresholdingBoltTest {
   private void emitSubAlarmStateChange(String alarmId, final SubAlarm subAlarm, AlarmState state) {
     // Create a copy so changing the state doesn't directly update the ones in the bolt
     final SubAlarm toEmit =
-        new SubAlarm(subAlarm.getId(), subAlarm.getAlarmId(), subAlarm.getExpression());
+        new SubAlarm(subAlarm.getId(), subAlarm.getAlarmId(), new SubExpression(
+            subAlarm.getAlarmSubExpressionId(), subAlarm.getExpression()));
     toEmit.setState(state);
     final Tuple tuple = createSubAlarmStateChangeTuple(alarmId, toEmit);
     bolt.execute(tuple);

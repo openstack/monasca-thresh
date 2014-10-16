@@ -14,6 +14,28 @@ CREATE TABLE `alarm_definition` (
   PRIMARY KEY (`id`)
 );
 
+CREATE TABLE `sub_alarm_definition` (
+  `id` varchar(36) NOT NULL,
+  `alarm_definition_id` varchar(36) NOT NULL DEFAULT '',
+  `function` varchar(10) NOT NULL,
+  `metric_name` varchar(100) DEFAULT NULL,
+  `operator` varchar(5) NOT NULL,
+  `threshold` double NOT NULL,
+  `period` int(11) NOT NULL,
+  `periods` int(11) NOT NULL,
+  `created_at` datetime NOT NULL,
+  `updated_at` datetime NOT NULL,
+  PRIMARY KEY (`id`)
+);
+
+CREATE TABLE `sub_alarm_definition_dimension` (
+  `sub_alarm_definition_id` varchar(36) NOT NULL DEFAULT '',
+  `dimension_name` varchar(255) NOT NULL DEFAULT '',
+  `value` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`sub_alarm_definition_id`,`dimension_name`)
+);
+
+
 CREATE TABLE `alarm` (
   `id` varchar(36) NOT NULL,
   `alarm_definition_id` varchar(36) NOT NULL DEFAULT '',
@@ -27,6 +49,7 @@ CREATE TABLE `alarm` (
 CREATE TABLE `sub_alarm` (
   `id` varchar(36) NOT NULL,
   `alarm_id` varchar(36) NOT NULL DEFAULT '',
+  `sub_expression_id` varchar(36) NOT NULL DEFAULT '',
   `expression` mediumtext,
   `created_at` datetime NOT NULL,
   `updated_at` datetime NOT NULL,

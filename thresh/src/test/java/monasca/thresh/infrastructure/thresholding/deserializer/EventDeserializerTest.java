@@ -58,9 +58,9 @@ public class EventDeserializerTest {
   @BeforeMethod
   protected void beforeMethod() {
     final AlarmDefinition alarmDef =
-        new AlarmDefinition("42", TENANT_ID, ALARM_NAME, ALARM_DESCRIPTION, new AlarmExpression(
+        new AlarmDefinition(TENANT_ID, ALARM_NAME, ALARM_DESCRIPTION, new AlarmExpression(
             ALARM_EXPRESSION), "LOW", true, Arrays.asList("instance_id"));
-    final Alarm alarm = new Alarm(ALARM_ID, alarmDef, AlarmState.OK);
+    final Alarm alarm = new Alarm(alarmDef, AlarmState.OK);
     for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
       subAlarms.put(subAlarm.getId(), subAlarm.getExpression());
     }

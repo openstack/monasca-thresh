@@ -24,12 +24,14 @@ import monasca.common.model.event.AlarmDeletedEvent;
 import monasca.common.model.event.AlarmUpdatedEvent;
 import monasca.common.model.alarm.AlarmSubExpression;
 import monasca.common.model.metric.MetricDefinition;
-
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
+import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.model.TenantIdAndMetricName;
-
+import monasca.thresh.domain.service.AlarmDAO;
+import monasca.thresh.infrastructure.persistence.PersistenceModule;
 import monasca.common.streaming.storm.Logging;
+import monasca.common.util.Injector;
 
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;
@@ -74,7 +76,7 @@ public class EventProcessingBolt extends BaseRichBolt {
   public static final String[] METRIC_ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType",
     "tenantIdAndMetricName", "metricDefinitionAndTenantId", "alarmDefinitionId", "subAlarmId"};
   public static final String[] METRIC_SUB_ALARM_EVENT_STREAM_FIELDS = new String[] {"eventType",
-      "tenantIdAndMetricName", "metricDefinitionAndTenantId", "subAlarm"};
+      "subExpression", "alarmDefinitionId"};
   public static final String[] ALARM_DEFINITION_EVENT_FIELDS = new String[] {"eventType", "argument"};
 
   public static final String CREATED = "created";
@@ -84,6 +86,16 @@ public class EventProcessingBolt extends BaseRichBolt {
 
   private transient Logger logger;
   private OutputCollector collector;
+  private AlarmDAO alarmDAO;
+  private DataSourceFactory dbConfig;
+
+  public EventProcessingBolt(DataSourceFactory dbConfig) {
+    this.dbConfig = dbConfig;
+  }
+
+  public EventProcessingBolt(AlarmDAO alarmDAO) {
+    this.alarmDAO = alarmDAO;
+  }
 
   @Override
   public void declareOutputFields(OutputFieldsDeclarer declarer) {
@@ -125,6 +137,10 @@ public class EventProcessingBolt extends BaseRichBolt {
     logger = LoggerFactory.getLogger(Logging.categoryFor(getClass(), context));
     logger.info("Preparing");
     this.collector = collector;
+    if (alarmDAO == null) {
+      Injector.registerIfNotBound(AlarmDAO.class, new PersistenceModule(dbConfig));
+      alarmDAO = Injector.getInstance(AlarmDAO.class);
+    }
   }
 
   void handle(AlarmDefinitionCreatedEvent event) {
@@ -136,16 +152,16 @@ public class EventProcessingBolt extends BaseRichBolt {
   }
 
   private void sendUpdateSubAlarm(String alarmId, String subAlarmId, String tenantId,
-      AlarmSubExpression alarmSubExpression) {
-    sendSubAlarm(UPDATED, alarmId, subAlarmId, tenantId, alarmSubExpression);
+      SubExpression subExpression) {
+    sendSubAlarm(UPDATED, alarmId, subAlarmId, tenantId, subExpression);
   }
 
   private void sendSubAlarm(String eventType, String alarmId, String subAlarmId, String tenantId,
-      AlarmSubExpression alarmSubExpression) {
-    MetricDefinition metricDef = alarmSubExpression.getMetricDefinition();
+      SubExpression subExpression) {
+    MetricDefinition metricDef = subExpression.getAlarmSubExpression().getMetricDefinition();
     collector.emit(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Values(eventType,
         new MetricDefinitionAndTenantId(metricDef, tenantId), new SubAlarm(subAlarmId, alarmId,
-            alarmSubExpression)));
+            subExpression)));
   }
 
   void handle(AlarmDeletedEvent event) {
@@ -193,18 +209,18 @@ public class EventProcessingBolt extends BaseRichBolt {
   }
 
   void handle(AlarmDefinitionUpdatedEvent event) {
-    /* Not sure what this should do
-    if ((!event.oldAlarmState.equals(event.alarmState) || !event.oldAlarmSubExpressions.isEmpty())
-        && event.changedSubExpressions.isEmpty() && event.newAlarmSubExpressions.isEmpty()) {
-      for (Map.Entry<String, AlarmSubExpression> entry : event.unchangedSubExpressions.entrySet()) {
-        sendSubAlarmMsg(RESEND, entry.getKey(), event.tenantId, event.alarmDefinitionId, entry.getValue());
-      }
+    // Update SubAlarms
+    for (final Map.Entry<String, AlarmSubExpression> entry : event.changedSubExpressions.entrySet()) {
+      final int updated = alarmDAO.updateSubAlarmExpressions(entry.getKey(), entry.getValue());
+      logger.info("Updated {} SubAlarms with new AlarmSubExpression {} {}", updated, entry.getKey(),
+          entry.getValue());
+      collector.emit(METRIC_SUB_ALARM_EVENT_STREAM_ID,
+          new Values(UPDATED, new SubExpression(entry.getKey(), entry.getValue()),
+              event.alarmDefinitionId));
     }
+    /* Not sure what this should do
     for (Map.Entry<String, AlarmSubExpression> entry : event.oldAlarmSubExpressions.entrySet()) {
       sendDeletedSubAlarm(entry.getKey(), event.tenantId, entry.getValue().getMetricDefinition());
-    }
-    for (Map.Entry<String, AlarmSubExpression> entry : event.changedSubExpressions.entrySet()) {
-      sendUpdateSubAlarm(event.alarmId, entry.getKey(), event.tenantId, entry.getValue());
     }
     // There won't be any way to add Sub Alarms any more. The alarms will have to be destroyed
     // and then created again

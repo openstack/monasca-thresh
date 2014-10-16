@@ -20,7 +20,6 @@ package monasca.thresh.infrastructure.thresholding.deserializer;
 import monasca.common.model.event.AlarmDefinitionCreatedEvent;
 import monasca.common.model.event.AlarmDefinitionDeletedEvent;
 import monasca.common.model.event.AlarmDefinitionUpdatedEvent;
-import monasca.common.model.event.AlarmCreatedEvent;
 import monasca.common.model.event.AlarmDeletedEvent;
 import monasca.common.model.event.AlarmUpdatedEvent;
 import monasca.common.streaming.storm.TupleDeserializer;
@@ -33,7 +32,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Deserializes MaaS events using registered serialization types.
+ * Deserializes events using registered serialization types.
  *
  * <ul>
  * <li>Output: Object event

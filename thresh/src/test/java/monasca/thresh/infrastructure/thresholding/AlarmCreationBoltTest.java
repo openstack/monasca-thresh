@@ -29,12 +29,6 @@ import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
-import monasca.common.model.event.AlarmDefinitionDeletedEvent;
-import monasca.common.model.alarm.AlarmExpression;
-import monasca.common.model.alarm.AlarmState;
-import monasca.common.model.alarm.AlarmSubExpression;
-import monasca.common.model.metric.MetricDefinition;
-
 import backtype.storm.Testing;
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;
@@ -42,10 +36,16 @@ import backtype.storm.testing.MkTupleParam;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
+import monasca.common.model.alarm.AlarmExpression;
+import monasca.common.model.alarm.AlarmState;
+import monasca.common.model.alarm.AlarmSubExpression;
+import monasca.common.model.event.AlarmDefinitionDeletedEvent;
+import monasca.common.model.metric.MetricDefinition;
 import monasca.thresh.domain.model.Alarm;
 import monasca.thresh.domain.model.AlarmDefinition;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
+import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.model.TenantIdAndMetricName;
 import monasca.thresh.domain.service.AlarmDAO;
 import monasca.thresh.domain.service.AlarmDefinitionDAO;
@@ -55,9 +55,7 @@ import org.mockito.stubbing.Answer;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -108,9 +106,11 @@ public class AlarmCreationBoltTest {
     final AlarmExpression alarmExpression = new AlarmExpression(expression);
     final String alarmId = getNextId();
     final SubAlarm cpu =
-        new SubAlarm(getNextId(), alarmId, alarmExpression.getSubExpressions().get(0));
+        new SubAlarm(getNextId(), alarmId, new SubExpression(UUID.randomUUID().toString(),
+            alarmExpression.getSubExpressions().get(0)));
     final SubAlarm load_avg =
-        new SubAlarm(getNextId(), alarmId, alarmExpression.getSubExpressions().get(1));
+        new SubAlarm(getNextId(), alarmId, new SubExpression(UUID.randomUUID().toString(),
+            alarmExpression.getSubExpressions().get(1)));
 
     assertTrue(AlarmCreationBolt.metricFitsInAlarmSubExpr(cpu.getExpression(), cpu.getExpression()
         .getMetricDefinition()));
@@ -175,8 +175,7 @@ public class AlarmCreationBoltTest {
         createAlarmDefinition("max(cpu{service=2}) > 90 and max(load_avg{service=2}) > 10",
             "hostname");
 
-    String alarmId = getNextId();
-    final Alarm alarm = new Alarm(alarmId, alarmDefinition, AlarmState.ALARM);
+    final Alarm alarm = new Alarm(alarmDefinition, AlarmState.ALARM);
 
     final Iterator<SubAlarm> iterator = alarm.getSubAlarms().iterator();
     final SubAlarm cpu = iterator.next();
@@ -240,6 +239,38 @@ public class AlarmCreationBoltTest {
     assertNull(bolt.countWaitingAlarms(alarmDefinition2.getId()));
   }
 
+  public void testAlarmDefinitionUpdated() {
+    final AlarmDefinition alarmDefinition =
+        createAlarmDefinition("max(cpu{service=2}) > 90 and max(load{service=2}) > 2", "hostname");
+
+    // Create some waiting alarms.
+    final AlarmSubExpression subExpr =
+        alarmDefinition.getAlarmExpression().getSubExpressions().get(0);
+    final List<String> hostnames = Arrays.asList("eleanore", "vivi", "maddyie");
+    for (final String hostname : hostnames) {
+      final MetricDefinition metric =
+          build(subExpr.getMetricDefinition().name, "hostname", hostname, "service", "2");
+      sendNewMetric(new MetricDefinitionAndTenantId(metric, TENANT_ID), alarmDefinition.getId());
+    }
+
+    assertEquals(bolt.countWaitingAlarms(alarmDefinition.getId()), Integer.valueOf(hostnames.size()));
+
+    // Update the Alarm Definition
+    final SubExpression first = alarmDefinition.getSubExpressions().get(0);
+    first.getAlarmSubExpression().setThreshold(42.0);
+    final MkTupleParam tupleParam = new MkTupleParam();
+    tupleParam.setFields(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_FIELDS);
+    tupleParam.setStream(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID);
+    final Tuple tuple =
+        Testing.testTuple(
+            Arrays.asList(EventProcessingBolt.UPDATED, first, alarmDefinition.getId()), tupleParam);
+
+    bolt.execute(tuple);
+
+    // Ensure they are gone
+    assertNull(bolt.countWaitingAlarms(alarmDefinition.getId()));
+  }
+  
   private void sendAlarmDefinitionDeleted(final AlarmDefinition alarmDefinition) {
     final Map<String, MetricDefinition> subAlarmMetricDefinitions = new HashMap<>();
     for (final AlarmSubExpression subExpr : alarmDefinition.getAlarmExpression().getSubExpressions()) {
@@ -410,7 +441,7 @@ public class AlarmCreationBoltTest {
     final AlarmExpression alarmExpression = new AlarmExpression(expression);
 
     final AlarmDefinition alarmDefinition =
-        new AlarmDefinition(getNextId(), TENANT_ID, "max cpu", "", alarmExpression, "LOW", true,
+        new AlarmDefinition(TENANT_ID, "max cpu", "", alarmExpression, "LOW", true,
             Arrays.asList(matchBy));
     when(alarmDefDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
     return alarmDefinition;
@@ -419,9 +450,23 @@ public class AlarmCreationBoltTest {
   private void verifyCreatedAlarm(final Alarm newAlarm, final AlarmDefinition alarmDefinition,
       final OutputCollector collector, MetricDefinitionAndTenantId... mtids) {
     final String alarmId = newAlarm.getId();
-    final Alarm expectedAlarm =
-        new Alarm(alarmId, createSubAlarms(alarmDefinition, alarmId, newAlarm.getSubAlarms()),
-            alarmDefinition.getId(), AlarmState.UNDETERMINED);
+    final Alarm expectedAlarm = new Alarm(alarmDefinition, AlarmState.UNDETERMINED);
+    expectedAlarm.setId(alarmId);
+    final List<SubAlarm> expectedSubAlarms = new LinkedList<>();
+    for (final SubAlarm expectedSubAlarm : expectedAlarm.getSubAlarms()) {
+      boolean found = false;
+      for (final SubAlarm newSubAlarm : newAlarm.getSubAlarms()) {
+        if (expectedSubAlarm.getExpression().equals(newSubAlarm.getExpression())) {
+          found = true;
+          expectedSubAlarms.add(new SubAlarm(newSubAlarm.getId(), alarmId, new SubExpression(
+              expectedSubAlarm.getAlarmSubExpressionId(), expectedSubAlarm.getExpression())));
+          break;
+        }
+      }
+      assertTrue(found, "SubAlarms for created Alarm don't match the Alarm Definition");
+    }
+    expectedAlarm.setSubAlarms(expectedSubAlarms);
+
     for (final SubAlarm subAlarm : expectedAlarm.getSubAlarms()) {
       // Have to do it this way because order of sub alarms is not deterministic
       MetricDefinitionAndTenantId mtid = null;
@@ -439,18 +484,6 @@ public class AlarmCreationBoltTest {
           new Values(EventProcessingBolt.CREATED, new TenantIdAndMetricName(mtid), mtid,
               alarmDefinition.getId(), subAlarm));
     }
-  }
-
-  private List<SubAlarm> createSubAlarms(AlarmDefinition alarmDefinition, final String alarmId,
-      final Collection<SubAlarm> actualSubAlarms) {
-    final List<SubAlarm> subAlarms =
-        new ArrayList<>(alarmDefinition.getAlarmExpression().getSubExpressions().size());
-    final Iterator<SubAlarm> iterator = actualSubAlarms.iterator();
-    for (final AlarmSubExpression subExpr : alarmDefinition.getAlarmExpression()
-        .getSubExpressions()) {
-      subAlarms.add(new SubAlarm(iterator.next().getId(), alarmId, subExpr));
-    }
-    return subAlarms;
   }
 
   private MetricDefinition build(final String name, String... dimensions) {

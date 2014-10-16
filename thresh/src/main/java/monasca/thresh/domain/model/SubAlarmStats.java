@@ -18,6 +18,7 @@
 package monasca.thresh.domain.model;
 
 import monasca.common.model.alarm.AlarmState;
+import monasca.common.model.alarm.AlarmSubExpression;
 import monasca.common.util.stats.SlidingWindowStats;
 import monasca.common.util.time.TimeResolution;
 
@@ -36,9 +37,9 @@ public class SubAlarmStats {
 
   private final int slotWidth;
   private SubAlarm subAlarm;
-  private final SlidingWindowStats stats;
+  private SlidingWindowStats stats;
   /** The number of times we can observe an empty window before transitioning to UNDETERMINED state. */
-  final int emptyWindowObservationThreshold;
+  protected int emptyWindowObservationThreshold;
   private int emptyWindowObservations;
 
   public SubAlarmStats(SubAlarm subAlarm, long viewEndTimestamp) {
@@ -49,6 +50,10 @@ public class SubAlarmStats {
     slotWidth = subAlarm.getExpression().getPeriod();
     this.subAlarm = subAlarm;
     this.subAlarm.setNoState(true);
+    initialize(subAlarm, timeResolution, viewEndTimestamp);
+  }
+
+  private void initialize(SubAlarm subAlarm, TimeResolution timeResolution, long viewEndTimestamp) {
     this.stats =
         new SlidingWindowStats(subAlarm.getExpression().getFunction().toStatistic(),
             timeResolution, slotWidth, subAlarm.getExpression().getPeriods(), FUTURE_SLOTS,
@@ -166,12 +171,19 @@ public class SubAlarmStats {
   }
 
   /**
-   * This MUST only be used for compatible SubAlarms, i.e. where
-   * this.subAlarm.isCompatible(subAlarm) is true
+   * If this.subAlarm.isCompatible(newExpression) is not true, all data
+   * will be flushed
    *
    * @param subAlarm
    */
-  public void updateSubAlarm(final SubAlarm subAlarm) {
-    this.subAlarm = subAlarm;
+  public void updateSubAlarm(final AlarmSubExpression newExpression, long viewEndTimestamp) {
+    // Save the old state
+    this.subAlarm.setNoState(true);  // Doesn't hurt to send too many state changes, just too few
+    final boolean compatible = this.subAlarm.isCompatible(newExpression);
+    this.subAlarm.setExpression(newExpression);
+    if (!compatible) {
+      logger.debug("Changing {} to {} and flushing measurements", this.subAlarm, subAlarm);
+      this.initialize(subAlarm, TimeResolution.MINUTES, viewEndTimestamp);
+    }
   }
 }

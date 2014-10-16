@@ -21,12 +21,13 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
-import monasca.common.model.alarm.AlarmExpression;
-
 import com.google.common.base.Joiner;
 import com.google.common.io.Resources;
 
+import monasca.common.model.alarm.AlarmExpression;
+import monasca.common.model.alarm.AlarmSubExpression;
 import monasca.thresh.domain.model.AlarmDefinition;
+import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.service.AlarmDefinitionDAO;
 
 import org.skife.jdbi.v2.DBI;
@@ -39,7 +40,7 @@ import org.testng.annotations.Test;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
+import java.util.Map;
 
 @Test
 public class AlarmDefinitionDAOImplTest {
@@ -71,11 +72,8 @@ public class AlarmDefinitionDAOImplTest {
   @BeforeMethod
   protected void beforeMethod() {
     handle.execute("truncate table alarm_definition");
-
-  }
-
-  private String getNextId() {
-    return UUID.randomUUID().toString();
+    handle.execute("truncate table sub_alarm_definition");
+    handle.execute("truncate table sub_alarm_definition_dimension");
   }
 
   public void testGetById() {
@@ -83,15 +81,22 @@ public class AlarmDefinitionDAOImplTest {
 
     final AlarmExpression expression = new AlarmExpression("max(cpu{service=nova}) > 90");
     final AlarmDefinition alarmDefinition =
-        new AlarmDefinition(getNextId(), TENANT_ID, ALARM_NAME, ALARM_DESCR, expression, "LOW",
+        new AlarmDefinition(TENANT_ID, ALARM_NAME, ALARM_DESCR, expression, "LOW",
             false, Arrays.asList("fred"));
     insertAndCheck(alarmDefinition);
 
     final AlarmExpression expression2 = new AlarmExpression("max(cpu{service=swift}) > 90");
     final AlarmDefinition alarmDefinition2 =
-        new AlarmDefinition(getNextId(), TENANT_ID, ALARM_NAME, ALARM_DESCR, expression2, "LOW",
+        new AlarmDefinition(TENANT_ID, ALARM_NAME, ALARM_DESCR, expression2, "LOW",
             false, Arrays.asList("hostname", "dev"));
     insertAndCheck(alarmDefinition2);
+
+    // Make sure it works when there are no dimensions
+    final AlarmExpression expression3 = new AlarmExpression("max(cpu) > 90");
+    final AlarmDefinition alarmDefinition3 =
+        new AlarmDefinition(TENANT_ID, ALARM_NAME, ALARM_DESCR, expression3, "LOW",
+            false, Arrays.asList("hostname", "dev"));
+    insertAndCheck(alarmDefinition3);
   }
 
   public void testListAll() {
@@ -99,14 +104,14 @@ public class AlarmDefinitionDAOImplTest {
 
     final AlarmExpression expression = new AlarmExpression("max(cpu{service=nova}) > 90");
     final AlarmDefinition alarmDefinition =
-        new AlarmDefinition(getNextId(), TENANT_ID, ALARM_NAME, ALARM_DESCR, expression, "LOW",
+        new AlarmDefinition(TENANT_ID, ALARM_NAME, ALARM_DESCR, expression, "LOW",
             false, Arrays.asList("fred", "barney"));
     insert(alarmDefinition);
 
     verifyListAllMatches(alarmDefinition);
     final AlarmExpression expression2 = new AlarmExpression("max(cpu{service=swift}) > 90");
     final AlarmDefinition alarmDefinition2 =
-        new AlarmDefinition(getNextId(), TENANT_ID, ALARM_NAME, ALARM_DESCR, expression2, "LOW",
+        new AlarmDefinition(TENANT_ID, ALARM_NAME, ALARM_DESCR, expression2, "LOW",
             false, Arrays.asList("fred", "barney", "wilma", "betty"));
     insert(alarmDefinition2);
 
@@ -143,6 +148,22 @@ public class AlarmDefinitionDAOImplTest {
               alarmDefinition.getMatchBy().isEmpty() ? null : COMMA_JOINER.join(alarmDefinition
                   .getMatchBy()), alarmDefinition.isActionsEnabled());
 
+      for (final SubExpression subExpression : alarmDefinition.getSubExpressions()) {
+        final AlarmSubExpression alarmSubExpr = subExpression.getAlarmSubExpression();
+        handle
+            .insert(
+                "insert into sub_alarm_definition (id, alarm_definition_id, function, metric_name, operator, "
+                    + "threshold, period, periods, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())",
+                subExpression.getId(), alarmDefinition.getId(), alarmSubExpr.getFunction().name(),
+                alarmSubExpr.getMetricDefinition().name, alarmSubExpr.getOperator().name(),
+                alarmSubExpr.getThreshold(), alarmSubExpr.getPeriod(), alarmSubExpr.getPeriods());
+        for (final Map.Entry<String, String> entry : alarmSubExpr.getMetricDefinition().dimensions.entrySet()) {
+          handle
+              .insert(
+                  "insert into sub_alarm_definition_dimension (sub_alarm_definition_id, dimension_name, value) values (?, ?, ?)",
+                  subExpression.getId(), entry.getKey(), entry.getValue());
+        }
+      }
       handle.commit();
     } catch (RuntimeException e) {
       handle.rollback();

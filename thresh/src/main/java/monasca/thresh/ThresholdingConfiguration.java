@@ -65,7 +65,7 @@ public class ThresholdingConfiguration {
 
   /** Configuration for the spout that receives metrics from the external exchange. */
   @Valid @NotNull public MetricSpoutConfig metricSpoutConfig;
-  /** Configuration for the spout that receives MaaS events from the external exchange. */
+  /** Configuration for the spout that receives events from the external exchange. */
   @Valid @NotNull public EventSpoutConfig eventSpoutConfig;
 
   /** Configuration for publishing to the alerts exchange on the external server. */
@@ -73,6 +73,6 @@ public class ThresholdingConfiguration {
   @NotEmpty public String alertsRoutingKey = "alert";
   @Valid @NotNull public KafkaProducerConfiguration kafkaProducerConfig = new KafkaProducerConfiguration();
 
-  /** MaaS API database configuration. */
+  /** Database configuration. */
   @Valid @NotNull public DataSourceFactory database = new DataSourceFactory();
 }

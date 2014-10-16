@@ -23,7 +23,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
-
 import monasca.common.model.event.AlarmDefinitionCreatedEvent;
 import monasca.common.model.event.AlarmDefinitionDeletedEvent;
 import monasca.common.model.alarm.AlarmExpression;
@@ -44,6 +43,7 @@ import monasca.thresh.domain.model.Alarm;
 import monasca.thresh.domain.model.AlarmDefinition;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
+import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.model.TenantIdAndMetricName;
 import monasca.thresh.domain.service.AlarmDAO;
 import monasca.thresh.domain.service.AlarmDefinitionDAO;
@@ -83,8 +83,7 @@ public class MetricFilteringBoltTest {
 
   private AlarmDefinition createAlarmDefinition(final String expression, String name) {
     final AlarmExpression alarm1Expression = new AlarmExpression(expression);
-    final String alarmId = getNextId();
-    return new AlarmDefinition(alarmId, TEST_TENANT_ID, name, "Alarm1 Description",
+    return new AlarmDefinition(TEST_TENANT_ID, name, "Alarm1 Description",
         alarm1Expression, "LOW", true, Arrays.asList("hostname"));
   }
 
@@ -342,7 +341,7 @@ public class MetricFilteringBoltTest {
   private List<Alarm> createMatchingAlarms(List<AlarmDefinition> alarmDefinitions) {
     final List<Alarm> alarms = new LinkedList<>();
     for (final AlarmDefinition alarmDef : alarmDefinitions) {
-      final Alarm alarm = new Alarm(getNextId(), alarmDef, AlarmState.UNDETERMINED);
+      final Alarm alarm = new Alarm(alarmDef, AlarmState.UNDETERMINED);
       for (final AlarmSubExpression subExpr : alarmDef.getAlarmExpression().getSubExpressions()) {
         // First do a MetricDefinition that is an exact match
         final MetricDefinition metricDefinition = subExpr.getMetricDefinition();
@@ -439,10 +438,19 @@ public class MetricFilteringBoltTest {
     final AlarmDefinitionCreatedEvent event =
         new AlarmDefinitionCreatedEvent(alarmDef.getTenantId(), alarmDef.getId(),
             alarmDef.getName(), alarmDef.getDescription(), alarmDef.getAlarmExpression()
-                .getExpression(), null, alarmDef.getMatchBy());
+                .getExpression(), createSubExpressionMap(alarmDef), alarmDef.getMatchBy());
     final Tuple tuple =
         Testing.testTuple(Arrays.asList(EventProcessingBolt.CREATED, event), tupleParam);
     return tuple;
+  }
+
+
+  public static Map<String, AlarmSubExpression> createSubExpressionMap(AlarmDefinition alarmDef) {
+    final Map<String, AlarmSubExpression> exprs = new HashMap<>();
+    for (final SubExpression subExpr : alarmDef.getSubExpressions()) {
+      exprs.put(subExpr.getId(), subExpr.getAlarmSubExpression());
+    }
+    return exprs;
   }
 
   private Tuple createDeleteAlarmDefinitionTuple(final AlarmDefinition alarmDef) {

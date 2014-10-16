@@ -101,8 +101,9 @@ public class TopologyModule extends AbstractModule {
     builder.setSpout("event-spout", Injector.getInstance(IRichSpout.class, "event"),
         config.eventSpoutThreads).setNumTasks(config.eventSpoutTasks);
 
-    // MaaS Event -> Events
-    builder.setBolt("event-bolt", new EventProcessingBolt(), config.eventBoltThreads)
+    // Event -> Events
+    builder
+        .setBolt("event-bolt", new EventProcessingBolt(config.database), config.eventBoltThreads)
         .shuffleGrouping("event-spout").setNumTasks(config.eventBoltTasks);
 
     // Metrics / Event -> Filtering
@@ -110,18 +111,19 @@ public class TopologyModule extends AbstractModule {
         .setBolt("filtering-bolt", new MetricFilteringBolt(config.database),
             config.filteringBoltThreads)
         .fieldsGrouping("metrics-spout", new Fields(MetricSpout.FIELDS[0]))
-        .allGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID)
         .allGrouping("event-bolt", EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID)
         .allGrouping("event-bolt", EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID)
         .setNumTasks(config.filteringBoltTasks);
 
-    // Filtering -> Alarm Creation 
+    // Filtering /Event -> Alarm Creation 
     builder
         .setBolt("alarm-creation-bolt", new AlarmCreationBolt(config.database),
             1)
         .fieldsGrouping("filtering-bolt",
             MetricFilteringBolt.NEW_METRIC_FOR_ALARM_DEFINITION_STREAM,
             new Fields(AlarmCreationBolt.ALARM_CREATION_FIELDS[3]))
+        .allGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID)
+        .allGrouping("event-bolt", EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID)
         .setNumTasks(1); // This has to be a single bolt right now because there is no
                          // database protection for adding metrics and dimensions
 
@@ -134,8 +136,7 @@ public class TopologyModule extends AbstractModule {
         .allGrouping("filtering-bolt", MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM)
         .fieldsGrouping("filtering-bolt", AlarmCreationBolt.ALARM_CREATION_STREAM,
             new Fields(AlarmCreationBolt.ALARM_CREATION_FIELDS[1]))
-        .fieldsGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID,
-            new Fields(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_FIELDS[1]))
+        .allGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID)
         .fieldsGrouping("event-bolt", EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_ID,
             new Fields(EventProcessingBolt.METRIC_ALARM_EVENT_STREAM_FIELDS[1]))
         .fieldsGrouping("alarm-creation-bolt", AlarmCreationBolt.ALARM_CREATION_STREAM,
@@ -152,6 +153,7 @@ public class TopologyModule extends AbstractModule {
         .fieldsGrouping("event-bolt", EventProcessingBolt.ALARM_EVENT_STREAM_ID,
             new Fields(EventProcessingBolt.ALARM_EVENT_STREAM_FIELDS[1]))
         .allGrouping("event-bolt", EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID)
+        .allGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID)
         .setNumTasks(config.thresholdingBoltTasks);
 
     return builder.createTopology();

@@ -48,18 +48,11 @@ public class Alarm extends AbstractEntity {
   public Alarm() {
   }
 
-  public Alarm(String id, List<SubAlarm> subAlarms, String alarmDefinitionId, AlarmState state) {
-    this.id = id;
-    setSubAlarms(subAlarms);
-    this.alarmDefinitionId = alarmDefinitionId;
-    this.state = state;
-  }
-
-  public Alarm(String id, AlarmDefinition alarmDefinition, AlarmState state) {
-    this.id = id;
-    List<AlarmSubExpression> subExpressions = alarmDefinition.getAlarmExpression().getSubExpressions();
+  public Alarm(AlarmDefinition alarmDefinition, AlarmState state) {
+    this.id = UUID.randomUUID().toString();
+    List<SubExpression> subExpressions = alarmDefinition.getSubExpressions();
     final List<SubAlarm> subAlarms = new ArrayList<>(subExpressions.size());
-    for (final AlarmSubExpression subExpr : subExpressions) {
+    for (final SubExpression subExpr : subExpressions) {
       subAlarms.add(new SubAlarm(UUID.randomUUID().toString(), id, subExpr));
     }
     setSubAlarms(subAlarms);

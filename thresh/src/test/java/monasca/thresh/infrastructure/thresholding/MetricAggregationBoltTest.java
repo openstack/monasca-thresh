@@ -27,7 +27,6 @@ import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
-
 import monasca.common.model.alarm.AlarmOperator;
 import monasca.common.model.alarm.AlarmState;
 import monasca.common.model.alarm.AlarmSubExpression;
@@ -46,6 +45,7 @@ import backtype.storm.tuple.Values;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
 import monasca.thresh.domain.model.SubAlarmStats;
+import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.model.TenantIdAndMetricName;
 import monasca.thresh.domain.service.SubAlarmStatsRepository;
 
@@ -68,9 +68,9 @@ public class MetricAggregationBoltTest {
   private SubAlarm subAlarm1;
   private SubAlarm subAlarm2;
   private SubAlarm subAlarm3;
-  private AlarmSubExpression subExpr1;
-  private AlarmSubExpression subExpr2;
-  private AlarmSubExpression subExpr3;
+  private SubExpression subExpr1;
+  private SubExpression subExpr2;
+  private SubExpression subExpr3;
   private MetricDefinition metricDef1;
   private MetricDefinition metricDef2;
   private MetricDefinition metricDef3;
@@ -79,12 +79,12 @@ public class MetricAggregationBoltTest {
   protected void beforeClass() {
     // Other tests set this and that can cause problems when the test is run from Maven
     System.clearProperty(MetricAggregationBolt.TICK_TUPLE_SECONDS_KEY);
-    subExpr1 = AlarmSubExpression.of("avg(hpcs.compute.cpu{id=5}, 60) >= 90 times 3");
-    subExpr2 = AlarmSubExpression.of("avg(hpcs.compute.mem{id=5}, 60) >= 90");
-    subExpr3 = AlarmSubExpression.of("avg(hpcs.compute.mem{id=5}, 60) >= 96");
-    metricDef1 = subExpr1.getMetricDefinition();
-    metricDef2 = subExpr2.getMetricDefinition();
-    metricDef3 = subExpr3.getMetricDefinition();
+    subExpr1 = new SubExpression("444", AlarmSubExpression.of("avg(hpcs.compute.cpu{id=5}, 60) >= 90 times 3"));
+    subExpr2 = new SubExpression("555", AlarmSubExpression.of("avg(hpcs.compute.mem{id=5}, 60) >= 90"));
+    subExpr3 = new SubExpression("666", AlarmSubExpression.of("avg(hpcs.compute.mem{id=5}, 60) >= 96"));
+    metricDef1 = subExpr1.getAlarmSubExpression().getMetricDefinition();
+    metricDef2 = subExpr2.getAlarmSubExpression().getMetricDefinition();
+    metricDef3 = subExpr3.getAlarmSubExpression().getMetricDefinition();
   }
 
   @BeforeMethod
@@ -320,7 +320,7 @@ public class MetricAggregationBoltTest {
     assertEquals(stats.getSubAlarm().getExpression().getOperator(), AlarmOperator.LT);
   }
 
-  private SubAlarmStats updateEnsureMeasurementsKept(AlarmSubExpression subExpr,
+  private SubAlarmStats updateEnsureMeasurementsKept(SubExpression subExpr,
       String newSubExpression) {
     final SubAlarmStats stats = updateSubAlarmsStats(subExpr, newSubExpression);
     final double[] values = stats.getStats().getWindowValues();
@@ -346,7 +346,7 @@ public class MetricAggregationBoltTest {
     assertEquals(stats.getSubAlarm().getExpression().getPeriod(), 120);
   }
 
-  private SubAlarmStats updateEnsureMeasurementsFlushed(AlarmSubExpression subExpr,
+  private SubAlarmStats updateEnsureMeasurementsFlushed(SubExpression subExpr,
       String newSubExpression) {
     final SubAlarmStats stats = updateSubAlarmsStats(subExpr, newSubExpression);
     final double[] values = stats.getStats().getWindowValues();
@@ -354,22 +354,15 @@ public class MetricAggregationBoltTest {
     return stats;
   }
 
-  private SubAlarmStats updateSubAlarmsStats(AlarmSubExpression subExpr, String newSubExpression) {
-
-    final MkTupleParam tupleParam = new MkTupleParam();
-    tupleParam.setFields(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_FIELDS);
-    tupleParam.setStream(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID);
+  private SubAlarmStats updateSubAlarmsStats(SubExpression subExpr, String newSubExpression) {
 
     final MetricDefinitionAndTenantId metricDefinitionAndTenantId =
-        new MetricDefinitionAndTenantId(subExpr.getMetricDefinition(), TENANT_ID);
+        new MetricDefinitionAndTenantId(subExpr.getAlarmSubExpression().getMetricDefinition(), TENANT_ID);
     assertNull(bolt.metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId));
 
     SubAlarm subAlarm = new SubAlarm(ALARM_ID_1, "1", subExpr);
     sendSubAlarmCreated(metricDefinitionAndTenantId.metricDefinition, subAlarm);
 
-    bolt.execute(Testing.testTuple(Arrays.asList(EventProcessingBolt.CREATED,
-        new TenantIdAndMetricName(metricDefinitionAndTenantId), metricDefinitionAndTenantId,
-        subAlarm), tupleParam));
     final SubAlarmStats oldStats =
         bolt.metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId).get(ALARM_ID_1);
     assertEquals(oldStats.getSubAlarm().getExpression().getThreshold(), 90.0);
@@ -377,10 +370,15 @@ public class MetricAggregationBoltTest {
     assertFalse(Double.isNaN(oldStats.getStats().getWindowValues()[0]));
     assertNotNull(bolt.metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId).get(ALARM_ID_1));
 
-    final AlarmSubExpression newExpr = AlarmSubExpression.of(newSubExpression);
+    final SubExpression newExpr =
+        new SubExpression(subExpr.getId(), AlarmSubExpression.of(newSubExpression));
+
+    final MkTupleParam tupleParam = new MkTupleParam();
+    tupleParam.setFields(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_FIELDS);
+    tupleParam.setStream(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID);
+    final String alarmDefinitionId = "42"; // Not used by MetricAggregationBolt
     bolt.execute(Testing.testTuple(Arrays.asList(EventProcessingBolt.UPDATED,
-        new TenantIdAndMetricName(metricDefinitionAndTenantId), metricDefinitionAndTenantId,
-        new SubAlarm(ALARM_ID_1, "1", newExpr)), tupleParam));
+        newExpr, alarmDefinitionId), tupleParam));
 
     return bolt.metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId).get(ALARM_ID_1);
   }

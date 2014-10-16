@@ -21,10 +21,10 @@ import monasca.common.model.alarm.AlarmState;
 import monasca.common.model.alarm.AlarmSubExpression;
 import monasca.common.model.metric.MetricDefinition;
 import monasca.common.persistence.BeanMapper;
-
 import monasca.thresh.domain.model.Alarm;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
+import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.service.AlarmDAO;
 
 import org.apache.commons.codec.binary.Hex;
@@ -190,8 +190,9 @@ public class AlarmDAOImpl implements AlarmDAO {
 
       for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
         h.insert(
-            "insert into sub_alarm (id, alarm_id, expression, created_at, updated_at) values (?, ?, ?, NOW(), NOW())",
-            subAlarm.getId(), subAlarm.getAlarmId(), subAlarm.getExpression().getExpression());
+            "insert into sub_alarm (id, alarm_id, sub_expression_id, expression, created_at, updated_at) values (?, ?, ?, ?, NOW(), NOW())",
+            subAlarm.getId(), subAlarm.getAlarmId(), subAlarm.getAlarmSubExpressionId(), subAlarm
+                .getExpression().getExpression());
       }
       for (final MetricDefinitionAndTenantId md : alarm.getAlarmedMetrics()) {
         createAlarmedMetric(h, md, alarm.getId());
@@ -226,10 +227,10 @@ public class AlarmDAOImpl implements AlarmDAO {
     }
   }
 
-  private static class SubAlarmMapper implements ResultSetMapper<SubAlarm>
-  {
+  private static class SubAlarmMapper implements ResultSetMapper<SubAlarm> {
     public SubAlarm map(int rowIndex, ResultSet rs, StatementContext ctxt) throws SQLException {
-      AlarmSubExpression subExpression = AlarmSubExpression.of(rs.getString("expression"));
+      SubExpression subExpression = new SubExpression(
+          rs.getString("sub_expression_id"), AlarmSubExpression.of(rs.getString("expression")));
       return new SubAlarm(rs.getString("id"), rs.getString("alarm_id"), subExpression);
     }   
   }
@@ -245,7 +246,7 @@ public class AlarmDAOImpl implements AlarmDAO {
             "select md.name as metric_name, md.tenant_id, md.region, mdi.name, mdi.value, mdd.id, mdd.metric_dimension_set_id " +
             "from metric_definition_dimensions as mdd left join metric_definition as md on md.id = mdd.metric_definition_id " +
             "left join metric_dimension as mdi on mdi.dimension_set_id = mdd.metric_dimension_set_id where mdd.id in " +
-            "(select metric_definition_dimensions_id from alarm_metric where alarm_id=:alarm_id order by mdd.metric_dimension_set_id)")
+            "(select metric_definition_dimensions_id from alarm_metric where alarm_id=:alarm_id) order by mdd.id")
             .bind("alarm_id", alarmId).list();
     if ((result == null) || result.isEmpty()) {
       return new HashSet<>(0);
@@ -285,6 +286,22 @@ public class AlarmDAOImpl implements AlarmDAO {
     try {
       h.createStatement("update alarm set state = :state, updated_at = NOW() where id = :id")
           .bind("id", id).bind("state", state.toString()).execute();
+    } finally {
+      h.close();
+    }
+  }
+
+  @Override
+  public int updateSubAlarmExpressions(String alarmSubExpressionId,
+      AlarmSubExpression alarmSubExpression) {
+    Handle h = db.open();
+
+    try {
+      return h
+          .createStatement(
+              "update sub_alarm set expression=:expression where sub_expression_id=:alarmSubExpressionId")
+          .bind("expression", alarmSubExpression.getExpression())
+          .bind("alarmSubExpressionId", alarmSubExpressionId).execute();
     } finally {
       h.close();
     }

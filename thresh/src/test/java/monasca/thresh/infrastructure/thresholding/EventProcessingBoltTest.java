@@ -22,7 +22,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.testng.Assert.assertNotEquals;
-
 import monasca.common.model.event.AlarmDefinitionCreatedEvent;
 import monasca.common.model.event.AlarmDefinitionDeletedEvent;
 import monasca.common.model.event.AlarmDefinitionUpdatedEvent;
@@ -49,7 +48,9 @@ import monasca.thresh.domain.model.Alarm;
 import monasca.thresh.domain.model.AlarmDefinition;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
+import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.model.TenantIdAndMetricName;
+import monasca.thresh.domain.service.AlarmDAO;
 
 import org.mockito.verification.VerificationMode;
 import org.testng.annotations.BeforeMethod;
@@ -75,19 +76,18 @@ public class EventProcessingBoltTest {
   private AlarmExpression alarmExpression;
   private Alarm alarm;
   private AlarmDefinition alarmDefinition;
-  private List<SubAlarm> subAlarms;
-  private final Map<String, AlarmSubExpression> subAlarmMap = new HashMap<>();
+  private AlarmDAO alarmDao;
 
   @BeforeMethod
   protected void beforeMethod() {
+    alarmDao = mock(AlarmDAO.class);
     collector = mock(OutputCollector.class);
-    bolt = new EventProcessingBolt();
+    bolt = new EventProcessingBolt(alarmDao);
 
     final Map<String, String> config = new HashMap<>();
     final TopologyContext context = mock(TopologyContext.class);
     bolt.prepare(config, context, collector);
 
-    final String alarmId = "111111112222222222233333333334";
     final String name = "Test CPU Alarm";
     final String description = "Description of " + name;
     final String expression =
@@ -96,9 +96,9 @@ public class EventProcessingBoltTest {
             + "and max(hpcs.compute.load{instance_id=123,device=42}) > 5";
     alarmExpression = new AlarmExpression(expression);
     alarmDefinition =
-        new AlarmDefinition("424242", TENANT_ID, name, description, alarmExpression, "LOW",
+        new AlarmDefinition(TENANT_ID, name, description, alarmExpression, "LOW",
             Boolean.TRUE, Arrays.asList("hostname"));
-    alarm = new Alarm(alarmId, alarmDefinition, AlarmState.UNDETERMINED);
+    alarm = new Alarm(alarmDefinition, AlarmState.UNDETERMINED);
     for (final AlarmSubExpression subExpr : alarmDefinition.getAlarmExpression()
         .getSubExpressions()) {
       final Map<String, String> newDimensions =
@@ -106,10 +106,6 @@ public class EventProcessingBoltTest {
       newDimensions.put("hostname", "vivi");
       alarm.addAlarmedMetric(new MetricDefinitionAndTenantId(new MetricDefinition(subExpr
           .getMetricDefinition().name, newDimensions), alarmDefinition.getTenantId()));
-    }
-    subAlarms = new ArrayList<SubAlarm>(alarm.getSubAlarms());
-    for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
-      subAlarmMap.put(subAlarm.getId(), subAlarm.getExpression());
     }
   }
 
@@ -127,9 +123,21 @@ public class EventProcessingBoltTest {
         new Values(EventProcessingBolt.CREATED, event));
   }
 
+  public static AlarmDefinitionDeletedEvent createAlarmDefinitionDeletedEvent(
+      final AlarmDefinition alarmDefinition) {
+    final Map<String, MetricDefinition> subAlarmMetricDefinitions = new HashMap<>();
+    for (final AlarmSubExpression subExpr : alarmDefinition.getAlarmExpression()
+        .getSubExpressions()) {
+      subAlarmMetricDefinitions.put(UUID.randomUUID().toString(),
+          subExpr.getMetricDefinition());
+    }
+    final AlarmDefinitionDeletedEvent alarmDefinitionDeletedEvent =
+        new AlarmDefinitionDeletedEvent(alarmDefinition.getId(), subAlarmMetricDefinitions);
+    return alarmDefinitionDeletedEvent;
+  }
+
   public void testAlarmDefinitionDeletedEvent() {
-    final AlarmDefinitionDeletedEvent event =
-        new AlarmDefinitionDeletedEvent(alarmDefinition.getId(), null);
+    final AlarmDefinitionDeletedEvent event = createAlarmDefinitionDeletedEvent(alarmDefinition);
     final Tuple tuple = createTuple(event);
     bolt.execute(tuple);
     verify(collector, times(1)).ack(tuple);
@@ -147,17 +155,7 @@ public class EventProcessingBoltTest {
   }
 
   public void testAlarmDeletedEvent() {
-    final Map<String, MetricDefinition> subAlarmMetricDefs = new HashMap<>();
-    for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
-      subAlarmMetricDefs.put(subAlarm.getId(), subAlarm.getExpression().getMetricDefinition());
-    }
-    final List<MetricDefinition> alarmedMetricsDefs = new LinkedList<>();
-    for (final MetricDefinitionAndTenantId mtid : alarm.getAlarmedMetrics()) {
-      alarmedMetricsDefs.add(mtid.metricDefinition);
-    }
-    final AlarmDeletedEvent event =
-        new AlarmDeletedEvent(alarmDefinition.getTenantId(), alarm.getId(), alarmedMetricsDefs,
-            alarmDefinition.getId(), subAlarmMap);
+    final AlarmDeletedEvent event = createAlarmDeletedEvent(alarm, alarmDefinition);
     final Tuple tuple = createTuple(event);
     bolt.execute(tuple);
     for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
@@ -171,6 +169,26 @@ public class EventProcessingBoltTest {
     verify(collector, times(1)).emit(EventProcessingBolt.ALARM_EVENT_STREAM_ID,
         new Values(EventProcessingBolt.DELETED, event.alarmId, event));
     verify(collector, times(1)).ack(tuple);
+  }
+
+  public static AlarmDeletedEvent createAlarmDeletedEvent(final Alarm alarm, final AlarmDefinition alarmDefinition) {
+    final Map<String, MetricDefinition> subAlarmMetricDefs = new HashMap<>();
+    for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
+      subAlarmMetricDefs.put(subAlarm.getId(), subAlarm.getExpression().getMetricDefinition());
+    }
+    final List<MetricDefinition> alarmedMetricsDefs = new LinkedList<>();
+    for (final MetricDefinitionAndTenantId mtid : alarm.getAlarmedMetrics()) {
+      alarmedMetricsDefs.add(mtid.metricDefinition);
+    }
+    final Map<String, AlarmSubExpression> subAlarmMap = new HashMap<>();
+    for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
+      subAlarmMap.put(subAlarm.getId(), subAlarm.getExpression());
+    }
+
+    final AlarmDeletedEvent event =
+        new AlarmDeletedEvent(alarmDefinition.getTenantId(), alarm.getId(), alarmedMetricsDefs,
+            alarmDefinition.getId(), subAlarmMap);
+    return event;
   }
 
   private void verifyDeletedSubAlarm(MetricDefinitionAndTenantId mtid, String alarmDefinitionId,
@@ -274,42 +292,38 @@ public class EventProcessingBoltTest {
   }
 
   public void testAlarmDefinitionUpdatedEvent() {
-    /* Current code does not allow updates of the expressions
-    final String updatedExpression =
-        "avg(hpcs.compute.cpu{instance_id=123,device=42}, 1) > 5 "
-            + "and max(hpcs.compute.mem{instance_id=123,device=42}) > 90 "
-            + "and max(hpcs.compute.newLoad{instance_id=123,device=42}) > 5";
 
-    final AlarmExpression updatedAlarmExpression = new AlarmExpression(updatedExpression);
-
-    final List<SubAlarm> updatedSubAlarms = new ArrayList<>();
-    updatedSubAlarms.add(subAlarms.get(0));
-    updatedSubAlarms.add(new SubAlarm(subAlarms.get(1).getId(), alarm.getId(),
-        updatedAlarmExpression.getSubExpressions().get(1)));
-    updatedSubAlarms.add(new SubAlarm(UUID.randomUUID().toString(), alarm.getId(),
-        updatedAlarmExpression.getSubExpressions().get(2)));
-
-    */
+    final SubExpression first = alarmDefinition.getSubExpressions().get(0);
+    final SubExpression second = alarmDefinition.getSubExpressions().get(1);
+    final SubExpression third = alarmDefinition.getSubExpressions().get(2);
     Map<String, AlarmSubExpression> unchangedSubExpressions = new HashMap<>();
-    for (final AlarmSubExpression subExpr : alarmDefinition.getAlarmExpression().getSubExpressions()) {
-      unchangedSubExpressions.put(UUID.randomUUID().toString(), subExpr);
-    }
+    unchangedSubExpressions.put(third.getId(), third.getAlarmSubExpression());
+
+    Map<String, AlarmSubExpression> changedSubExpressions = new HashMap<>();
+    changedSubExpressions.put(second.getId(), second.getAlarmSubExpression());
+    changedSubExpressions.put(first.getId(), first.getAlarmSubExpression());
+
     Map<String, AlarmSubExpression> emptySubExpressions = new HashMap<>();
     final AlarmDefinitionUpdatedEvent event =
         new AlarmDefinitionUpdatedEvent(alarmDefinition.getTenantId(), alarmDefinition.getId(),
             "New Name", "New Description", alarmDefinition.getAlarmExpression().getExpression(), alarmDefinition.getMatchBy(),
-            false, "HIGH", emptySubExpressions, emptySubExpressions, unchangedSubExpressions, emptySubExpressions);
+            false, "HIGH", emptySubExpressions, changedSubExpressions, unchangedSubExpressions, emptySubExpressions);
 
     final Tuple tuple = createTuple(event);
     bolt.execute(tuple);
     verify(collector, times(1)).ack(tuple);
 
-    // TODO - FIX THIS IF WE EVER SUPPORT ALARM EXPRESSION UPDATES
-    // verifyDeletedSubAlarm(subAlarms.get(2));
-    // verifyUpdatedSubAlarm(updatedSubAlarms.get(1));
-    // verifyAddedSubAlarm(updatedSubAlarms.get(2));
     verify(collector, times(1)).emit(EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID,
         new Values(EventProcessingBolt.UPDATED, event));
+    verify(collector, times(1)).emit(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID,
+        new Values(EventProcessingBolt.UPDATED, first, alarmDefinition.getId()));
+    verify(collector, times(1)).emit(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID,
+        new Values(EventProcessingBolt.UPDATED, second, alarmDefinition.getId()));
+    verify(collector, never()).emit(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID,
+        new Values(EventProcessingBolt.UPDATED, third, alarmDefinition.getId()));
+    verify(alarmDao, times(1)).updateSubAlarmExpressions(first.getId(), first.getAlarmSubExpression());
+    verify(alarmDao, times(1)).updateSubAlarmExpressions(second.getId(), second.getAlarmSubExpression());
+    verify(alarmDao, never()).updateSubAlarmExpressions(third.getId(), third.getAlarmSubExpression());
   }
 
   public void testAlarmUpdatedEvent() {

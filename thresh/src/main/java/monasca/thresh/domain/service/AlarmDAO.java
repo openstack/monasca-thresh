@@ -18,7 +18,7 @@
 package monasca.thresh.domain.service;
 
 import monasca.common.model.alarm.AlarmState;
-
+import monasca.common.model.alarm.AlarmSubExpression;
 import monasca.thresh.domain.model.Alarm;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 
@@ -45,4 +45,7 @@ public interface AlarmDAO {
 
   /** Create a new Alarm */
   void createAlarm(Alarm newAlarm);
+
+  /** Update SubAlarms when AlarmDefinition changes */
+  int updateSubAlarmExpressions(final String alarmSubExpressionId, AlarmSubExpression alarmSubExpression);
 }

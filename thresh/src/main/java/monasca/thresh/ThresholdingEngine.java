@@ -84,6 +84,7 @@ public class ThresholdingEngine {
     Config config = Injector.getInstance(Config.class);
     StormTopology topology = Injector.getInstance(StormTopology.class);
     config.registerSerialization(monasca.thresh.domain.model.SubAlarm.class);
+    config.registerSerialization(monasca.thresh.domain.model.SubExpression.class);
 
     if (local) {
       logger.info("submitting topology {} to local storm cluster", topologyName);

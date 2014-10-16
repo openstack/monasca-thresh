@@ -18,10 +18,12 @@
 package monasca.thresh.domain.model;
 
 import monasca.common.model.alarm.AlarmExpression;
+import monasca.common.model.alarm.AlarmSubExpression;
 import monasca.common.model.domain.common.AbstractEntity;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * An alarm comprised of sub-alarms.
@@ -34,12 +36,13 @@ public class AlarmDefinition extends AbstractEntity {
   private List<String> matchBy = new ArrayList<>();
   private boolean actionsEnabled = true;
   private String severity;
+  private List<SubExpression> subExpressions = new ArrayList<>();
 
   public AlarmDefinition() {
   }
 
   public AlarmDefinition(String id, String tenantId, String name, String description,
-      AlarmExpression expression, String severity, boolean actionsEnabled, List<String> matchBy) {
+      AlarmExpression expression, String severity, boolean actionsEnabled, List<SubExpression> subExpressions, List<String> matchBy) {
     this.id = id;
     this.tenantId = tenantId;
     this.name = name;
@@ -47,7 +50,17 @@ public class AlarmDefinition extends AbstractEntity {
     this.expression = expression;
     this.severity = severity;
     this.actionsEnabled = actionsEnabled;
+    this.subExpressions = subExpressions;
     this.setMatchBy(matchBy);
+  }
+
+  public AlarmDefinition(String tenantId, String name, String description,
+      AlarmExpression expression, String severity, boolean actionsEnabled, List<String> matchBy) {
+    this(UUID.randomUUID().toString(), tenantId, name, description, expression, severity, actionsEnabled,
+        new ArrayList<SubExpression>(expression.getSubExpressions().size()), matchBy);
+    for (final AlarmSubExpression alarmSubExpression : this.expression.getSubExpressions()) {
+      subExpressions.add(new SubExpression(UUID.randomUUID().toString(), alarmSubExpression));
+    }
   }
 
   @Override
@@ -81,6 +94,9 @@ public class AlarmDefinition extends AbstractEntity {
       return false;
     }
     if (!compareObjects(matchBy, other.matchBy)) {
+      return false;
+    }
+    if (!compareObjects(subExpressions, other.subExpressions)) {
       return false;
     }
     return true;
@@ -135,6 +151,7 @@ public class AlarmDefinition extends AbstractEntity {
     result = prime * result + ((severity == null) ? 0 : severity.hashCode());
     result = prime * result + (actionsEnabled ? 1783 : 0);
     result = prime * result + ((tenantId == null) ? 0 : tenantId.hashCode());
+    result = prime * result + ((subExpressions == null) ? 0 : subExpressions.hashCode());
     result = prime * result + matchBy.hashCode();
     return result;
   }
@@ -174,8 +191,9 @@ public class AlarmDefinition extends AbstractEntity {
     }
     builder.append(']');
     return String.format(
-        "Alarm [tenantId=%s, name=%s, description=%s, expression=%s, severity=%s, actionsEnabled=%s, matchBy=%s]", tenantId,
-        name, description, expression.getExpression(), severity, actionsEnabled, builder);
+            "Alarm [id=%s. tenantId=%s, name=%s, description=%s, expression=%s, severity=%s, actionsEnabled=%s, subExpressions=%s, matchBy=%s]",
+            id, tenantId, name, description, expression.getExpression(), severity, actionsEnabled,
+            subExpressions, builder);
   }
 
   public List<String> getMatchBy() {
@@ -189,5 +207,13 @@ public class AlarmDefinition extends AbstractEntity {
     else {
       this.matchBy = matchBy;
     }
+  }
+
+  public List<SubExpression> getSubExpressions() {
+    return subExpressions;
+  }
+
+  public void setSubExpressions(List<SubExpression> subExpressions) {
+    this.subExpressions = subExpressions;
   }
 }

@@ -39,6 +39,7 @@ import monasca.thresh.domain.model.AlarmDefinition;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantIdMatcher;
 import monasca.thresh.domain.model.SubAlarm;
+import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.model.TenantIdAndMetricName;
 import monasca.thresh.domain.service.AlarmDAO;
 import monasca.thresh.domain.service.AlarmDefinitionDAO;
@@ -47,6 +48,7 @@ import monasca.thresh.infrastructure.persistence.PersistenceModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -171,7 +173,7 @@ public class MetricFilteringBolt extends BaseRichBolt {
               final AlarmDefinition alarmDefinition =
                   new AlarmDefinition(event.alarmDefinitionId, event.tenantId, event.alarmName,
                       event.alarmDescription, new AlarmExpression(event.alarmExpression), "LOW",
-                      true, event.matchBy);
+                      true, createSubExpressions(event.alarmSubExpressions), event.matchBy);
               newAlarmDefinition(alarmDefinition);
             }
           }
@@ -186,6 +188,15 @@ public class MetricFilteringBolt extends BaseRichBolt {
     } finally {
       collector.ack(tuple);
     }
+  }
+
+  private List<SubExpression> createSubExpressions(
+      Map<String, AlarmSubExpression> alarmSubExpressions) {
+    final List<SubExpression> result = new ArrayList<>(alarmSubExpressions.size());
+    for (final Map.Entry<String, AlarmSubExpression> entry : alarmSubExpressions.entrySet()) {
+      result.add(new SubExpression(entry.getKey(), entry.getValue()));
+    }
+    return result;
   }
 
   private void deleteAlarmDefinition(final String alarmDefinitionId) {
@@ -359,7 +370,7 @@ public class MetricFilteringBolt extends BaseRichBolt {
   /**
    * Only use for testing.
    */
-  static void clearMetricDefinitions() {
+  public static void clearMetricDefinitions() {
     alreadyFound.clear();
     matcher.clear();
     alarmDefinitions.clear();

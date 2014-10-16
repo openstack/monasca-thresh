@@ -18,18 +18,19 @@
 package monasca.thresh.infrastructure.persistence;
 
 import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
-
-import monasca.common.model.alarm.AlarmExpression;
-import monasca.common.model.alarm.AlarmState;
-import monasca.common.model.metric.MetricDefinition;
 
 import com.google.common.io.Resources;
 
+import monasca.common.model.alarm.AggregateFunction;
+import monasca.common.model.alarm.AlarmExpression;
+import monasca.common.model.alarm.AlarmState;
+import monasca.common.model.metric.MetricDefinition;
 import monasca.thresh.domain.model.Alarm;
 import monasca.thresh.domain.model.AlarmDefinition;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
+import monasca.thresh.domain.model.SubAlarm;
+import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.service.AlarmDAO;
 
 import org.skife.jdbi.v2.DBI;
@@ -45,7 +46,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @Test
 public class AlarmDAOImplTest {
@@ -79,6 +79,8 @@ public class AlarmDAOImplTest {
   protected void beforeMethod() {
     handle.execute("truncate table alarm");
     handle.execute("truncate table sub_alarm");
+    handle.execute("truncate table sub_alarm_definition");
+    handle.execute("truncate table sub_alarm_definition_dimension");
     handle.execute("truncate table alarm_metric");
     handle.execute("truncate table metric_definition");
     handle.execute("truncate table metric_definition_dimensions");
@@ -86,7 +88,7 @@ public class AlarmDAOImplTest {
 
     final String expr = "avg(load{first=first_value}) > 10 and max(cpu) < 90";
     alarmDef =
-        new AlarmDefinition(getNextId(), TENANT_ID, ALARM_NAME, ALARM_DESCR, new AlarmExpression(
+        new AlarmDefinition(TENANT_ID, ALARM_NAME, ALARM_DESCR, new AlarmExpression(
             expr), "LOW", ALARM_ENABLED, new ArrayList<String>());
 
     final Map<String, String> dimensions = new HashMap<String, String>();
@@ -96,26 +98,22 @@ public class AlarmDAOImplTest {
     newMetric = new MetricDefinitionAndTenantId(md, TENANT_ID);
   }
 
-  private String getNextId() {
-    return UUID.randomUUID().toString();
-  }
-
   public void shouldFindForAlarmDefinitionId() {
     verifyAlarmList(dao.findForAlarmDefinitionId(alarmDef.getId()));
 
-    final Alarm firstAlarm = new Alarm(getNextId(), alarmDef, AlarmState.OK);
+    final Alarm firstAlarm = new Alarm(alarmDef, AlarmState.OK);
     firstAlarm.addAlarmedMetric(newMetric);
 
     dao.createAlarm(firstAlarm);
 
-    final Alarm secondAlarm = new Alarm(getNextId(), alarmDef, AlarmState.OK);
+    final Alarm secondAlarm = new Alarm(alarmDef, AlarmState.OK);
     dao.createAlarm(secondAlarm);
 
     final AlarmDefinition secondAlarmDef =
-        new AlarmDefinition(getNextId(), TENANT_ID, "Second", null, new AlarmExpression(
+        new AlarmDefinition(TENANT_ID, "Second", null, new AlarmExpression(
             "avg(cpu{disk=vda, instance_id=123}) > 10"), "LOW", true, Arrays.asList("dev"));
 
-    final Alarm thirdAlarm = new Alarm(getNextId(), secondAlarmDef, AlarmState.OK);
+    final Alarm thirdAlarm = new Alarm(secondAlarmDef, AlarmState.OK);
     dao.createAlarm(thirdAlarm);
 
     verifyAlarmList(dao.findForAlarmDefinitionId(alarmDef.getId()), firstAlarm, secondAlarm);
@@ -133,18 +131,15 @@ public class AlarmDAOImplTest {
   }
 
   public void shouldFindById() {
-    String alarmId = getNextId();
-    assertNull(dao.findById(alarmId));
-
-    final Alarm newAlarm = new Alarm(alarmId, alarmDef, AlarmState.OK);
+    final Alarm newAlarm = new Alarm(alarmDef, AlarmState.OK);
     dao.createAlarm(newAlarm);
 
-    assertEquals(dao.findById(alarmId), newAlarm);
+    assertEquals(dao.findById(newAlarm.getId()), newAlarm);
 
     dao.addAlarmedMetric(newAlarm.getId(), newMetric);
     newAlarm.addAlarmedMetric(newMetric);
 
-    assertEquals(dao.findById(alarmId), newAlarm);
+    assertEquals(dao.findById(newAlarm.getId()), newAlarm);
 
     // Make sure it can handle MetricDefinition with no dimensions
     final MetricDefinitionAndTenantId anotherMetric =
@@ -153,13 +148,11 @@ public class AlarmDAOImplTest {
     dao.addAlarmedMetric(newAlarm.getId(), anotherMetric);
     newAlarm.addAlarmedMetric(anotherMetric);
 
-    assertEquals(dao.findById(alarmId), newAlarm);
+    assertEquals(dao.findById(newAlarm.getId()), newAlarm);
   }
 
   public void checkComplexMetrics() {
-    String alarmId = getNextId();
-
-    final Alarm newAlarm = new Alarm(alarmId, alarmDef, AlarmState.ALARM);
+    final Alarm newAlarm = new Alarm(alarmDef, AlarmState.ALARM);
 
     for (final String hostname : Arrays.asList("vivi", "eleanore")) {
       for (final String metricName : Arrays.asList("cpu", "load")) {
@@ -173,7 +166,7 @@ public class AlarmDAOImplTest {
     }
     dao.createAlarm(newAlarm);
 
-    final Alarm found = dao.findById(alarmId);
+    final Alarm found = dao.findById(newAlarm.getId());
     // Have to check both ways because there was a bug in AlarmDAOImpl and it showed up if both
     // ways were tested
     assertTrue(newAlarm.equals(found));
@@ -181,22 +174,42 @@ public class AlarmDAOImplTest {
   }
 
   public void shouldUpdateState() {
-    String alarmId = getNextId();
-
-    final Alarm newAlarm = new Alarm(alarmId, alarmDef, AlarmState.OK);
+    final Alarm newAlarm = new Alarm(alarmDef, AlarmState.OK);
 
     dao.createAlarm(newAlarm);
-    dao.updateState(alarmId, AlarmState.ALARM);
-    assertEquals(dao.findById(alarmId).getState(), AlarmState.ALARM);
+    dao.updateState(newAlarm.getId(), AlarmState.ALARM);
+    assertEquals(dao.findById(newAlarm.getId()).getState(), AlarmState.ALARM);
+  }
+
+  public void shouldUpdate() {
+    final Alarm newAlarm = new Alarm(alarmDef, AlarmState.OK);
+    dao.createAlarm(newAlarm);
+
+    final SubExpression first = alarmDef.getSubExpressions().get(0);
+    final AggregateFunction newFunction = AggregateFunction.COUNT;
+    first.getAlarmSubExpression().setFunction(newFunction);
+    assertEquals(1, dao.updateSubAlarmExpressions(first.getId(), first.getAlarmSubExpression()));
+    // Find the SubAlarm that was created from the changed SubExpression
+    boolean found = false;
+    for (final SubAlarm subAlarm : newAlarm.getSubAlarms()) {
+      if (subAlarm.getAlarmSubExpressionId().equals(first.getId())) {
+        found = true;
+        // This is what dao.updateSubAlarmExpressions() should have changed
+        subAlarm.getExpression().setFunction(newFunction);
+        break;
+      }
+    }
+    assertTrue(found);
+    assertEquals(dao.findById(newAlarm.getId()), newAlarm);
   }
 
   public void validateNoDuplicates() {
-    final Alarm alarm1 = new Alarm(getNextId(), alarmDef, AlarmState.OK);
+    final Alarm alarm1 = new Alarm(alarmDef, AlarmState.OK);
     alarm1.addAlarmedMetric(newMetric);
     dao.createAlarm(alarm1);
     assertEquals(dao.findById(alarm1.getId()), alarm1);
 
-    final Alarm alarm2 = new Alarm(getNextId(), alarmDef, AlarmState.OK);
+    final Alarm alarm2 = new Alarm(alarmDef, AlarmState.OK);
     alarm2.addAlarmedMetric(newMetric);
     dao.createAlarm(alarm2);
     assertEquals(dao.findById(alarm2.getId()), alarm2);

@@ -17,11 +17,6 @@
 
 package monasca.thresh.infrastructure.thresholding;
 
-import monasca.common.model.metric.Metric;
-import monasca.common.streaming.storm.Logging;
-import monasca.common.streaming.storm.Streams;
-import monasca.common.streaming.storm.Tuples;
-
 import backtype.storm.Config;
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;
@@ -31,9 +26,14 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
+import monasca.common.model.metric.Metric;
+import monasca.common.streaming.storm.Logging;
+import monasca.common.streaming.storm.Streams;
+import monasca.common.streaming.storm.Tuples;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
 import monasca.thresh.domain.model.SubAlarmStats;
+import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.model.TenantIdAndMetricName;
 import monasca.thresh.domain.service.SubAlarmStatsRepository;
 
@@ -43,8 +43,6 @@ import org.slf4j.LoggerFactory;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -125,11 +123,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
             }
           } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple
               .getSourceStreamId())) {
-            MetricDefinitionAndTenantId metricDefinitionAndTenantId =
-                (MetricDefinitionAndTenantId) tuple.getValue(2);
-            SubAlarm subAlarm = (SubAlarm) tuple.getValue(3);
             if (EventProcessingBolt.UPDATED.equals(eventType)) {
-              handleAlarmUpdated(metricDefinitionAndTenantId, subAlarm);
+              handleAlarmSubExpressionUpdated((SubExpression) tuple.getValue(1));
             }
           } else if (AlarmCreationBolt.ALARM_CREATION_STREAM.equals(tuple
               .getSourceStreamId())) {
@@ -257,19 +252,18 @@ public class MetricAggregationBolt extends BaseRichBolt {
 
   void handleAlarmResend(MetricDefinitionAndTenantId metricDefinitionAndTenantId,
       final String subAlarmId) {
-    final RepoAndStats repoAndStats =
+    final SubAlarmStats oldSubAlarmStats =
         findExistingSubAlarmStats(metricDefinitionAndTenantId, subAlarmId);
-    if (repoAndStats == null) {
+    if (oldSubAlarmStats == null) {
       return;
     }
 
-    final SubAlarmStats oldSubAlarmStats = repoAndStats.subAlarmStats;
     final SubAlarm oldSubAlarm = oldSubAlarmStats.getSubAlarm();
     oldSubAlarm.setNoState(true); // Have it send its state again so the Alarm can be evaluated
     logger.info("Forcing SubAlarm {} to send state at next evaluation", oldSubAlarm);
   }
 
-  private RepoAndStats findExistingSubAlarmStats(
+  private SubAlarmStats findExistingSubAlarmStats(
       MetricDefinitionAndTenantId metricDefinitionAndTenantId, String subAlarmId) {
     final SubAlarmStatsRepository oldSubAlarmStatsRepo =
         metricDefToSubAlarmStatsRepos.get(metricDefinitionAndTenantId);
@@ -283,7 +277,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
       logger.error("Did not find existing SubAlarm {} in SubAlarmStatsRepository", subAlarmId);
       return null;
     }
-    return new RepoAndStats(oldSubAlarmStatsRepo, oldSubAlarmStats);
+    return oldSubAlarmStats;
   }
 
   private void addSubAlarm(MetricDefinitionAndTenantId metricDefinitionAndTenantId,
@@ -326,30 +320,17 @@ public class MetricAggregationBolt extends BaseRichBolt {
    *
    * MetricDefinition can't have changed, just how it is evaluated
    */
-  void handleAlarmUpdated(MetricDefinitionAndTenantId metricDefinitionAndTenantId, SubAlarm subAlarm) {
-    logger.debug("Received AlarmUpdatedEvent for {}", subAlarm);
-    final RepoAndStats repoAndStats =
-        findExistingSubAlarmStats(metricDefinitionAndTenantId, subAlarm.getId());
-    if (repoAndStats != null) {
-      // Clear the old SubAlarm, but save the SubAlarm state
-      final SubAlarmStats oldSubAlarmStats = repoAndStats.subAlarmStats;
-      final SubAlarm oldSubAlarm = oldSubAlarmStats.getSubAlarm();
-      subAlarm.setState(oldSubAlarm.getState());
-      subAlarm.setNoState(true); // Doesn't hurt to send too many state changes, just too few
-      if (oldSubAlarm.isCompatible(subAlarm)) {
-        logger.debug("Changing {} to {} and keeping measurements", oldSubAlarm,
-            subAlarm);
-        oldSubAlarmStats.updateSubAlarm(subAlarm);
-        return;
+  void handleAlarmSubExpressionUpdated(SubExpression subExpression) {
+    logger.debug("Processing SubExpression updated for {}", subExpression);
+    int updated = 0;
+    for (final SubAlarmStats subAlarmStats : subAlarmStatsSet) {
+      if (subAlarmStats.getSubAlarm().getAlarmSubExpressionId().equals(subExpression.getId())) {
+        long viewEndTimestamp = currentTimeSeconds() + subExpression.getAlarmSubExpression().getPeriod();
+        subAlarmStats.updateSubAlarm(subExpression.getAlarmSubExpression(), viewEndTimestamp);
+        updated++;
       }
-      // Have to completely change the SubAlarmStats
-      logger.debug("Changing {} to {} and flushing measurements", oldSubAlarm,
-          subAlarm);
-      repoAndStats.subAlarmStatsRepository.remove(subAlarm.getId());
-      subAlarmToSubAlarmStats.remove(subAlarm.getId());
-      subAlarmStatsSet.remove(repoAndStats.subAlarmStats);
     }
-    addSubAlarm(metricDefinitionAndTenantId, subAlarm);
+    logger.debug("Updated {} SubAlarms", updated);
   }
 
   /**
@@ -368,16 +349,6 @@ public class MetricAggregationBolt extends BaseRichBolt {
     final SubAlarmStats subAlarmStats = subAlarmToSubAlarmStats.remove(subAlarmId);
     if (subAlarmStats != null) {
       subAlarmStatsSet.remove(subAlarmStats);
-    }
-  }
-
-  private static class RepoAndStats {
-    public final SubAlarmStatsRepository subAlarmStatsRepository;
-    public final SubAlarmStats subAlarmStats;
-
-    public RepoAndStats(SubAlarmStatsRepository subAlarmStatsRepository, SubAlarmStats subAlarmStats) {
-      this.subAlarmStatsRepository = subAlarmStatsRepository;
-      this.subAlarmStats = subAlarmStats;
     }
   }
 }

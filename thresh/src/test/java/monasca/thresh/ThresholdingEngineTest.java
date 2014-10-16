@@ -26,18 +26,6 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
-import monasca.common.configuration.KafkaProducerConfiguration;
-import monasca.common.model.event.AlarmDefinitionCreatedEvent;
-import monasca.common.model.event.AlarmStateTransitionedEvent;
-import monasca.common.model.alarm.AlarmExpression;
-import monasca.common.model.alarm.AlarmState;
-import monasca.common.model.alarm.AlarmSubExpression;
-import monasca.common.model.metric.Metric;
-import monasca.common.model.metric.MetricDefinition;
-import monasca.common.streaming.storm.TopologyTestCase;
-import monasca.common.util.Injector;
-import monasca.common.util.Serialization;
-
 import backtype.storm.Config;
 import backtype.storm.testing.FeederSpout;
 import backtype.storm.tuple.Fields;
@@ -45,6 +33,17 @@ import backtype.storm.tuple.Values;
 
 import com.google.inject.AbstractModule;
 
+import monasca.common.configuration.KafkaProducerConfiguration;
+import monasca.common.model.alarm.AlarmExpression;
+import monasca.common.model.alarm.AlarmState;
+import monasca.common.model.alarm.AlarmSubExpression;
+import monasca.common.model.event.AlarmDefinitionCreatedEvent;
+import monasca.common.model.event.AlarmStateTransitionedEvent;
+import monasca.common.model.metric.Metric;
+import monasca.common.model.metric.MetricDefinition;
+import monasca.common.streaming.storm.TopologyTestCase;
+import monasca.common.util.Injector;
+import monasca.common.util.Serialization;
 import monasca.thresh.domain.model.Alarm;
 import monasca.thresh.domain.model.AlarmDefinition;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
@@ -52,11 +51,14 @@ import monasca.thresh.domain.model.TenantIdAndMetricName;
 import monasca.thresh.domain.service.AlarmDAO;
 import monasca.thresh.domain.service.AlarmDefinitionDAO;
 import monasca.thresh.infrastructure.thresholding.AlarmEventForwarder;
+import monasca.thresh.infrastructure.thresholding.MetricFilteringBolt;
 import monasca.thresh.infrastructure.thresholding.MetricSpout;
 import monasca.thresh.infrastructure.thresholding.ProducerModule;
 
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
@@ -86,13 +88,14 @@ public class ThresholdingEngineTest extends TopologyTestCase {
   private MetricDefinition cpuMetricDef;
   private MetricDefinition memMetricDef;
   private Map<String, String> extraMemMetricDefDimensions;
-  private final AlarmEventForwarder alarmEventForwarder;
+  private AlarmEventForwarder alarmEventForwarder;
 
   private AlarmState previousState = AlarmState.UNDETERMINED;
   private AlarmState expectedState = AlarmState.ALARM;
   private volatile int alarmsSent = 0;
 
-  public ThresholdingEngineTest() {
+  @BeforeMethod
+  public void befortMethod() throws Exception {
     // Fixtures
     final AlarmExpression expression =
         new AlarmExpression("max(cpu{id=5}) >= 3 or max(mem{id=5}) >= 5");
@@ -104,7 +107,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     extraMemMetricDefDimensions.put("Group", "group A");
 
     alarmDefinition =
-        new AlarmDefinition("424242", TEST_ALARM_TENANT_ID, TEST_ALARM_NAME,
+        new AlarmDefinition(TEST_ALARM_TENANT_ID, TEST_ALARM_NAME,
             TEST_ALARM_DESCRIPTION, expression, "LOW", true, new ArrayList<String>());
 
     // Mocks
@@ -136,19 +139,26 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     Injector
         .registerModules(new TopologyModule(threshConfig, stormConfig, metricSpout, eventSpout));
     Injector.registerModules(new ProducerModule(alarmEventForwarder));
+
+  }
+
+  @AfterMethod
+  public void afterMethod() throws Exception {
+    System.out.println("Stopping topology");
+    stopTopology();
+    cluster = null;
   }
 
   public void testWithInitialAlarmDefinition() throws Exception {
     when(alarmDefinitionDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
     when(alarmDefinitionDAO.listAll()).thenReturn(Arrays.asList(alarmDefinition));
-    shouldThreshold(null, false);  
+    shouldThreshold(null, false);
   }
 
   public void testWithInitialAlarm() throws Exception {
     when(alarmDefinitionDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
     when(alarmDefinitionDAO.listAll()).thenReturn(Arrays.asList(alarmDefinition));
-    final String alarmId = getNextId();
-    final Alarm alarm = new Alarm(alarmId, alarmDefinition, AlarmState.UNDETERMINED);
+    final Alarm alarm = new Alarm(alarmDefinition, AlarmState.UNDETERMINED);
     alarm.addAlarmedMetric(new MetricDefinitionAndTenantId(cpuMetricDef, TEST_ALARM_TENANT_ID));
     alarm.addAlarmedMetric(new MetricDefinitionAndTenantId(memMetricDef, TEST_ALARM_TENANT_ID));
     when(alarmDAO.listAll()).thenReturn(Arrays.asList(alarm));
@@ -183,6 +193,12 @@ public class ThresholdingEngineTest extends TopologyTestCase {
 
   private void shouldThreshold(final String expectedAlarmId,
                                final boolean hasExtraMetric) throws Exception {
+    System.out.println("Starting topology");
+    startTopology();
+    previousState = AlarmState.UNDETERMINED;
+    expectedState = AlarmState.ALARM;
+    alarmsSent = 0;
+    MetricFilteringBolt.clearMetricDefinitions();
     doAnswer(new Answer<Object>() {
       public Object answer(InvocationOnMock invocation) {
         final Object[] args = invocation.getArguments();
@@ -221,11 +237,13 @@ public class ThresholdingEngineTest extends TopologyTestCase {
         return null;
       }
     }).when(alarmEventForwarder).send(anyString(), anyString(), anyString());
+
     doAnswer(new Answer<Object>() {
       public Object answer(InvocationOnMock invocation) {
         final Object[] args = invocation.getArguments();
         final Alarm alarm = (Alarm) args[0];
         when(alarmDAO.findById(alarm.getId())).thenReturn(alarm);
+        System.out.printf("Alarm %s created\n", alarm.getId());
         return null;
       }
     }).when(alarmDAO).createAlarm((Alarm)any());

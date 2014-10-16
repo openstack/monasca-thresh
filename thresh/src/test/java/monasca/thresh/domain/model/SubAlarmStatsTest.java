@@ -20,25 +20,28 @@ package monasca.thresh.domain.model;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
-
 import monasca.common.model.alarm.AlarmState;
 import monasca.common.model.alarm.AlarmSubExpression;
 
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.util.UUID;
+
 @Test
 public class SubAlarmStatsTest {
-  private AlarmSubExpression expression;
+  private SubExpression expression;
   private SubAlarm subAlarm;
   private SubAlarmStats subAlarmStats;
 
   @BeforeMethod
   protected void beforeMethod() {
-    expression = AlarmSubExpression.of("avg(hpcs.compute.cpu{id=5}, 60) > 3 times 3");
+    expression =
+        new SubExpression(UUID.randomUUID().toString(),
+            AlarmSubExpression.of("avg(hpcs.compute.cpu{id=5}, 60) > 3 times 3"));
     subAlarm = new SubAlarm("123", "1", expression);
     subAlarm.setNoState(true);
-    subAlarmStats = new SubAlarmStats(subAlarm, expression.getPeriod());
+    subAlarmStats = new SubAlarmStats(subAlarm, expression.getAlarmSubExpression().getPeriod());
   }
 
   public void shouldBeOkIfAnySlotsInViewAreBelowThreshold() {
@@ -134,20 +137,22 @@ public class SubAlarmStatsTest {
   }
 
   public void testEmptyWindowObservationThreshold() {
-    expression = AlarmSubExpression.of("avg(hpcs.compute.cpu{id=5}) > 3 times 3");
+    expression =
+        new SubExpression(UUID.randomUUID().toString(),
+            AlarmSubExpression.of("avg(hpcs.compute.cpu{id=5}) > 3 times 3"));
     subAlarm = new SubAlarm("123", "1", expression);
     SubAlarmStats saStats = new SubAlarmStats(subAlarm, (System.currentTimeMillis() / 1000) + 60);
     assertEquals(saStats.emptyWindowObservationThreshold, 6);
   }
 
   public void checkLongPeriod() {
-    final AlarmSubExpression subExpr =
-        AlarmSubExpression.of("sum(hpcs.compute.mem{id=5}, 120) >= 96");
+    final SubExpression subExpr = new SubExpression(UUID.randomUUID().toString(),
+        AlarmSubExpression.of("sum(hpcs.compute.mem{id=5}, 120) >= 96"));
 
     final SubAlarm subAlarm = new SubAlarm("42", "4242", subExpr);
 
     long t1 = 0;
-    final SubAlarmStats stats = new SubAlarmStats(subAlarm, t1 + subExpr.getPeriod());
+    final SubAlarmStats stats = new SubAlarmStats(subAlarm, t1 + subExpr.getAlarmSubExpression().getPeriod());
     for (int i = 0; i < 360; i++) {
       t1++;
       stats.getStats().addValue(1.0, t1);

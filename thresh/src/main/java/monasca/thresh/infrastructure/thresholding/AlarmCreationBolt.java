@@ -17,13 +17,6 @@
 
 package monasca.thresh.infrastructure.thresholding;
 
-import monasca.common.model.event.AlarmDefinitionDeletedEvent;
-import monasca.common.model.alarm.AlarmState;
-import monasca.common.model.alarm.AlarmSubExpression;
-import monasca.common.model.metric.MetricDefinition;
-import monasca.common.streaming.storm.Logging;
-import monasca.common.util.Injector;
-
 import backtype.storm.task.OutputCollector;
 import backtype.storm.task.TopologyContext;
 import backtype.storm.topology.OutputFieldsDeclarer;
@@ -32,6 +25,12 @@ import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
+import monasca.common.model.alarm.AlarmState;
+import monasca.common.model.alarm.AlarmSubExpression;
+import monasca.common.model.event.AlarmDefinitionDeletedEvent;
+import monasca.common.model.metric.MetricDefinition;
+import monasca.common.streaming.storm.Logging;
+import monasca.common.util.Injector;
 import monasca.thresh.domain.model.Alarm;
 import monasca.thresh.domain.model.AlarmDefinition;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
@@ -49,7 +48,6 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Handles creation of Alarms and Alarmed Metrics.
@@ -94,25 +92,42 @@ public class AlarmCreationBolt extends BaseRichBolt {
         final MetricDefinitionAndTenantId metricDefinitionAndTenantId =
             (MetricDefinitionAndTenantId) tuple.getValue(0);
         handleNewMetricDefinition(metricDefinitionAndTenantId, tuple.getString(1));
-      } else {
+      } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple
+          .getSourceStreamId())) {
+        final String eventType = tuple.getString(0);
+        if (EventProcessingBolt.UPDATED.equals(eventType)) {
+          // We could try to update the subalarms, but it is easier just to delete
+          // the waiting alarms and wait for them to be recreated. The AlarmDefinition
+          // itself is not cached so we don't have to do anything with it
+          removeWaitingAlarmsForAlarmDefinition(tuple.getString(2));
+        }
+      } else if (EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
         final String eventType = tuple.getString(0);
         logger.debug("Received {} Event", eventType);
         if (EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID.equals(tuple.getSourceStreamId())) {
           if (EventProcessingBolt.DELETED.equals(eventType)) {
             final AlarmDefinitionDeletedEvent event =
                 (AlarmDefinitionDeletedEvent) tuple.getValue(1);
-            final List<Alarm> waiting = waitingAlarms.remove(event.alarmDefinitionId);
-            if (waiting != null && !waiting.isEmpty()) {
-              logger.info("{} waiting alarms removed for Alarm Definition Id {}", waiting != null
-                  && !waiting.isEmpty() ? waiting.size() : "No", event.alarmDefinitionId);
-            }
+            removeWaitingAlarmsForAlarmDefinition(event.alarmDefinitionId);
           }
         }
       }
+      else {
+        logger.error("Receieved tuple on unknown stream {}", tuple);
+      }
+      
     } catch (Exception e) {
       logger.error("Error processing tuple {}", tuple, e);
     } finally {
       collector.ack(tuple);
+    }
+  }
+
+  private void removeWaitingAlarmsForAlarmDefinition(String alarmDefinitionId) {
+    final List<Alarm> waiting = waitingAlarms.remove(alarmDefinitionId);
+    if (waiting != null && !waiting.isEmpty()) {
+      logger.info("{} waiting alarms removed for Alarm Definition Id {}", waiting != null
+          && !waiting.isEmpty() ? waiting.size() : "No", alarmDefinitionId);
     }
   }
 
@@ -229,10 +244,6 @@ public class AlarmCreationBolt extends BaseRichBolt {
     return false;
   }
 
-  protected String getNextId() {
-    return UUID.randomUUID().toString(); 
-  }
-
   /**
    * This is only used for testing
    *
@@ -251,8 +262,7 @@ public class AlarmCreationBolt extends BaseRichBolt {
             alarmDefinition, metricDefinitionAndTenantId);
     final List<Alarm> result = new LinkedList<>();
     if (waitingAlarms.isEmpty()) {
-      final String alarmId = getNextId();
-      final Alarm newAlarm = new Alarm(alarmId, alarmDefinition, AlarmState.UNDETERMINED);
+      final Alarm newAlarm = new Alarm(alarmDefinition, AlarmState.UNDETERMINED);
       newAlarm.addAlarmedMetric(metricDefinitionAndTenantId);
       if (alarmIsComplete(newAlarm)) {
         logger.debug("New alarm is complete. Saving");

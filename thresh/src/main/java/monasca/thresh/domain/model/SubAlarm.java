@@ -30,6 +30,7 @@ public class SubAlarm extends AbstractEntity implements Serializable {
   private static final long serialVersionUID = -3946708553723868124L;
 
   private String alarmId;
+  private String alarmSubExpressionId;
   private AlarmSubExpression expression;
   private AlarmState state;
   private boolean noState;
@@ -38,7 +39,7 @@ public class SubAlarm extends AbstractEntity implements Serializable {
    */
   private boolean sporadicMetric;
 
-  public SubAlarm(String id, String alarmId, AlarmSubExpression expression) {
+  public SubAlarm(String id, String alarmId, SubExpression expression) {
     this(id, alarmId, expression, AlarmState.UNDETERMINED);
   }
 
@@ -48,10 +49,11 @@ public class SubAlarm extends AbstractEntity implements Serializable {
   public SubAlarm() {
   }
 
-  public SubAlarm(String id, String alarmId, AlarmSubExpression expression, AlarmState state) {
+  public SubAlarm(String id, String alarmId, SubExpression expression, AlarmState state) {
     this.id = id;
     this.alarmId = alarmId;
-    this.expression = expression;
+    this.expression = expression.getAlarmSubExpression();
+    this.alarmSubExpressionId = expression.getId();
     this.state = state;
   }
 
@@ -69,6 +71,13 @@ public class SubAlarm extends AbstractEntity implements Serializable {
         return false;
       }
     } else if (!alarmId.equals(other.alarmId)) {
+      return false;
+    }
+    if (alarmSubExpressionId == null) {
+      if (other.alarmSubExpressionId != null) {
+        return false;
+      }
+    } else if (!alarmSubExpressionId.equals(other.alarmSubExpressionId)) {
       return false;
     }
     if (expression == null) {
@@ -92,8 +101,16 @@ public class SubAlarm extends AbstractEntity implements Serializable {
     return expression;
   }
 
+  public void setExpression(AlarmSubExpression expression) {
+    this.expression = expression;
+  }
+
   public AlarmState getState() {
     return state;
+  }
+
+  public String getAlarmSubExpressionId() {
+    return alarmSubExpressionId;
   }
 
   @Override
@@ -102,6 +119,7 @@ public class SubAlarm extends AbstractEntity implements Serializable {
     int result = super.hashCode();
     result = prime * result + ((alarmId == null) ? 0 : alarmId.hashCode());
     result = prime * result + ((expression == null) ? 0 : expression.hashCode());
+    result = prime * result + ((alarmSubExpressionId == null) ? 0 : alarmSubExpressionId.hashCode());
     result = prime * result + ((state == null) ? 0 : state.hashCode());
     return result;
   }
@@ -128,8 +146,8 @@ public class SubAlarm extends AbstractEntity implements Serializable {
 
   @Override
   public String toString() {
-    return String.format("SubAlarm [id=%s, alarmId=%s, expression=%s, state=%s noState=%s]", id,
-        alarmId, expression, state, noState);
+    return String.format("SubAlarm [id=%s, alarmId=%s, alarmSubExpressionId=%s, expression=%s, state=%s noState=%s]", id,
+        alarmId, alarmSubExpressionId, expression, state, noState);
   }
 
   /**
@@ -139,17 +157,17 @@ public class SubAlarm extends AbstractEntity implements Serializable {
    * @param other SubAlarm to compare to
    * @return true if 'other' is "compatible", false otherwise
    */
-  public boolean isCompatible(final SubAlarm other) {
-    if (!this.expression.getMetricDefinition().equals(other.expression.getMetricDefinition())) {
+  public boolean isCompatible(final AlarmSubExpression other) {
+    if (!this.expression.getMetricDefinition().equals(other.getMetricDefinition())) {
       return false;
     }
-    if (!this.expression.getFunction().equals(other.expression.getFunction())) {
+    if (!this.expression.getFunction().equals(other.getFunction())) {
       return false;
     }
-    if (this.expression.getPeriod() != other.expression.getPeriod()) {
+    if (this.expression.getPeriod() != other.getPeriod()) {
       return false;
     }
-    if (this.expression.getPeriods() != other.expression.getPeriods()) {
+    if (this.expression.getPeriods() != other.getPeriods()) {
       return false;
     }
     // Operator and Threshold can vary
