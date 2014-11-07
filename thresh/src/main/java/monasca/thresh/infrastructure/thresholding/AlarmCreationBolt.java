@@ -86,7 +86,7 @@ public class AlarmCreationBolt extends BaseRichBolt {
 
   @Override
   public void execute(Tuple tuple) {
-    logger.debug("tuple: {}", tuple);
+    logger.info("tuple: {}", tuple);
     try {
       if (MetricFilteringBolt.NEW_METRIC_FOR_ALARM_DEFINITION_STREAM.equals(tuple.getSourceStreamId())) {
         final MetricDefinitionAndTenantId metricDefinitionAndTenantId =
@@ -161,7 +161,6 @@ public class AlarmCreationBolt extends BaseRichBolt {
       logger.info("Metric {} fits into existing alarm {}", metricDefinitionAndTenantId,
           existingAlarm);
       addToExistingAlarm(existingAlarm, metricDefinitionAndTenantId);
-      sendNewMetricDefinition(existingAlarm, metricDefinitionAndTenantId);
     } else {
       final List<Alarm> newAlarms =
           finishesAlarm(alarmDefinition, metricDefinitionAndTenantId, existingAlarms);
