@@ -87,7 +87,7 @@ public class AlarmDefinitionDAOImpl implements AlarmDefinitionDAO {
       Integer period = (Integer) row.get("period");
       Integer periods = (Integer) row.get("periods");
       Map<String, String> dimensions = new HashMap<>();
-      while (addedDimenstion(dimensions, id, rows, index)) {
+      while (addedDimension(dimensions, id, rows, index)) {
         index++;
       }
       subExpressions.add(new SubExpression(id, new AlarmSubExpression(function,
@@ -97,7 +97,7 @@ public class AlarmDefinitionDAOImpl implements AlarmDefinitionDAO {
     return subExpressions;
   }
 
-  private boolean addedDimenstion(Map<String, String> dimensions, String id,
+  private boolean addedDimension(Map<String, String> dimensions, String id,
       List<Map<String, Object>> rows, int index) {
     if (index >= rows.size()) {
       return false;

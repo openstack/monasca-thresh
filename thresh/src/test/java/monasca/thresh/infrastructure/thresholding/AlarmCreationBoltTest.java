@@ -74,14 +74,14 @@ public class AlarmCreationBoltTest {
   final OutputCollector collector = mock(OutputCollector.class);
 
   final private List<Alarm> createdAlarms = new LinkedList<>();
-  final private Map<String, List<Alarm>> existingAlarms = new HashMap<>();;
+  final private Map<String, List<Alarm>> existingAlarms = new HashMap<>();
 
   @BeforeMethod
   public void beforeMethod() {
     final Map<String, String> config = new HashMap<>();
     final TopologyContext context = mock(TopologyContext.class);
     bolt.prepare(config, context, collector);
-    this.createdAlarms.clear();;
+    this.createdAlarms.clear();
     doAnswer(new Answer<Object>() {
       public Object answer(InvocationOnMock invocation) {
         final Object[] args = invocation.getArguments();
@@ -373,7 +373,7 @@ public class AlarmCreationBoltTest {
     verifyCreatedAlarm(this.createdAlarms.get(0), alarmDefinition, collector,
         new MetricDefinitionAndTenantId(metric, TENANT_ID));
 
-    this.createdAlarms.clear();;
+    this.createdAlarms.clear();
     final MetricDefinition metric2 =
         build("cpu", "hostname", "vivi", "service", "2", "other", "eleanore");
 

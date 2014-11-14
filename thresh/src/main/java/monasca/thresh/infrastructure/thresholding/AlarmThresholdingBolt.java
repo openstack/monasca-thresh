@@ -192,7 +192,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     }
   }
 
-  void evaluateThreshold(Alarm alarm, SubAlarm subAlarm) {
+  private void evaluateThreshold(Alarm alarm, SubAlarm subAlarm) {
     logger.debug("Received state change for {}", subAlarm);
     subAlarm.setNoState(false);
     alarm.updateSubAlarm(subAlarm);
