@@ -1,4 +1,4 @@
-#! /bin/sh
+#! /bin/bash
 #### BEGIN INIT INFO
 ## Provides:          monasca-thresh
 ## Required-Start:    $nimbus
@@ -20,6 +20,17 @@ case "$1" in
       exit 0
     ;;
     stop)
+      # On system shutdown storm is being shutdown also and this will hang so skip shutting down thresh in that case
+      if [ -e '/sbin/runlevel' ]; then  # upstart/sysV case
+        if [ $(runlevel | cut -d\  -f 2) == 0 ]; then
+          exit 0
+        fi
+      else  # systemd case
+        systemctl list-units --type=target |grep shutdown.target
+        if [ $? -eq 0 ]; then
+          exit 0
+        fi
+      fi
       sudo -Hu thresh /opt/storm/current/bin/storm kill thresh-cluster
       # The above command returns but actually takes awhile loop watching status
       while true; do
