@@ -14,10 +14,11 @@ case "$1" in
       $0 status
       if [ $? -ne 0 ]; then
         sudo -Hu thresh /opt/storm/current/bin/storm jar /opt/monasca/monasca-thresh.jar monasca.thresh.ThresholdingEngine /etc/monasca/thresh-config.yml thresh-cluster
+        exit $?
       else
         echo "monasca-thresh is already running"
+        exit 0
       fi
-      exit 0
     ;;
     stop)
       # On system shutdown storm is being shutdown also and this will hang so skip shutting down thresh in that case
