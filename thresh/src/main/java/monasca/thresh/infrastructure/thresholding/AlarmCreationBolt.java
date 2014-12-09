@@ -161,6 +161,7 @@ public class AlarmCreationBolt extends BaseRichBolt {
       logger.info("Metric {} fits into existing alarm {}", metricDefinitionAndTenantId,
           existingAlarm);
       addToExistingAlarm(existingAlarm, metricDefinitionAndTenantId);
+      sendNewMetricDefinition(existingAlarm, metricDefinitionAndTenantId);
     } else {
       final List<Alarm> newAlarms =
           finishesAlarm(alarmDefinition, metricDefinitionAndTenantId, existingAlarms);
