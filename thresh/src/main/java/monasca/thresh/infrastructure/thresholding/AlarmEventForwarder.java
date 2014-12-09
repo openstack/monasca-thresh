@@ -19,7 +19,7 @@ package monasca.thresh.infrastructure.thresholding;
 
 public interface AlarmEventForwarder {
 
-  void send(String alertExchange, String alertRoutingKey, String json);
+  void send(String json);
 
   void close();
 }

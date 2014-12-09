@@ -24,7 +24,6 @@ import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotEquals;
 import static org.testng.Assert.assertNotNull;
-import monasca.thresh.ThresholdingConfiguration;
 import monasca.common.model.event.AlarmDefinitionUpdatedEvent;
 import monasca.common.model.event.AlarmUpdatedEvent;
 import monasca.common.model.alarm.AggregateFunction;
@@ -57,8 +56,6 @@ import java.util.Map;
 @Test
 public class AlarmThresholdingBoltTest {
 
-  private static final String ALERT_ROUTING_KEY = "Alert Routing Key";
-  private static final String ALERTS_EXCHANGE = "Alerts";
   private static final String tenantId = "AAAAABBBBBBCCCCC";
 
   private AlarmExpression alarmExpression;
@@ -98,8 +95,6 @@ public class AlarmThresholdingBoltTest {
     bolt = new MockAlarmThreshholdBolt(alarmDAO, alarmDefinitionDAO, alarmEventForwarder);
     collector = mock(OutputCollector.class);
     final Map<String, String> config = new HashMap<>();
-    config.put(ThresholdingConfiguration.ALERTS_EXCHANGE, ALERTS_EXCHANGE);
-    config.put(ThresholdingConfiguration.ALERTS_ROUTING_KEY, ALERT_ROUTING_KEY);
     final TopologyContext context = mock(TopologyContext.class);
     bolt.prepare(config, context, collector);
   }
@@ -129,7 +124,7 @@ public class AlarmThresholdingBoltTest {
             + "\"stateChangeReason\":\"Thresholds were exceeded for the sub-alarms: ["
             + subAlarm.getExpression().getExpression() + "]\"," + "\"severity\":\"LOW\",\"timestamp\":1395587091}}";
 
-    verify(alarmEventForwarder, times(1)).send(ALERTS_EXCHANGE, ALERT_ROUTING_KEY, alarmJson);
+    verify(alarmEventForwarder, times(1)).send(alarmJson);
     verify(alarmDAO, times(1)).updateState(alarmId, AlarmState.ALARM);
 
     // Now clear the alarm and ensure another notification gets sent out
@@ -147,7 +142,7 @@ public class AlarmThresholdingBoltTest {
             + "\"alarmDescription\":\"Description of Alarm\",\"oldState\":\"ALARM\",\"newState\":\"OK\","
             + "\"actionsEnabled\":true,"
             + "\"stateChangeReason\":\"The alarm threshold(s) have not been exceeded\",\"severity\":\"LOW\",\"timestamp\":1395587091}}";
-    verify(alarmEventForwarder, times(1)).send(ALERTS_EXCHANGE, ALERT_ROUTING_KEY, okJson);
+    verify(alarmEventForwarder, times(1)).send(okJson);
     verify(alarmDAO, times(1)).updateState(alarmId, AlarmState.OK);
   }
 

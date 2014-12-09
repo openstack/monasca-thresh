@@ -169,7 +169,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
     doAnswer(new Answer<Object>() {
       public Object answer(InvocationOnMock invocation) {
         final Object[] args = invocation.getArguments();
-        AlarmStateTransitionedEvent event = Serialization.fromJson((String) args[2]);
+        AlarmStateTransitionedEvent event = Serialization.fromJson((String) args[0]);
         System.out.printf("Alarm transitioned from %s to %s%n", event.oldState, event.newState);
         assertEquals(event.alarmName, expectedAlarmName);
         assertEquals(event.alarmDefinitionId, expectedAlarmDefinitionId);
@@ -183,7 +183,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
         alarmsSent++;
         return null;
       }
-    }).when(alarmEventForwarder).send(anyString(), anyString(), anyString());
+    }).when(alarmEventForwarder).send(anyString());
     final AlarmExpression initialExpression = new AlarmExpression(
         "max(hpcs.compute.cpu{id=5}) >= 556 or max(hpcs.compute.mem{id=5}) >= 557");
 

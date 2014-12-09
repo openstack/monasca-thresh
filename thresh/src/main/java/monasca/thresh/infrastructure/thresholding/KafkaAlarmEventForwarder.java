@@ -37,6 +37,8 @@ public class KafkaAlarmEventForwarder implements AlarmEventForwarder {
 
   private final String topic;
 
+  private long messageCount = 0;
+
   public KafkaAlarmEventForwarder(KafkaProducerConfiguration kafkaConfig) {
     this.topic = kafkaConfig.getTopic();
     Properties kafkaProperties = KafkaProducerProperties.createKafkaProperties(kafkaConfig);
@@ -45,11 +47,11 @@ public class KafkaAlarmEventForwarder implements AlarmEventForwarder {
   }
 
   @Override
-  public void send(String alertExchange, String alertRoutingKey, String json) {
-    logger.debug("sending alertExchange: {}, alertRoutingKey: {}, json: {}", alertExchange,
-        alertRoutingKey, json);
+  public void send(String json) {
+    logger.debug("sending topic: {}, json: {}", topic, json);
+    final String routingKey = String.valueOf(messageCount++);
     final KeyedMessage<String, String> message =
-        new KeyedMessage<String, String>(topic, alertRoutingKey, json);
+        new KeyedMessage<String, String>(topic, routingKey, json);
     producer.send(message);
   }
 

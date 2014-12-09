@@ -71,8 +71,6 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   private KafkaProducerConfiguration producerConfiguration;
   final Map<String, Alarm> alarms = new HashMap<String, Alarm>();
   final Map<String, AlarmDefinition> alarmDefinitions = new HashMap<>();
-  private String alertExchange;
-  private String alertRoutingKey;
   private transient AlarmDAO alarmDAO;
   private transient AlarmDefinitionDAO alarmDefinitionDAO;
   private transient AlarmEventForwarder alarmEventForwarder;
@@ -173,8 +171,6 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     logger = LoggerFactory.getLogger(Logging.categoryFor(getClass(), context));
     logger.info("Preparing");
     this.collector = collector;
-    alertExchange = (String) config.get(ThresholdingConfiguration.ALERTS_EXCHANGE);
-    alertRoutingKey = (String) config.get(ThresholdingConfiguration.ALERTS_ROUTING_KEY);
 
     if (alarmDAO == null) {
       Injector.registerIfNotBound(AlarmDAO.class, new PersistenceModule(dbConfig));
@@ -229,7 +225,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
             alarmDefinition.getSeverity(), alarmDefinition.isActionsEnabled(), stateChangeReason,
             getTimestamp());
     try {
-      alarmEventForwarder.send(alertExchange, alertRoutingKey, Serialization.toJson(event));
+      alarmEventForwarder.send(Serialization.toJson(event));
     } catch (Exception ignore) {
       logger.debug("Failure sending alarm", ignore);
     }
