@@ -3,12 +3,13 @@ monasca-thresh
 
 Monitoring Thresholding Engine
 
-Computes thresholds on metrics and publishes alarms to the MessageQ when exceeded.
+Computes thresholds on metrics and publishes alarms to Kafka when exceeded. The current state is also saved in the MySQL datbase.
+
 Based on Apache Storm, a free and open distributed real-time computation system. Also uses Apache Kafka, a high-throughput distributed messaging system.
 
 ![Threshold Engine Architecture](mon-thresh-architecture.png "Threshold Engine Architecture")
 
-Alarms have three possible states: `UNDETERMINED`, `OK` and `ALARM`.  Alarms are defined by an expression. For example: 
+Alarms have three possible states: `UNDETERMINED`, `OK` and `ALARM`.  Alarms are defined by an expression that comes from the Alarm Definition. For example: 
 
 ```
 avg(cpu{service=nova}, 120) > 90 or avg(load{service=nova}, 120) > 15
@@ -18,11 +19,15 @@ If the expression evaluates to true, the Alarm state transitions to `ALARM`, if 
 
 The Threshold Engine is designed as a series of Storm Spouts and Bolts. For an overview of Storm, look at [the tutorial][storm-tutorial]. Spouts feed external data into the system as messages while bolts process incoming messages and optionally produce output messages for a downstream bolt.
 
-The flow of Metrics is MetricSpout to MetricFilteringBolt to MetricAggregationBolt. The MetricSpout reads from Kakfa and sends it on through Storm. Metrics are routed to a specific MetricFilteringBolt based on a routing algorithm that computes a hash code like value based on the Metric Definition so a Metric with the same MetricDefinition is always routed to the same MetricFilteringBolt. The MetricFilteringBolt looks up the Metric Definition and decides if it should be sent on to a MetricAggregationBolt using the same routing algorithm. The MetricAggregationBolt adds the Metric information to its total for each SubAlarms and once a minute evaluates each SubAlarm it has.
+The flow of Metrics is MetricSpout to MetricFilteringBolt to MetricAggregationBolt. The MetricSpout reads metrics from Kakfa and sends them on through Storm. Metrics are routed to a specific MetricFilteringBolt based on a routing algorithm that computes a hash code like value based on the Metric Definition so a Metric with the same MetricDefinition is always routed to the same MetricFilteringBolt.
+
+The MetricFilteringBolt checks what Alarm Definitions this metric matches, if any. If it matches a new Alarm Definition, the MetricFilteringBolt first sends it to the AlarmCreationBolt. It thens sends the metric to the MetricAggregationBolts once for each matching ALarm Definition. The routing is done by the combination of metric name and tenant id to ensure the same MetricAggregationBolt gets the metric each time.
 
 So, each Metric is routed through one of the MetricFilteringBolts. The MetricAggregationBolts processes many fewer Metrics because few Metrics are associated with an Alarm.
 
-Once a minute, the MetricAggregationBolts use the Aggregated Metrics to evaluate each Sub Alarms. If the state changes on the Sub Alarm, the state change is forwarded to the AlarmThresholdingBolts. The AlarmThresholdingBolts look at the entire Alarm Expression to evaluate the state of the Alarm.
+The MetricAggregationBolt adds the Metric information to its total for each SubAlarms.  Once a minute, the MetricAggregationBolts use the Aggregated Metrics to evaluate each Sub Alarms. If the state changes on the Sub Alarm, the state change is forwarded to the AlarmThresholdingBolts. The AlarmThresholdingBolts look at the entire Alarm Expression to evaluate the state of the Alarm.
+
+The AlarmCreationBolt looks at its incoming metrics and creates new Alarms as needed. It may also add the metric to an existing Alarm if it fits there. The metrics are routed to the AlarmCreationBolt by the AlarmDefinitionId. The AlarmCreationBolt forwards new SubAlarms to the MetricAggregationBolts when an Alarm is created.
 
 Events also flow into the Threshold Engine via Kafka so the Threshold Engine knows about Alarm creations, updates and deletes. The EventSpout reads the Events from Kafka and sends them to the appropriate bolts.
 
