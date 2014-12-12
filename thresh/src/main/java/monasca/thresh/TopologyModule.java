@@ -69,8 +69,6 @@ public class TopologyModule extends AbstractModule {
       stormConfig = new Config();
       stormConfig.setNumWorkers(config.numWorkerProcesses);
       stormConfig.setNumAckers(config.numAckerThreads);
-      stormConfig.put(ThresholdingConfiguration.ALERTS_EXCHANGE, config.alertsExchange);
-      stormConfig.put(ThresholdingConfiguration.ALERTS_ROUTING_KEY, config.alertsRoutingKey);
     }
 
     return stormConfig;

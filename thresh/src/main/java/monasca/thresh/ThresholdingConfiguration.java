@@ -31,9 +31,6 @@ import javax.validation.constraints.NotNull;
  * Thresholding configuration.
  */
 public class ThresholdingConfiguration {
-  public static final String ALERTS_EXCHANGE = "thresh.external.alerts";
-  public static final String ALERTS_ROUTING_KEY = "thresh.external.alert";
-
   /** Total number of workers processes across the cluster. */
   @NotNull public Integer numWorkerProcesses = 12;
   /** Total number of acker threads across the cluster. */
@@ -63,14 +60,12 @@ public class ThresholdingConfiguration {
   /** Namespaces for which metrics are received sporadically. */
   @NotNull public Set<String> sporadicMetricNamespaces;
 
-  /** Configuration for the spout that receives metrics from the external exchange. */
+  /** Configuration for the spout that receives metrics from Kafka. */
   @Valid @NotNull public MetricSpoutConfig metricSpoutConfig;
-  /** Configuration for the spout that receives events from the external exchange. */
+  /** Configuration for the spout that receives events from Kafka. */
   @Valid @NotNull public EventSpoutConfig eventSpoutConfig;
 
-  /** Configuration for publishing to the alerts exchange on the external server. */
-  @NotEmpty public String alertsExchange = "alerts";
-  @NotEmpty public String alertsRoutingKey = "alert";
+  /** Configuration for publishing to the Kafka. */
   @Valid @NotNull public KafkaProducerConfiguration kafkaProducerConfig = new KafkaProducerConfiguration();
 
   /** Database configuration. */

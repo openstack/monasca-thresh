@@ -202,7 +202,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     doAnswer(new Answer<Object>() {
       public Object answer(InvocationOnMock invocation) {
         final Object[] args = invocation.getArguments();
-        AlarmStateTransitionedEvent event = Serialization.fromJson((String) args[2]);
+        AlarmStateTransitionedEvent event = Serialization.fromJson((String) args[0]);
         alarmsSent++;
         System.out.printf("Alarm transitioned from %s to %s%n", event.oldState, event.newState);
         assertEquals(event.alarmDefinitionId, alarmDefinition.getId());
@@ -236,7 +236,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
         previousState = event.newState;
         return null;
       }
-    }).when(alarmEventForwarder).send(anyString(), anyString(), anyString());
+    }).when(alarmEventForwarder).send(anyString());
 
     doAnswer(new Answer<Object>() {
       public Object answer(InvocationOnMock invocation) {
