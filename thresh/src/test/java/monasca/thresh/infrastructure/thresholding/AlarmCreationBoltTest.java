@@ -40,6 +40,7 @@ import monasca.common.model.alarm.AlarmExpression;
 import monasca.common.model.alarm.AlarmState;
 import monasca.common.model.alarm.AlarmSubExpression;
 import monasca.common.model.event.AlarmDefinitionDeletedEvent;
+import monasca.common.model.event.AlarmDeletedEvent;
 import monasca.common.model.metric.MetricDefinition;
 import monasca.thresh.domain.model.Alarm;
 import monasca.thresh.domain.model.AlarmDefinition;
@@ -55,6 +56,7 @@ import org.mockito.stubbing.Answer;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -257,20 +259,48 @@ public class AlarmCreationBoltTest {
 
     // Update the Alarm Definition
     final SubExpression first = alarmDefinition.getSubExpressions().get(0);
-    first.getAlarmSubExpression().setThreshold(42.0);
+
+    // We make a copy of the SubExpression because the actual SubExpression from the AlarmDefinition is
+    // in the Alarm and updating first updates the SubAlarm's SubExpresssion directly
+    final SubExpression copy = new SubExpression(first.getId(), AlarmSubExpression.of(first.getAlarmSubExpression().getExpression()));
+    copy.getAlarmSubExpression().setThreshold(42.0);
     final MkTupleParam tupleParam = new MkTupleParam();
     tupleParam.setFields(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_FIELDS);
     tupleParam.setStream(EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID);
     final Tuple tuple =
         Testing.testTuple(
-            Arrays.asList(EventProcessingBolt.UPDATED, first, alarmDefinition.getId()), tupleParam);
+            Arrays.asList(EventProcessingBolt.UPDATED, copy, alarmDefinition.getId()), tupleParam);
 
     bolt.execute(tuple);
 
-    // Ensure they are gone
-    assertNull(bolt.countWaitingAlarms(alarmDefinition.getId()));
+    final AlarmSubExpression subExpr2 =
+        alarmDefinition.getAlarmExpression().getSubExpressions().get(1);
+
+    // Now finish the Alarms
+    for (final String hostname : hostnames) {
+      final MetricDefinition metric =
+          build(subExpr2.getMetricDefinition().name, "hostname", hostname, "service", "2");
+      sendNewMetric(new MetricDefinitionAndTenantId(metric, TENANT_ID), alarmDefinition.getId());
+    }
+
+    assertEquals(this.createdAlarms.size(), hostnames.size());
+
+    // Can't use verifyCreatedAlarm because then the AlarmDefinition must be updated which
+    // might update the SubAlarms directly because of reuse of AlarmSubExpressions
+    for (final Alarm alarm : this.createdAlarms) {
+      boolean found = false;
+      for (SubAlarm subAlarm : alarm.getSubAlarms()) {
+        if (subAlarm.getAlarmSubExpressionId().equals(first.getId())) {
+          assertEquals(subAlarm.getExpression().getThreshold(),
+                       copy.getAlarmSubExpression().getThreshold());
+          found = true;
+          break;
+        }
+      }
+      assertTrue(found, "Did not find expected sub alarm");
+    }
   }
-  
+
   private void sendAlarmDefinitionDeleted(final AlarmDefinition alarmDefinition) {
     final Map<String, MetricDefinition> subAlarmMetricDefinitions = new HashMap<>();
     for (final AlarmSubExpression subExpr : alarmDefinition.getAlarmExpression().getSubExpressions()) {
@@ -347,6 +377,118 @@ public class AlarmCreationBoltTest {
     testMultipleExpressions(metricDefinitionsToSend, numDevs);
   }
 
+  public void testReuseMetricFromExistingAlarm() {
+    final String expression = "max(cpu{service=vivi}) > 90";
+    final String[] matchBy = new String[] { "hostname", "amplifier" };
+    final AlarmDefinition alarmDefinition = createAlarmDefinition(expression, matchBy);
+
+    final MetricDefinition metric =
+        build("cpu", "hostname", "eleanore", "amplifier", "2", "service", "vivi");
+
+    bolt.handleNewMetricDefinition(new MetricDefinitionAndTenantId(metric, TENANT_ID),
+        alarmDefinition.getId());
+
+    assertEquals(this.createdAlarms.size(), 1);
+    verifyCreatedAlarm(this.createdAlarms.get(0), alarmDefinition, collector,
+        new MetricDefinitionAndTenantId(metric, TENANT_ID));
+
+    final MetricDefinition metric2 =
+        build("cpu", "hostname", "eleanore", "service", "vivi");
+
+    sendNewMetric(new MetricDefinitionAndTenantId(metric2, TENANT_ID), alarmDefinition.getId());
+
+    assertEquals(this.createdAlarms.size(), 1,
+          "A second alarm was created instead of the metric fitting into the first");
+
+    verifyCreatedAlarm(this.createdAlarms.get(0), alarmDefinition, collector,
+        new MetricDefinitionAndTenantId(metric, TENANT_ID),
+        new MetricDefinitionAndTenantId(metric2, TENANT_ID));
+
+    final MetricDefinition metric3 =
+        build("cpu", "hostname", "eleanore", "amplifier", "3", "service", "vivi");
+
+    bolt.handleNewMetricDefinition(new MetricDefinitionAndTenantId(metric3, TENANT_ID),
+        alarmDefinition.getId());
+
+    assertEquals(this.createdAlarms.size(), 2);
+
+    verifyCreatedAlarm(this.createdAlarms.get(1), alarmDefinition, collector,
+        new MetricDefinitionAndTenantId(metric3, TENANT_ID),
+        new MetricDefinitionAndTenantId(metric2, TENANT_ID));
+  }
+
+  public void testUseMetricInExistingAlarm() {
+    final String expression = "max(cpu{service=vivi}) > 90";
+    final String[] matchBy = new String[] { "hostname", "amplifier" };
+    final AlarmDefinition alarmDefinition = createAlarmDefinition(expression, matchBy);
+
+    final MetricDefinition metric =
+        build("cpu", "hostname", "eleanore", "amplifier", "2", "service", "vivi");
+
+    bolt.handleNewMetricDefinition(new MetricDefinitionAndTenantId(metric, TENANT_ID),
+        alarmDefinition.getId());
+
+    assertEquals(this.createdAlarms.size(), 1);
+    verifyCreatedAlarm(this.createdAlarms.get(0), alarmDefinition, collector,
+        new MetricDefinitionAndTenantId(metric, TENANT_ID));
+
+    final MetricDefinition metric3 =
+        build("cpu", "hostname", "eleanore", "amplifier", "3", "service", "vivi");
+
+    bolt.handleNewMetricDefinition(new MetricDefinitionAndTenantId(metric3, TENANT_ID),
+        alarmDefinition.getId());
+
+    assertEquals(this.createdAlarms.size(), 2);
+
+    verifyCreatedAlarm(this.createdAlarms.get(1), alarmDefinition, collector,
+        new MetricDefinitionAndTenantId(metric3, TENANT_ID));
+
+    final MetricDefinition metric2 =
+        build("cpu", "hostname", "eleanore", "service", "vivi");
+
+    sendNewMetric(new MetricDefinitionAndTenantId(metric2, TENANT_ID), alarmDefinition.getId());
+
+    assertEquals(this.createdAlarms.size(), 2,
+          "A third alarm was created instead of the metric fitting into the first two");
+
+    verifyCreatedAlarm(this.createdAlarms.get(0), alarmDefinition, collector,
+        new MetricDefinitionAndTenantId(metric, TENANT_ID),
+        new MetricDefinitionAndTenantId(metric2, TENANT_ID));
+
+    verifyCreatedAlarm(this.createdAlarms.get(1), alarmDefinition, collector,
+        new MetricDefinitionAndTenantId(metric3, TENANT_ID),
+        new MetricDefinitionAndTenantId(metric2, TENANT_ID));
+  }
+
+  public void testDeletedAlarm() {
+    final AlarmDefinition alarmDefinition = runCreateSimpleAlarm();
+    assertEquals(this.createdAlarms.size(), 1);
+    final Alarm alarmToDelete = this.createdAlarms.get(0);
+    this.createdAlarms.clear();
+    final Map<String, AlarmSubExpression> subAlarms = new HashMap<>();
+    for (final SubAlarm subAlarm : alarmToDelete.getSubAlarms()) {
+      subAlarms.put(subAlarm.getId(), subAlarm.getExpression());
+    }
+    final List<MetricDefinition> alarmedMetrics = new ArrayList<>();
+    for (final MetricDefinitionAndTenantId mdtid : alarmToDelete.getAlarmedMetrics()) {
+      alarmedMetrics.add(mdtid.metricDefinition);
+    }
+    final AlarmDeletedEvent event = new AlarmDeletedEvent(TENANT_ID, alarmToDelete.getId(),
+        alarmedMetrics, alarmToDelete.getAlarmDefinitionId(), subAlarms);
+
+    final MkTupleParam tupleParam = new MkTupleParam();
+    tupleParam.setFields(EventProcessingBolt.ALARM_EVENT_STREAM_FIELDS);
+    tupleParam.setStream(EventProcessingBolt.ALARM_EVENT_STREAM_ID);
+    final Tuple tuple =
+        Testing.testTuple(Arrays.asList(EventProcessingBolt.DELETED, alarmToDelete.getId(), event),
+            tupleParam);
+
+    bolt.execute(tuple);
+
+    // Make sure the alarm gets created again
+    createAlarms(alarmDefinition);
+  }
+
   private void testMultipleExpressions(final List<MetricDefinition> metricDefinitionsToSend,
       final int numAlarms) {
     final AlarmDefinition alarmDefinition =
@@ -359,10 +501,15 @@ public class AlarmCreationBoltTest {
     assertEquals(this.createdAlarms.size(), numAlarms);
   }
 
-  private void runCreateSimpleAlarm(final String... matchBy) {
+  private AlarmDefinition runCreateSimpleAlarm(final String... matchBy) {
 
     final String expression = "max(cpu{service=2}) > 90";
     final AlarmDefinition alarmDefinition = createAlarmDefinition(expression, matchBy);
+    createAlarms(alarmDefinition, matchBy);
+    return alarmDefinition;
+  }
+
+  private void createAlarms(final AlarmDefinition alarmDefinition, final String... matchBy) {
     final MetricDefinition metric =
         build("cpu", "hostname", "eleanore", "service", "2", "other", "vivi");
 
@@ -373,19 +520,18 @@ public class AlarmCreationBoltTest {
     verifyCreatedAlarm(this.createdAlarms.get(0), alarmDefinition, collector,
         new MetricDefinitionAndTenantId(metric, TENANT_ID));
 
-    this.createdAlarms.clear();
     final MetricDefinition metric2 =
         build("cpu", "hostname", "vivi", "service", "2", "other", "eleanore");
 
     sendNewMetric(new MetricDefinitionAndTenantId(metric2, TENANT_ID), alarmDefinition.getId());
     if (matchBy.length == 0) {
-      assertEquals(this.createdAlarms.size(), 0,
+      assertEquals(this.createdAlarms.size(), 1,
           "A second alarm was created instead of the metric fitting into the first");
     } else {
-      assertEquals(this.createdAlarms.size(), 1,
+      assertEquals(this.createdAlarms.size(), 2,
           "The metric was fitted into the first alarm instead of creating a new alarm");
 
-      verifyCreatedAlarm(this.createdAlarms.get(0), alarmDefinition, collector,
+      verifyCreatedAlarm(this.createdAlarms.get(1), alarmDefinition, collector,
           new MetricDefinitionAndTenantId(metric2, TENANT_ID));
 
       // Now send a metric that must fit into the just created alarm to test that
@@ -395,10 +541,10 @@ public class AlarmCreationBoltTest {
 
       sendNewMetric(new MetricDefinitionAndTenantId(metric3, TENANT_ID), alarmDefinition.getId());
 
-      assertEquals(this.createdAlarms.size(), 1,
+      assertEquals(this.createdAlarms.size(), 2,
           "The metric created a new alarm instead of fitting into the second");
 
-      verifyCreatedAlarm(this.createdAlarms.get(0), alarmDefinition, collector,
+      verifyCreatedAlarm(this.createdAlarms.get(1), alarmDefinition, collector,
           new MetricDefinitionAndTenantId(metric2, TENANT_ID), new MetricDefinitionAndTenantId(metric3, TENANT_ID));
     }
   }
@@ -466,6 +612,8 @@ public class AlarmCreationBoltTest {
       assertTrue(found, "SubAlarms for created Alarm don't match the Alarm Definition");
     }
     expectedAlarm.setSubAlarms(expectedSubAlarms);
+
+    assertEquals(newAlarm.getAlarmedMetrics().size(), mtids.length);
 
     for (final SubAlarm subAlarm : expectedAlarm.getSubAlarms()) {
       // Have to do it this way because order of sub alarms is not deterministic

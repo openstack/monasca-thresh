@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * An alarm comprised of sub-alarms.
+ * Defines the "policy" for creating alarms
  */
 public class AlarmDefinition extends AbstractEntity {
   private String tenantId;
@@ -215,5 +215,15 @@ public class AlarmDefinition extends AbstractEntity {
 
   public void setSubExpressions(List<SubExpression> subExpressions) {
     this.subExpressions = subExpressions;
+  }
+
+  public boolean updateSubExpression(final String id, final AlarmSubExpression alarmSubExpression) {
+    for (final SubExpression subExpression : this.subExpressions) {
+      if (subExpression.getId().equals(id)) {
+        subExpression.setAlarmSubExpression(alarmSubExpression);
+        return true;
+      }
+    }
+    return false;
   }
 }

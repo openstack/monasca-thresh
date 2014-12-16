@@ -19,8 +19,7 @@ package monasca.thresh.infrastructure.persistence;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
-
-import com.google.common.io.Resources;
+import static org.testng.Assert.assertNull;
 
 import monasca.common.model.alarm.AggregateFunction;
 import monasca.common.model.alarm.AlarmExpression;
@@ -40,14 +39,19 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@Test
+/**
+ * These tests won't work without the real mysql database so use mini-mon.
+ * Warning, this will truncate the alarms part of your mini-mon database
+ * @author craigbr
+ *
+ */
+@Test(groups = "database")
 public class AlarmDAOImplTest {
   private static final String TENANT_ID = "bob";
   private static String ALARM_NAME = "90% CPU";
@@ -63,10 +67,9 @@ public class AlarmDAOImplTest {
 
   @BeforeClass
   protected void setupClass() throws Exception {
-    db = new DBI("jdbc:h2:mem:test;MODE=MySQL");
+    // See class comment
+    db = new DBI("jdbc:mysql://192.168.10.4/mon", "monapi", "password");
     handle = db.open();
-    handle
-        .execute(Resources.toString(getClass().getResource("alarm.sql"), Charset.defaultCharset()));
     dao = new AlarmDAOImpl(db);
   }
 
@@ -77,6 +80,8 @@ public class AlarmDAOImplTest {
 
   @BeforeMethod
   protected void beforeMethod() {
+    handle.execute("SET foreign_key_checks = 0;");
+    handle.execute("truncate table alarm_definition");
     handle.execute("truncate table alarm");
     handle.execute("truncate table sub_alarm");
     handle.execute("truncate table sub_alarm_definition");
@@ -90,6 +95,7 @@ public class AlarmDAOImplTest {
     alarmDef =
         new AlarmDefinition(TENANT_ID, ALARM_NAME, ALARM_DESCR, new AlarmExpression(
             expr), "LOW", ALARM_ENABLED, new ArrayList<String>());
+    AlarmDefinitionDAOImplTest.insertAlarmDefinition(handle, alarmDef);
 
     final Map<String, String> dimensions = new HashMap<String, String>();
     dimensions.put("first", "first_value");
@@ -107,13 +113,20 @@ public class AlarmDAOImplTest {
     dao.createAlarm(firstAlarm);
 
     final Alarm secondAlarm = new Alarm(alarmDef, AlarmState.OK);
+    secondAlarm.addAlarmedMetric(newMetric);
     dao.createAlarm(secondAlarm);
 
     final AlarmDefinition secondAlarmDef =
         new AlarmDefinition(TENANT_ID, "Second", null, new AlarmExpression(
             "avg(cpu{disk=vda, instance_id=123}) > 10"), "LOW", true, Arrays.asList("dev"));
+    AlarmDefinitionDAOImplTest.insertAlarmDefinition(handle, secondAlarmDef);
 
     final Alarm thirdAlarm = new Alarm(secondAlarmDef, AlarmState.OK);
+    final Map<String, String> dims = new HashMap<>();
+    dims.put("disk", "vda");
+    dims.put("instance_id", "123");
+    thirdAlarm.addAlarmedMetric(new MetricDefinitionAndTenantId(new MetricDefinition("cpu", dims),
+        secondAlarmDef.getTenantId()));
     dao.createAlarm(thirdAlarm);
 
     verifyAlarmList(dao.findForAlarmDefinitionId(alarmDef.getId()), firstAlarm, secondAlarm);
@@ -124,7 +137,7 @@ public class AlarmDAOImplTest {
   }
 
   private void verifyAlarmList(final List<Alarm> found, Alarm... expected) {
-    assertEquals(expected.length, found.size());
+    assertEquals(found.size(), expected.length);
     for (final Alarm alarm : expected) {
       assertTrue(found.contains(alarm));
     }
@@ -132,6 +145,8 @@ public class AlarmDAOImplTest {
 
   public void shouldFindById() {
     final Alarm newAlarm = new Alarm(alarmDef, AlarmState.OK);
+    assertNull(dao.findById(newAlarm.getId()));
+
     dao.createAlarm(newAlarm);
 
     assertEquals(dao.findById(newAlarm.getId()), newAlarm);

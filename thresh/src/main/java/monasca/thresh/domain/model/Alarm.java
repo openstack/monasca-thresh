@@ -33,8 +33,7 @@ import java.util.UUID;
 
 /**
  * An alarm comprised of sub-alarms.
- */
-/**
+ *
  * @author craigbr
  *
  */
@@ -205,6 +204,16 @@ public class Alarm extends AbstractEntity {
     for (SubAlarm subAlarm : subAlarms) {
       this.subAlarms.put(subAlarm.getId(), subAlarm);
     }
+  }
+
+  public boolean updateSubAlarm(final SubExpression subExpression) {
+    for (final SubAlarm subAlarm : this.subAlarms.values()) {
+      if (subAlarm.getAlarmSubExpressionId().equals(subExpression.getId())) {
+        subAlarm.setExpression(subExpression.getAlarmSubExpression());
+        return true;
+      }
+    }
+    return false;
   }
 
   @Override

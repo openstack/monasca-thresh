@@ -165,6 +165,7 @@ public class EventProcessingBolt extends BaseRichBolt {
   }
 
   void handle(AlarmDeletedEvent event) {
+    logger.debug("Alarm {} deleted", event.alarmId);
     processSubAlarms(DELETED, event.tenantId, event.alarmDefinitionId, event.alarmMetrics,
         event.subAlarms);
 

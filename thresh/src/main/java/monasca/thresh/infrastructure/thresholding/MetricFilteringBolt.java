@@ -296,6 +296,8 @@ public class MetricFilteringBolt extends BaseRichBolt {
       synchronized (SENTINAL) {
         alreadyFound.remove(metricDefinitionAndTenantId, alarmDefinitionId);
       }
+      logger.debug("Removed {} for Alarm Definition {}", metricDefinitionAndTenantId,
+          alarmDefinitionId);
     }
   }
 

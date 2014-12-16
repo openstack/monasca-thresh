@@ -121,6 +121,7 @@ public class TopologyModule extends AbstractModule {
             MetricFilteringBolt.NEW_METRIC_FOR_ALARM_DEFINITION_STREAM,
             new Fields(AlarmCreationBolt.ALARM_CREATION_FIELDS[3]))
         .allGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID)
+        .allGrouping("event-bolt", EventProcessingBolt.ALARM_EVENT_STREAM_ID)
         .allGrouping("event-bolt", EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID)
         .setNumTasks(1); // This has to be a single bolt right now because there is no
                          // database protection for adding metrics and dimensions

@@ -106,20 +106,20 @@ public class AlarmDefinitionDAOImplTest {
     final AlarmDefinition alarmDefinition =
         new AlarmDefinition(TENANT_ID, ALARM_NAME, ALARM_DESCR, expression, "LOW",
             false, Arrays.asList("fred", "barney"));
-    insert(alarmDefinition);
+    insertAlarmDefinition(handle, alarmDefinition);
 
     verifyListAllMatches(alarmDefinition);
     final AlarmExpression expression2 = new AlarmExpression("max(cpu{service=swift}) > 90");
     final AlarmDefinition alarmDefinition2 =
         new AlarmDefinition(TENANT_ID, ALARM_NAME, ALARM_DESCR, expression2, "LOW",
             false, Arrays.asList("fred", "barney", "wilma", "betty"));
-    insert(alarmDefinition2);
+    insertAlarmDefinition(handle, alarmDefinition2);
 
     verifyListAllMatches(alarmDefinition, alarmDefinition2);
   }
 
   private void insertAndCheck(final AlarmDefinition alarmDefinition) {
-    insert(alarmDefinition);
+    insertAlarmDefinition(handle, alarmDefinition);
 
     assertEquals(dao.findById(alarmDefinition.getId()), alarmDefinition);
   }
@@ -133,7 +133,9 @@ public class AlarmDefinitionDAOImplTest {
     }
   }
 
-  private void insert(AlarmDefinition alarmDefinition) {
+  // This method is not a test but without this TestNG tries to run it
+  @Test(enabled=false)
+  public static void insertAlarmDefinition(Handle handle, AlarmDefinition alarmDefinition) {
     try {
       handle.begin();
       handle

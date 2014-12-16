@@ -20,7 +20,6 @@ package monasca.thresh.infrastructure.persistence;
 import monasca.common.model.alarm.AlarmState;
 import monasca.common.model.alarm.AlarmSubExpression;
 import monasca.common.model.metric.MetricDefinition;
-import monasca.common.persistence.BeanMapper;
 import monasca.thresh.domain.model.Alarm;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
@@ -31,19 +30,15 @@ import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.skife.jdbi.v2.DBI;
 import org.skife.jdbi.v2.Handle;
-import org.skife.jdbi.v2.StatementContext;
-import org.skife.jdbi.v2.tweak.ResultSetMapper;
+import org.skife.jdbi.v2.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 
 import javax.inject.Inject;
@@ -65,38 +60,98 @@ public class AlarmDAOImpl implements AlarmDAO {
 
   @Override
   public List<Alarm> findForAlarmDefinitionId(String alarmDefinitionId) {
-    Handle h = db.open();
-    try {
-      List<Alarm> alarms =
-          h.createQuery("select * from alarm where alarm_definition_id = :id")
-              .bind("id", alarmDefinitionId).map(new BeanMapper<Alarm>(Alarm.class)).list();
-
-      for (final Alarm alarm : alarms) {
-        alarm.setSubAlarms(getSubAlarms(h, alarm.getId()));
-
-        alarm.setAlarmedMetrics(findAlarmedMetrics(h, alarm.getId()));
-      }
-      return alarms;
-    } finally {
-      h.close();
-    }
+    return findAlarms("a.alarm_definition_id = :alarmDefinitionId ", "alarmDefinitionId",
+        alarmDefinitionId);
   }
 
   @Override
   public List<Alarm> listAll() {
-    Handle h = db.open();
-    try {
-      List<Alarm> alarms =
-          h.createQuery("select * from alarm").map(new BeanMapper<Alarm>(Alarm.class)).list();
+    return findAlarms("1=1"); // This is basically "true" and gets optimized out
+  }
 
-      for (final Alarm alarm : alarms) {
-        alarm.setSubAlarms(getSubAlarms(h, alarm.getId()));
+  private List<Alarm> findAlarms(final String additionalWhereClause, String ... params) {
+    try (final Handle h = db.open()) {
 
-        alarm.setAlarmedMetrics(findAlarmedMetrics(h, alarm.getId()));
+      final String ALARMS_SQL =
+            "select a.id, a.alarm_definition_id, a.state, sa.id as sub_alarm_id, sa.expression, sa.sub_expression_id, ad.tenant_id from alarm a "
+          + "inner join sub_alarm sa on sa.alarm_id = a.id "
+          + "inner join alarm_definition ad on a.alarm_definition_id = ad.id "
+          + "where ad.deleted_at is null and %s "
+          + "order by a.id";
+      final String sql = String.format(ALARMS_SQL, additionalWhereClause);
+      final Query<Map<String, Object>> query = h.createQuery(sql);
+      addQueryParameters(query, params);
+      final List<Map<String, Object>> rows = query.list();
+
+      final List<Alarm> alarms = new ArrayList<>(rows.size());
+      List<SubAlarm> subAlarms = new ArrayList<SubAlarm>();
+      String prevAlarmId = null;
+      Alarm alarm = null;
+      final Map<String, Alarm> alarmMap = new HashMap<>();
+      final Map<String, String> tenantIdMap = new HashMap<>();
+      for (final Map<String, Object> row : rows) {
+        final String alarmId = getString(row, "id");
+        if (!alarmId.equals(prevAlarmId)) {
+          if (alarm != null) {
+            alarm.setSubAlarms(subAlarms);
+          }
+          alarm = new Alarm();
+          alarm.setId(alarmId);
+          alarm.setAlarmDefinitionId(getString(row, "alarm_definition_id"));
+          alarm.setState(AlarmState.valueOf(getString(row, "state")));
+          subAlarms = new ArrayList<SubAlarm>();
+          alarms.add(alarm);
+          alarmMap.put(alarmId, alarm);
+          tenantIdMap.put(alarmId, getString(row, "tenant_id"));
+        }
+        final SubExpression subExpression =
+            new SubExpression(getString(row, "sub_expression_id"), AlarmSubExpression.of(getString(
+                row, "expression")));
+        final SubAlarm subAlarm =
+            new SubAlarm(getString(row, "sub_alarm_id"), alarmId, subExpression);
+        subAlarms.add(subAlarm);
+        prevAlarmId = alarmId;
+      }
+      if (alarm != null) {
+        alarm.setSubAlarms(subAlarms);
+      }
+      if (!alarms.isEmpty()) {
+        getAlarmedMetrics(h, alarmMap, tenantIdMap, additionalWhereClause, params);
       }
       return alarms;
-    } finally {
-      h.close();
+    }
+  }
+
+  private void addQueryParameters(final Query<Map<String, Object>> query, String... params) {
+    for (int i = 0; i < params.length;) {
+      query.bind(params[i], params[i+1]);
+      i += 2;
+    }
+  }
+
+  private void getAlarmedMetrics(Handle h, final Map<String, Alarm> alarmMap,
+      final Map<String, String> tenantIdMap, final String additionalWhereClause, String ... params) {
+    final String baseSql = "select a.id, md.name, mdg.dimensions from metric_definition as md "
+        + "inner join metric_definition_dimensions as mdd on md.id = mdd.metric_definition_id "
+        + "inner join alarm_metric as am on mdd.id = am.metric_definition_dimensions_id "
+        + "inner join alarm as a on am.alarm_id = a.id "
+        + "left join (select dimension_set_id, name, value, group_concat(name, '=', value) as dimensions "
+        + "       from metric_dimension group by dimension_set_id) as mdg on mdg.dimension_set_id = mdd.metric_dimension_set_id where %s";
+    final String sql = String.format(baseSql, additionalWhereClause);
+    final Query<Map<String, Object>> query = h.createQuery(sql);
+    addQueryParameters(query, params);
+    final List<Map<String, Object>> metricRows = query.list();
+    for (final Map<String, Object> row : metricRows) {
+      final String alarmId = getString(row, "id");
+      final Alarm alarm = alarmMap.get(alarmId);
+      // This shouldn't happen but it is possible an Alarm gets created after the AlarmDefinition is
+      // marked deleted and any existing alarms are deleted but before the Threshold Engine gets the
+      // AlarmDefinitionDeleted message
+      if (alarm == null) {
+        continue;
+      }
+      final MetricDefinition md = createMetricDefinitionFromRow(row);
+      alarm.addAlarmedMetric(new MetricDefinitionAndTenantId(md, tenantIdMap.get(alarmId)));
     }
   }
 
@@ -208,105 +263,54 @@ public class AlarmDAOImpl implements AlarmDAO {
 
   @Override
   public Alarm findById(String id) {
-    Handle h = db.open();
-
-    try {
-      Alarm alarm =
-          h.createQuery("select * from alarm where id = :id").bind("id", id)
-              .map(new BeanMapper<Alarm>(Alarm.class)).first();
-      if (alarm == null) {
-        return null;
-      }
-
-      alarm.setSubAlarms(getSubAlarms(h, alarm.getId()));
-
-      alarm.setAlarmedMetrics(findAlarmedMetrics(h, id));
-      return alarm;
-    } finally {
-      h.close();
+    final List<Alarm> alarms = findAlarms("a.id = :alarm_id ", "alarm_id", id);
+    if (alarms.isEmpty()) {
+      return null;
     }
-  }
-
-  private static class SubAlarmMapper implements ResultSetMapper<SubAlarm> {
-    public SubAlarm map(int rowIndex, ResultSet rs, StatementContext ctxt) throws SQLException {
-      SubExpression subExpression = new SubExpression(
-          rs.getString("sub_expression_id"), AlarmSubExpression.of(rs.getString("expression")));
-      return new SubAlarm(rs.getString("id"), rs.getString("alarm_id"), subExpression);
-    }   
-  }
-
-  private List<SubAlarm> getSubAlarms(Handle h, String alarmId) {
-    return h.createQuery("select * from sub_alarm where alarm_id = :alarmId")
-        .bind("alarmId", alarmId).map(new SubAlarmMapper()).list();
-  }
-
-  private Set<MetricDefinitionAndTenantId> findAlarmedMetrics(Handle h, String alarmId) {
-    final List<Map<String, Object>> result =
-        h.createQuery(
-            "select md.name as metric_name, md.tenant_id, md.region, mdi.name, mdi.value, mdd.id, mdd.metric_dimension_set_id " +
-            "from metric_definition_dimensions as mdd left join metric_definition as md on md.id = mdd.metric_definition_id " +
-            "left join metric_dimension as mdi on mdi.dimension_set_id = mdd.metric_dimension_set_id where mdd.id in " +
-            "(select metric_definition_dimensions_id from alarm_metric where alarm_id=:alarm_id) order by mdd.id")
-            .bind("alarm_id", alarmId).list();
-    if ((result == null) || result.isEmpty()) {
-      return new HashSet<>(0);
+    else {
+      return alarms.get(0);
     }
-
-    final Set<MetricDefinitionAndTenantId> alarmedMetrics = new HashSet<>(result.size());
-    Sha1HashId previous = null;
-    MetricDefinitionAndTenantId mdtid = null;
-    for (Map<String, Object> row : result) {
-      final Sha1HashId next = new Sha1HashId((byte[]) row.get("id"));
-      // The order by clause in the SQL guarantees this order
-      if (!next.equals(previous)) {
-        if (mdtid != null) {
-          alarmedMetrics.add(mdtid);
-        }
-        final String name = (String) row.get("metric_name");
-        final String tenantId = (String) row.get("tenant_id");
-        mdtid = new MetricDefinitionAndTenantId(new MetricDefinition(name, new HashMap<String, String>()), tenantId);
-        previous = next;
-      }
-      final String name = (String) row.get("name");
-      final String value = (String) row.get("value");
-      if ((name != null) && !name.isEmpty()) {
-        mdtid.metricDefinition.dimensions.put(name, value);
-      }
-    }
-    if (mdtid != null) {
-      alarmedMetrics.add(mdtid);
-    }
-    return alarmedMetrics;
   }
 
   @Override
   public void updateState(String id, AlarmState state) {
-    Handle h = db.open();
 
-    try {
+    try (final Handle h = db.open()) {
       h.createStatement("update alarm set state = :state, updated_at = NOW() where id = :id")
           .bind("id", id).bind("state", state.toString()).execute();
-    } finally {
-      h.close();
     }
   }
 
   @Override
   public int updateSubAlarmExpressions(String alarmSubExpressionId,
       AlarmSubExpression alarmSubExpression) {
-    Handle h = db.open();
 
-    try {
+    try (final Handle h = db.open()) {
       return h
           .createStatement(
               "update sub_alarm set expression=:expression where sub_expression_id=:alarmSubExpressionId")
           .bind("expression", alarmSubExpression.getExpression())
           .bind("alarmSubExpressionId", alarmSubExpressionId).execute();
-    } finally {
-      h.close();
     }
   }
 
+  private MetricDefinition createMetricDefinitionFromRow(final Map<String, Object> row) {
+    final Map<String, String> dimensionMap = new HashMap<>();
+    final String dimensions = getString(row, "dimensions");
+    if (dimensions != null) {
+      for (String dimension : dimensions.split(",")) {
+        final String[] parsed_dimension = dimension.split("=");
+        dimensionMap.put(parsed_dimension[0], parsed_dimension[1]);
+      }
+    }
+    final MetricDefinition md = new MetricDefinition(getString(row, "name"), dimensionMap);
+    return md;
+  }
+
+  private String getString(final Map<String, Object> row, String fieldName) {
+    return (String) row.get(fieldName);
+  }
+  
   private String trunc(String s, int l) {
 
     if (s == null) {

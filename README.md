@@ -15,6 +15,8 @@ Alarms have three possible states: `UNDETERMINED`, `OK` and `ALARM`.  Alarms are
 avg(cpu{service=nova}, 120) > 90 or avg(load{service=nova}, 120) > 15
 ```
 
+For more details on Alarm Definitions versus Alarms refer to the Monasca API documentation at https://github.com/stackforge/monasca-api/blob/master/docs/monasca-api-spec.md.
+
 If the expression evaluates to true, the Alarm state transitions to `ALARM`, if it evaluates to false, the state transitions to `OK` and if there aren't any metrics for the two times the measuring period, the Alarm state transitions to `UNDETERMINED`. Each part of the expression is represented by a Sub Alarm, so for the above example, there are two Sub Alarms.
 
 The Threshold Engine is designed as a series of Storm Spouts and Bolts. For an overview of Storm, look at [the tutorial][storm-tutorial]. Spouts feed external data into the system as messages while bolts process incoming messages and optionally produce output messages for a downstream bolt.

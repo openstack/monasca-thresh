@@ -18,7 +18,7 @@
     <properties>
         <mon.common.version>1.0.0-SNAPSHOT</mon.common.version>
         <storm.version>0.9.1-incubating</storm.version>
-        <skipITs>true</skipITs>
+        <skipITs>false</skipITs>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <artifactNamedVersion>${project.artifactId}-${project.version}-${timestamp}-${buildNumber}

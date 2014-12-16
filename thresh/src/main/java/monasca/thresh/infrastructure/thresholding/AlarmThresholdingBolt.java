@@ -22,6 +22,7 @@ import monasca.common.model.event.AlarmDefinitionUpdatedEvent;
 import monasca.common.model.event.AlarmStateTransitionedEvent;
 import monasca.common.model.event.AlarmUpdatedEvent;
 import monasca.common.model.alarm.AlarmState;
+import monasca.common.model.alarm.AlarmSubExpression;
 import monasca.common.model.metric.MetricDefinition;
 import monasca.common.streaming.storm.Logging;
 import monasca.common.streaming.storm.Streams;
@@ -34,7 +35,6 @@ import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Tuple;
 
-import monasca.thresh.ThresholdingConfiguration;
 import monasca.thresh.domain.model.Alarm;
 import monasca.thresh.domain.model.AlarmDefinition;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
@@ -153,7 +153,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     final AlarmDefinition alarmDefinition = alarmDefinitions.get(event.alarmDefinitionId);
     if (alarmDefinition == null) {
       // This is OK. No Alarms are using this AlarmDefinition
-      logger.info("Update of AlarmDefinition {} skipped. Not in use by this bolt",
+      logger.debug("Update of AlarmDefinition {} skipped. Not in use by this bolt",
           event.alarmDefinitionId);
       return;
     }
@@ -163,6 +163,12 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     alarmDefinition.setSeverity(event.severity);
     alarmDefinition.setActionsEnabled(event.alarmActionsEnabled);
     alarmDefinition.setExpression(event.alarmExpression);
+    for (Map.Entry<String, AlarmSubExpression> entry : event.changedSubExpressions.entrySet()) {
+      if (!alarmDefinition.updateSubExpression(entry.getKey(), entry.getValue())) {
+        logger.error("AlarmDefinition {}: Did not finding matching SubAlarmExpression id={} SubAlarmExpression{}",
+            event.alarmDefinitionId, entry.getKey(), entry.getValue());
+      }
+    }
   }
 
   @Override
@@ -249,57 +255,6 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
 
     oldAlarm.setState(alarmUpdatedEvent.alarmState);
 
-  }
-
-  void handleAlarmDefinitionUpdated(String alarmDefId, AlarmDefinitionUpdatedEvent event) {
-    final AlarmDefinition oldAlarmDef = alarmDefinitions.get(alarmDefId);
-    if (oldAlarmDef == null) {
-      logger.debug("Updated Alarm Definition {} not loaded, ignoring", alarmDefId);
-      return;
-    }
-
-    oldAlarmDef.setName(event.alarmName);
-    oldAlarmDef.setDescription(event.alarmDescription);
-    oldAlarmDef.setExpression(event.alarmExpression);
-    oldAlarmDef.setActionsEnabled(event.alarmActionsEnabled);
-
-    /* Have to figure out how to handle this
-    // Now handle the SubAlarms
-    // First remove the deleted SubAlarms so we don't have to consider them later
-    for (Map.Entry<String, AlarmSubExpression> entry : event.oldAlarmSubExpressions
-        .entrySet()) {
-      logger.debug("Removing deleted SubAlarm {}", entry.getValue());
-      if (!oldAlarmDef.removeSubAlarmById(entry.getKey())) {
-        logger.error("Did not find removed SubAlarm {}", entry.getValue());
-      }
-    }
-
-    // Reuse what we can from the changed SubAlarms
-    for (Map.Entry<String, AlarmSubExpression> entry : event.changedSubExpressions
-        .entrySet()) {
-      final SubAlarm oldSubAlarm = oldAlarmDef.getSubAlarm(entry.getKey());
-      if (oldSubAlarm == null) {
-        logger.error("Did not find changed SubAlarm {}", entry.getValue());
-        continue;
-      }
-      final SubAlarm newSubAlarm = new SubAlarm(entry.getKey(), oldAlarmDef.getId(), entry.getValue());
-      newSubAlarm.setState(oldSubAlarm.getState());
-      if (!oldSubAlarm.isCompatible(newSubAlarm)) {
-        newSubAlarm.setNoState(true);
-      }
-      logger.debug("Changing SubAlarm from {} to {}", oldSubAlarm, newSubAlarm);
-      oldAlarmDef.updateSubAlarm(newSubAlarm);
-    }
-
-    // Add the new SubAlarms
-    for (Map.Entry<String, AlarmSubExpression> entry : event.newAlarmSubExpressions
-        .entrySet()) {
-      final SubAlarm newSubAlarm = new SubAlarm(entry.getKey(), oldAlarmDef.getId(), entry.getValue());
-      newSubAlarm.setNoState(true);
-      logger.debug("Adding SubAlarm {}", newSubAlarm);
-      oldAlarmDef.updateSubAlarm(newSubAlarm);
-    }
-    */
   }
 
   String buildStateChangeReason() {
