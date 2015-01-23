@@ -1,13 +1,13 @@
-#! /bin/bash
-#### BEGIN INIT INFO
-## Provides:          monasca-thresh
-## Required-Start:    $nimbus
-## Required-Stop:     
-## Default-Start:     2 3 4 5
-## Default-Stop:      
-## Short-Description: Monitoring threshold engine running under storm
-## Description:
-#### END INIT INFO
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides:          monasca-thresh
+# Required-Start:    $nimbus
+# Required-Stop:
+# Default-Start:     2 3 4 5
+# Default-Stop:
+# Short-Description: Monitoring threshold engine running under storm
+# Description:
+### END INIT INFO
 
 case "$1" in
     start)
