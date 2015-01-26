@@ -79,6 +79,8 @@
             <groupId>org.apache.storm</groupId>
             <artifactId>storm-core</artifactId>
             <version>${storm.version}</version>
+            <!-- The real deployment has all the Storm jars -->
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>monasca-common</groupId>
@@ -219,7 +221,7 @@
                         <excludes>
                             <exclude>junit:junit</exclude>
                             <exclude>org.apache.storm:storm-core</exclude>
-                            <exclude>org.hamcrest:*</exclude>
+                            <exclude>org.hamcrest:hamcrest-core</exclude>
                         </excludes>
                     </artifactSet>
                 </configuration>
