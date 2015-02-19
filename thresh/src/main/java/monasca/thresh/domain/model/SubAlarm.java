@@ -22,6 +22,8 @@ import monasca.common.model.alarm.AlarmSubExpression;
 import monasca.common.model.domain.common.AbstractEntity;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Sub-alarm. Decorates an AlarmSubExpression.
@@ -34,6 +36,7 @@ public class SubAlarm extends AbstractEntity implements Serializable {
   private AlarmSubExpression expression;
   private AlarmState state;
   private boolean noState;
+  private List<Double> currentValues;
   /**
    * Whether metrics for this sub-alarm are received sporadically.
    */
@@ -55,6 +58,7 @@ public class SubAlarm extends AbstractEntity implements Serializable {
     this.expression = expression.getAlarmSubExpression();
     this.alarmSubExpressionId = expression.getId();
     this.state = state;
+    this.currentValues = new ArrayList<>();
   }
 
   @Override
@@ -113,6 +117,22 @@ public class SubAlarm extends AbstractEntity implements Serializable {
     return alarmSubExpressionId;
   }
 
+  public List<Double> getCurrentValues() {
+    return currentValues;
+  }
+
+  public void setCurrentValues(List<Double> currentValues) {
+    this.currentValues = currentValues;
+  }
+
+  public void addCurrentValue(Double currentValue) {
+    this.currentValues.add(currentValue);
+  }
+
+  public void clearCurrentValues() {
+    this.currentValues.clear();
+  }
+
   @Override
   public int hashCode() {
     final int prime = 31;
@@ -146,8 +166,8 @@ public class SubAlarm extends AbstractEntity implements Serializable {
 
   @Override
   public String toString() {
-    return String.format("SubAlarm [id=%s, alarmId=%s, alarmSubExpressionId=%s, expression=%s, state=%s noState=%s]", id,
-        alarmId, alarmSubExpressionId, expression, state, noState);
+    return String.format("SubAlarm [id=%s, alarmId=%s, alarmSubExpressionId=%s, expression=%s, state=%s, noState=%s, currentValues:[", id,
+        alarmId, alarmSubExpressionId, expression, state, noState) + currentValues + "]]";
   }
 
   /**

@@ -20,6 +20,7 @@ package monasca.thresh.domain.model;
 import monasca.common.model.alarm.AlarmExpression;
 import monasca.common.model.alarm.AlarmState;
 import monasca.common.model.alarm.AlarmSubExpression;
+import monasca.common.model.alarm.AlarmTransitionSubAlarm;
 import monasca.common.model.domain.common.AbstractEntity;
 
 import java.util.ArrayList;
@@ -43,7 +44,7 @@ public class Alarm extends AbstractEntity {
   private AlarmState state;
   private String stateChangeReason;
   private String alarmDefinitionId;
-
+  private List<AlarmTransitionSubAlarm> transitionSubAlarms = new ArrayList<>();
   public Alarm() {
   }
 
@@ -59,13 +60,24 @@ public class Alarm extends AbstractEntity {
     this.alarmDefinitionId = alarmDefinition.getId();
   }
 
-  static String buildStateChangeReason(AlarmState alarmState, List<String> subAlarmExpressions) {
+  public String buildStateChangeReason(AlarmState alarmState) {
+    StringBuilder stringBuilder = new StringBuilder();
+    for(AlarmTransitionSubAlarm alarmTransitionSubAlarm : transitionSubAlarms){
+      if (alarmTransitionSubAlarm.subAlarmState.equals(alarmState)) {
+        if (stringBuilder.length() != 0) {
+          stringBuilder.append(", ");
+        }
+        stringBuilder.append(alarmTransitionSubAlarm.subAlarmExpression);
+        if (!AlarmState.UNDETERMINED.equals(alarmState))
+          stringBuilder.append(" with the values: ").append(alarmTransitionSubAlarm.currentValues);
+      }
+    }
     if (AlarmState.UNDETERMINED.equals(alarmState)) {
-      return String.format("No data was present for the sub-alarms: %s", subAlarmExpressions);
+      return String.format("No data was present for the sub-alarms: %s", stringBuilder.toString());
     } else if (AlarmState.ALARM.equals(alarmState)) {
-      return String.format("Thresholds were exceeded for the sub-alarms: %s", subAlarmExpressions);
+      return String.format("Thresholds were exceeded for the sub-alarms: %s", stringBuilder.toString());
     } else {
-      return "The alarm threshold(s) have not been exceeded";
+      return String.format("The alarm threshold(s) have not been exceeded for the sub-alarms: %s", stringBuilder.toString());
     }
   }
 
@@ -116,21 +128,25 @@ public class Alarm extends AbstractEntity {
    * alarm's state changed, else false.
    */
   public boolean evaluate(AlarmExpression expression) {
+    transitionSubAlarms.clear();
     AlarmState initialState = state;
-    List<String> unitializedSubAlarms = new ArrayList<String>();
+    boolean uninitialized = false;
+
     for (SubAlarm subAlarm : subAlarms.values()) {
       if (AlarmState.UNDETERMINED.equals(subAlarm.getState())) {
-        unitializedSubAlarms.add(subAlarm.getExpression().toString());
+        uninitialized = true;
       }
+      transitionSubAlarms.add(new AlarmTransitionSubAlarm(subAlarm.getExpression(),
+        subAlarm.getState(), subAlarm.getCurrentValues()));
     }
 
     // Handle UNDETERMINED state
-    if (!unitializedSubAlarms.isEmpty()) {
+    if (uninitialized) {
       if (AlarmState.UNDETERMINED.equals(initialState)) {
         return false;
       }
       state = AlarmState.UNDETERMINED;
-      stateChangeReason = buildStateChangeReason(state, unitializedSubAlarms);
+      stateChangeReason = buildStateChangeReason(state);
       return true;
     }
 
@@ -146,16 +162,8 @@ public class Alarm extends AbstractEntity {
       if (AlarmState.ALARM.equals(initialState)) {
         return false;
       }
-
-      List<String> subAlarmExpressions = new ArrayList<String>();
-      for (SubAlarm subAlarm : subAlarms.values()) {
-        if (AlarmState.ALARM.equals(subAlarm.getState())) {
-          subAlarmExpressions.add(subAlarm.getExpression().toString());
-        }
-      }
-
       state = AlarmState.ALARM;
-      stateChangeReason = buildStateChangeReason(state, subAlarmExpressions);
+      stateChangeReason = buildStateChangeReason(state);
       return true;
     }
 
@@ -163,7 +171,7 @@ public class Alarm extends AbstractEntity {
       return false;
     }
     state = AlarmState.OK;
-    stateChangeReason = buildStateChangeReason(state, null);
+    stateChangeReason = buildStateChangeReason(state);
     return true;
   }
 
@@ -255,5 +263,13 @@ public class Alarm extends AbstractEntity {
 
   public void addAlarmedMetric(MetricDefinitionAndTenantId alarmedMetric) {
     this.alarmedMetrics.add(alarmedMetric);
+  }
+
+  public List<AlarmTransitionSubAlarm> getTransitionSubAlarms() {
+    return transitionSubAlarms;
+  }
+
+  public void setTransitionSubAlarms(List<AlarmTransitionSubAlarm> transitionSubAlarms) {
+    this.transitionSubAlarms = transitionSubAlarms;
   }
 }

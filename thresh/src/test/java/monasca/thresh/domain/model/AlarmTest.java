@@ -20,11 +20,14 @@ package monasca.thresh.domain.model;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
+
 import monasca.common.model.alarm.AggregateFunction;
 import monasca.common.model.alarm.AlarmExpression;
 import monasca.common.model.alarm.AlarmOperator;
 import monasca.common.model.alarm.AlarmState;
 import monasca.common.model.alarm.AlarmSubExpression;
+import monasca.common.model.alarm.AlarmTransitionSubAlarm;
+
 import monasca.common.model.metric.MetricDefinition;
 
 import org.testng.annotations.Test;
@@ -143,22 +146,20 @@ public class AlarmTest {
     AlarmExpression expr =
         new AlarmExpression(
             "avg(hpcs.compute{instance_id=5,metric_name=cpu,device=1}, 1) > 5 times 3 OR avg(hpcs.compute{flavor_id=3,metric_name=mem}, 2) < 4 times 3");
-    SubAlarm subAlarm1 =
-        new SubAlarm("123", TEST_ALARM_ID, new SubExpression(UUID.randomUUID().toString(), expr
-            .getSubExpressions().get(0)));
-    SubAlarm subAlarm2 =
-        new SubAlarm("456", TEST_ALARM_ID, new SubExpression(UUID.randomUUID().toString(), expr
-            .getSubExpressions().get(1)));
-    List<String> expressions =
-        Arrays.asList(subAlarm1.getExpression().toString(), subAlarm2.getExpression().toString());
+    Alarm alarm = new Alarm();
+
+    List<AlarmTransitionSubAlarm> transitionSubAlarms = new ArrayList<>();
+    transitionSubAlarms.add(new AlarmTransitionSubAlarm(expr.getSubExpressions().get(0), AlarmState.UNDETERMINED, new ArrayList<Double>()));
+    transitionSubAlarms.add(new AlarmTransitionSubAlarm(expr.getSubExpressions().get(1), AlarmState.ALARM, new ArrayList<Double>()));
+    alarm.setTransitionSubAlarms(transitionSubAlarms);
 
     assertEquals(
-        Alarm.buildStateChangeReason(AlarmState.UNDETERMINED, expressions),
-        "No data was present for the sub-alarms: [avg(hpcs.compute{device=1, instance_id=5, metric_name=cpu}, 1) > 5.0 times 3, avg(hpcs.compute{flavor_id=3, metric_name=mem}, 2) < 4.0 times 3]");
+        alarm.buildStateChangeReason(AlarmState.UNDETERMINED),
+        "No data was present for the sub-alarms: avg(hpcs.compute{device=1, instance_id=5, metric_name=cpu}, 1) > 5.0 times 3");
 
     assertEquals(
-        Alarm.buildStateChangeReason(AlarmState.ALARM, expressions),
-        "Thresholds were exceeded for the sub-alarms: [avg(hpcs.compute{device=1, instance_id=5, metric_name=cpu}, 1) > 5.0 times 3, avg(hpcs.compute{flavor_id=3, metric_name=mem}, 2) < 4.0 times 3]");
+        alarm.buildStateChangeReason(AlarmState.ALARM),
+        "Thresholds were exceeded for the sub-alarms: avg(hpcs.compute{flavor_id=3, metric_name=mem}, 2) < 4.0 times 3 with the values: []");
   }
 
   /**
