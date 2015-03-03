@@ -362,7 +362,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
       for (final MetricDefinitionAndTenantId metricDefinitionAndTenantId : mtids) {
         metricSpout.feed(new Values(new TenantIdAndMetricName(metricDefinitionAndTenantId), time,
             new Metric(metricDefinitionAndTenantId.metricDefinition, time,
-                (double) 555)));
+                (double) 555, null)));
       }
       try {
         Thread.sleep(500);

@@ -143,13 +143,13 @@ public class MetricFilteringBoltTest {
     final long oldestTimestamp = prepareTime - MetricFilteringBolt.LAG_MESSAGE_PERIOD_DEFAULT;
     final Tuple lateMetricTuple =
         createMetricTuple(metricDefinition, oldestTimestamp, new Metric(metricDefinition,
-            oldestTimestamp, 42.0));
+            oldestTimestamp, 42.0, null));
     bolt.execute(lateMetricTuple);
     verify(collector, times(1)).ack(lateMetricTuple);
     bolt.setCurrentTime(prepareTime + MetricFilteringBolt.LAG_MESSAGE_PERIOD_DEFAULT);
     final Tuple lateMetricTuple2 =
         createMetricTuple(metricDefinition, prepareTime, new Metric(metricDefinition, prepareTime,
-            42.0));
+            42.0, null));
     bolt.execute(lateMetricTuple2);
     verify(collector, times(1)).ack(lateMetricTuple2);
     verify(collector, times(1)).emit(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM,
@@ -158,7 +158,7 @@ public class MetricFilteringBoltTest {
     long caughtUpTimestamp = bolt.getCurrentTime() - MetricFilteringBolt.MIN_LAG_VALUE_DEFAULT;
     final Tuple metricTuple =
         createMetricTuple(metricDefinition, caughtUpTimestamp, new Metric(metricDefinition,
-            caughtUpTimestamp, 42.0));
+            caughtUpTimestamp, 42.0, null));
     bolt.execute(metricTuple);
     // Metrics are caught up so there should not be another METRICS_BEHIND message
     verify(collector, times(1)).ack(metricTuple);
@@ -184,7 +184,7 @@ public class MetricFilteringBoltTest {
     for (int i = 0; i < MetricFilteringBolt.MAX_LAG_MESSAGES_DEFAULT + 1; i++) {
       final Tuple lateMetricTuple =
           createMetricTuple(metricDefinition, prepareTime, new Metric(metricDefinition,
-              prepareTime, 42.0));
+              prepareTime, 42.0, null));
       bolt.setCurrentTime(prepareTime + MetricFilteringBolt.LAG_MESSAGE_PERIOD_DEFAULT);
       bolt.execute(lateMetricTuple);
       verify(collector, times(1)).ack(lateMetricTuple);
@@ -199,7 +199,7 @@ public class MetricFilteringBoltTest {
     long timestamp = bolt.getCurrentTime() - MetricFilteringBolt.LAG_MESSAGE_PERIOD_DEFAULT;
     final Tuple metricTuple =
         createMetricTuple(metricDefinition, timestamp,
-            new Metric(metricDefinition, timestamp, 42.0));
+            new Metric(metricDefinition, timestamp, 42.0, null));
     bolt.execute(metricTuple);
     verify(collector, times(1)).ack(metricTuple);
     // Won't be any more of these
@@ -279,7 +279,7 @@ public class MetricFilteringBoltTest {
       for (MetricDefinitionAndTenantId mtid : alarm.getAlarmedMetrics()) {
         final Tuple exactTuple =
             createMetricTuple(mtid.metricDefinition, metricTimestamp++, new Metric(
-                mtid.metricDefinition, metricTimestamp, 42.0));
+                mtid.metricDefinition, metricTimestamp, 42.0, null));
         bolt1.execute(exactTuple);
         verify(collector1, times(1)).ack(exactTuple);
         verify(collector1, howMany)

@@ -260,11 +260,11 @@ public class ThresholdingEngineTest extends TopologyTestCase {
         final MetricDefinitionAndTenantId cpuMtid = new MetricDefinitionAndTenantId(cpuMetricDef,
             TEST_ALARM_TENANT_ID);
         metricSpout.feed(new Values(new TenantIdAndMetricName(cpuMtid), time, new Metric(cpuMetricDef.name, cpuMetricDef.dimensions,
-            time, (double) (++goodValueCount == 15 ? 1 : 555))));
+            time, (double) (++goodValueCount == 15 ? 1 : 555), null)));
         final MetricDefinitionAndTenantId memMtid = new MetricDefinitionAndTenantId(memMetricDef,
             TEST_ALARM_TENANT_ID);
         metricSpout.feed(new Values(new TenantIdAndMetricName(memMtid), time, new Metric(memMetricDef.name, extraMemMetricDefDimensions,
-            time, (double) (goodValueCount == 15 ? 1 : 555))));
+            time, (double) (goodValueCount == 15 ? 1 : 555), null)));
 
         if (--feedCount == 0) {
           waitCount = 3;
