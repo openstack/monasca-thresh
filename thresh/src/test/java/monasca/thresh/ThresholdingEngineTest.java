@@ -125,6 +125,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
 
     // Config
     ThresholdingConfiguration threshConfig = new ThresholdingConfiguration();
+    threshConfig.alarmDelay = 1;
     threshConfig.sporadicMetricNamespaces = new HashSet<String>();
     Serialization.registerTarget(KafkaProducerConfiguration.class);
 
