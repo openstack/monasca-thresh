@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * Copyright (c) 2015 Hewlett-Packard Development Company, L.P.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import monasca.thresh.infrastructure.thresholding.MetricAggregationBolt;
 import monasca.thresh.infrastructure.thresholding.MetricFilteringBolt;
 import monasca.thresh.infrastructure.thresholding.MetricSpout;
 import monasca.thresh.infrastructure.thresholding.deserializer.EventDeserializer;
+import monasca.thresh.utils.StatsdMetricConsumer;
 
 import monasca.common.util.Injector;
 
@@ -69,6 +70,30 @@ public class TopologyModule extends AbstractModule {
       stormConfig = new Config();
       stormConfig.setNumWorkers(config.numWorkerProcesses);
       stormConfig.setNumAckers(config.numAckerThreads);
+
+      /* Configure the StatsdMetricConsumer */
+      java.util.Map<Object, Object> statsdConfig = new java.util.HashMap<>();
+
+      /*
+       * Catch the case where the config file was not updated
+       * in /etc/monasca/thresh-config.yml
+       * note that you get default values if these are absent
+       */
+      if (config.statsdConfig.getHost() != null)
+          statsdConfig.put(StatsdMetricConsumer.STATSD_HOST,
+                  config.statsdConfig.getHost());
+      if (config.statsdConfig.getPort() != null)
+          statsdConfig.put(StatsdMetricConsumer.STATSD_PORT,
+                  config.statsdConfig.getPort());
+      if (config.statsdConfig.getPrefix() != null)
+          statsdConfig.put(StatsdMetricConsumer.STATSD_PREFIX,
+                  config.statsdConfig.getPrefix());
+      if (config.statsdConfig.getDimensions() != null)
+          statsdConfig.put(StatsdMetricConsumer.STATSD_DIMENSIONS,
+                  config.statsdConfig.getDimensions());
+
+      stormConfig.registerMetricsConsumer(StatsdMetricConsumer.class,
+              statsdConfig, 2);
     }
 
     return stormConfig;
@@ -113,7 +138,7 @@ public class TopologyModule extends AbstractModule {
         .allGrouping("event-bolt", EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID)
         .setNumTasks(config.filteringBoltTasks);
 
-    // Filtering /Event -> Alarm Creation 
+    // Filtering /Event -> Alarm Creation
     builder
         .setBolt("alarm-creation-bolt", new AlarmCreationBolt(config.database),
             config.alarmCreationBoltThreads)
@@ -125,7 +150,7 @@ public class TopologyModule extends AbstractModule {
         .allGrouping("event-bolt", EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID)
         .setNumTasks(config.alarmCreationBoltTasks);
 
-    // Filtering / Event / Alarm Creation -> Aggregation 
+    // Filtering / Event / Alarm Creation -> Aggregation
     builder
         .setBolt("aggregation-bolt",
             new MetricAggregationBolt(config), config.aggregationBoltThreads)

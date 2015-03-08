@@ -19,6 +19,7 @@ package monasca.thresh;
 
 import monasca.common.configuration.KafkaProducerConfiguration;
 import monasca.thresh.infrastructure.thresholding.DataSourceFactory;
+import monasca.thresh.utils.StatsdConfig;
 
 import java.io.Serializable;
 import java.util.Set;
@@ -73,4 +74,8 @@ public class ThresholdingConfiguration implements Serializable {
 
   /** Database configuration. */
   @Valid @NotNull public DataSourceFactory database = new DataSourceFactory();
+
+  /** StatsD configuration. */
+  @Valid @NotNull public StatsdConfig statsdConfig = new StatsdConfig();
+
 }

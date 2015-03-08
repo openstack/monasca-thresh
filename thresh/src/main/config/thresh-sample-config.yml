@@ -1,6 +1,14 @@
 metricSpoutThreads: 2
 metricSpoutTasks: 2
 
+statsdConfig:
+  host: localhost
+  port: 8125
+  prefix: monasca.storm.
+  dimensions: !!map
+    service : monitoring
+    component : storm
+
 metricSpoutConfig:
   maxWaitTime: 500
 
