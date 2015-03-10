@@ -42,6 +42,7 @@ import backtype.storm.testing.MkTupleParam;
 import backtype.storm.tuple.Tuple;
 import backtype.storm.tuple.Values;
 
+import monasca.thresh.ThresholdingConfiguration;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
 import monasca.thresh.domain.model.SubAlarmStats;
@@ -98,7 +99,9 @@ public class MetricAggregationBoltTest {
     subAlarms.add(subAlarm2);
     subAlarms.add(subAlarm3);
 
-    bolt = new MockMetricAggregationBolt();
+    final ThresholdingConfiguration config = new ThresholdingConfiguration();
+    config.alarmDelay = 1;
+    bolt = new MockMetricAggregationBolt(config);
     context = mock(TopologyContext.class);
     collector = mock(OutputCollector.class);
     bolt.prepare(null, context, collector);
@@ -136,16 +139,19 @@ public class MetricAggregationBoltTest {
     // Ensure subAlarm2 and subAlarm3 map to the same Metric Definition
     assertEquals(metricDef3, metricDef2);
 
+    long t1 = 170;
+    bolt.setCurrentTime(t1);
     sendSubAlarmCreated(metricDef1, subAlarm1);
     sendSubAlarmCreated(metricDef2, subAlarm2);
     sendSubAlarmCreated(metricDef3, subAlarm3);
 
     // Send metrics for subAlarm1
-    long t1 = System.currentTimeMillis() / 1000;
     bolt.execute(createMetricTuple(metricDef1, new Metric(metricDef1, t1, 100)));
-    bolt.execute(createMetricTuple(metricDef1, new Metric(metricDef1, t1 -= 60, 95)));
-    bolt.execute(createMetricTuple(metricDef1, new Metric(metricDef1, t1 -= 60, 88)));
+    bolt.execute(createMetricTuple(metricDef1, new Metric(metricDef1, t1 - 60, 95)));
+    bolt.execute(createMetricTuple(metricDef1, new Metric(metricDef1, t1 - 120, 88)));
 
+    t1 += 20;
+    bolt.setCurrentTime(t1);
     final Tuple tickTuple = createTickTuple();
     bolt.execute(tickTuple);
     verify(collector, times(1)).ack(tickTuple);
@@ -162,8 +168,10 @@ public class MetricAggregationBoltTest {
     // Drive subAlarm1 to ALARM
     bolt.execute(createMetricTuple(metricDef1, new Metric(metricDef1, t1, 99)));
     // Drive subAlarm2 to ALARM and subAlarm3 to OK since they use the same MetricDefinition
-    bolt.execute(createMetricTuple(metricDef2, new Metric(metricDef2,
-        System.currentTimeMillis() / 1000, 94)));
+    t1 += 10;
+    bolt.execute(createMetricTuple(metricDef2, new Metric(metricDef2, t1, 94)));
+    t1 += 50;
+    bolt.setCurrentTime(t1);
     bolt.execute(tickTuple);
     verify(collector, times(1)).ack(tickTuple);
 
@@ -237,9 +245,9 @@ public class MetricAggregationBoltTest {
   }
 
   public void shouldSendUndeterminedIfStateChanges() {
-    sendSubAlarmCreated(metricDef2, subAlarm2);
-    long t1 = System.currentTimeMillis() / 1000;
+    long t1 = 50;
     bolt.setCurrentTime(t1);
+    sendSubAlarmCreated(metricDef2, subAlarm2);
     bolt.execute(createMetricTuple(metricDef2, new Metric(metricDef2, t1, 1.0)));
     t1 += 1;
     bolt.execute(createMetricTuple(metricDef2, new Metric(metricDef2, t1, 1.0)));
@@ -264,6 +272,8 @@ public class MetricAggregationBoltTest {
   }
 
   public void shouldSendUndeterminedOnStartup() {
+    long t1 = 14;
+    bolt.setCurrentTime(t1);
     sendSubAlarmCreated(metricDef2, subAlarm2);
 
     final MkTupleParam tupleParam = new MkTupleParam();
@@ -274,14 +284,20 @@ public class MetricAggregationBoltTest {
     verify(collector, times(1)).ack(lagTuple);
 
     final Tuple tickTuple = createTickTuple();
+    t1 += 60;
+    bolt.setCurrentTime(t1);
     bolt.execute(tickTuple);
     verify(collector, times(1)).ack(tickTuple);
     verify(collector, never()).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
 
+    t1 += 60;
+    bolt.setCurrentTime(t1);
     bolt.execute(tickTuple);
     verify(collector, times(2)).ack(tickTuple);
     verify(collector, never()).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
 
+    t1 += 60;
+    bolt.setCurrentTime(t1);
     bolt.execute(tickTuple);
     verify(collector, times(3)).ack(tickTuple);
     assertEquals(subAlarm2.getState(), AlarmState.UNDETERMINED);
@@ -419,8 +435,8 @@ public class MetricAggregationBoltTest {
 
     private long currentTime;
 
-    public MockMetricAggregationBolt() {
-      super();
+    public MockMetricAggregationBolt(ThresholdingConfiguration config) {
+      super(config);
     }
 
     @Override

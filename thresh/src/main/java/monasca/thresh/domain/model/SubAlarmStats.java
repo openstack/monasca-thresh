@@ -72,14 +72,14 @@ public class SubAlarmStats {
    *
    * @return true if the alarm's state changed, else false.
    */
-  public boolean evaluateAndSlideWindow(long slideToTimestamp) {
+  public boolean evaluateAndSlideWindow(long slideToTimestamp, long alarmDelay) {
     try {
-      return evaluate();
+      return evaluate(slideToTimestamp, alarmDelay);
     } catch (Exception e) {
       logger.error("Failed to evaluate {}", this, e);
       return false;
     } finally {
-      slideWindow(slideToTimestamp);
+      slideWindow(slideToTimestamp, alarmDelay);
     }
   }
 
@@ -89,8 +89,8 @@ public class SubAlarmStats {
    *
    * @param slideToTimestamp
    */
-  public void slideWindow(long slideToTimestamp) {
-    stats.slideViewTo(slideToTimestamp);
+  public void slideWindow(long slideToTimestamp, long alarmDelay) {
+    stats.slideViewTo(slideToTimestamp, alarmDelay);
   }
 
   /**
@@ -116,9 +116,13 @@ public class SubAlarmStats {
   }
 
   /**
-   * @throws IllegalStateException if the {@code timestamp} is outside of the {@link #stats} window
+   * @param now Current time
+   * @param alarmDelay How long to give metrics a chance to arrive
    */
-  boolean evaluate() {
+  boolean evaluate(final long now, long alarmDelay) {
+    if (!stats.shouldEvaluate(now, alarmDelay)) {
+      return false;
+    }
     double[] values = stats.getViewValues();
     boolean thresholdExceeded = false;
     boolean hasEmptyWindows = false;

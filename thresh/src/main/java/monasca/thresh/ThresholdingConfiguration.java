@@ -20,8 +20,7 @@ package monasca.thresh;
 import monasca.common.configuration.KafkaProducerConfiguration;
 import monasca.thresh.infrastructure.thresholding.DataSourceFactory;
 
-import org.hibernate.validator.constraints.NotEmpty;
-
+import java.io.Serializable;
 import java.util.Set;
 
 import javax.validation.Valid;
@@ -30,7 +29,9 @@ import javax.validation.constraints.NotNull;
 /**
  * Thresholding configuration.
  */
-public class ThresholdingConfiguration {
+public class ThresholdingConfiguration implements Serializable {
+  private static final long serialVersionUID = 8939559160479071931L;
+
   /** Total number of workers processes across the cluster. */
   @NotNull public Integer numWorkerProcesses = 12;
   /** Total number of acker threads across the cluster. */
@@ -56,6 +57,8 @@ public class ThresholdingConfiguration {
 
   @NotNull public Integer thresholdingBoltThreads = 6;
   @NotNull public Integer thresholdingBoltTasks = 15;
+
+  @NotNull public Integer alarmDelay = 30;
 
   /** Namespaces for which metrics are received sporadically. */
   @NotNull public Set<String> sporadicMetricNamespaces;

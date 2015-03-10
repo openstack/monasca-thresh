@@ -120,6 +120,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
 
     // Config
     ThresholdingConfiguration threshConfig = new ThresholdingConfiguration();
+    threshConfig.alarmDelay = 1;
     threshConfig.sporadicMetricNamespaces = new HashSet<String>();
     Serialization.registerTarget(KafkaProducerConfiguration.class);
 
@@ -135,7 +136,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
         .registerModules(new TopologyModule(threshConfig, stormConfig, metricSpout, eventSpout));
     Injector.registerModules(new ProducerModule(alarmEventForwarder));
 
-    // Evaluate alarm stats every 1 seconds
+    // Evaluate alarm stats every 5 seconds
     System.setProperty(MetricAggregationBolt.TICK_TUPLE_SECONDS_KEY, "5");
 
     startTopology();
@@ -205,7 +206,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
     Alarm alarm = null;
     Stages stage = Stages.INITIAL_WAIT;
     int finishAt = 0;
-    for (int i = 1; i < 100 && stage != Stages.FINISHED; i++) {
+    for (int i = 1; i < 600 && stage != Stages.FINISHED; i++) {
       switch (stage) {
         case INITIAL_WAIT:
           if (i == 5) {

@@ -30,6 +30,7 @@ import monasca.common.model.metric.Metric;
 import monasca.common.streaming.storm.Logging;
 import monasca.common.streaming.storm.Streams;
 import monasca.common.streaming.storm.Tuples;
+import monasca.thresh.ThresholdingConfiguration;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
 import monasca.thresh.domain.model.SubAlarmStats;
@@ -71,6 +72,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
   public static final String[] METRIC_AGGREGATION_CONTROL_FIELDS = new String[] {"directive"};
   public static final String METRICS_BEHIND = "MetricsBehind";
 
+  private final ThresholdingConfiguration config;
   final Map<MetricDefinitionAndTenantId, SubAlarmStatsRepository> metricDefToSubAlarmStatsRepos =
       new HashMap<>();
   private final Set<SubAlarmStats> subAlarmStatsSet = new HashSet<>();
@@ -82,11 +84,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
   private OutputCollector collector;
   private boolean upToDate = true;
 
-  public MetricAggregationBolt() {
-  }
-
-  public MetricAggregationBolt(Set<String> sporadicMetricNamespaces) {
-    this.sporadicMetricNamespaces = sporadicMetricNamespaces;
+  public MetricAggregationBolt(ThresholdingConfiguration config) {
+    this.config = config;
   }
 
   @Override
@@ -201,13 +200,13 @@ public class MetricAggregationBolt extends BaseRichBolt {
     for (SubAlarmStats subAlarmStats : subAlarmStatsSet) {
       if (upToDate) {
         logger.debug("Evaluating {}", subAlarmStats);
-        if (subAlarmStats.evaluateAndSlideWindow(newWindowTimestamp)) {
+        if (subAlarmStats.evaluateAndSlideWindow(newWindowTimestamp, config.alarmDelay)) {
           logger.debug("Alarm state changed for {}", subAlarmStats);
           collector.emit(new Values(subAlarmStats.getSubAlarm().getAlarmId(), subAlarmStats
               .getSubAlarm()));
         }
       } else {
-        subAlarmStats.slideWindow(newWindowTimestamp);
+        subAlarmStats.slideWindow(newWindowTimestamp, config.alarmDelay);
       }
     }
     if (!upToDate) {

@@ -116,21 +116,19 @@ public class TopologyModule extends AbstractModule {
     // Filtering /Event -> Alarm Creation 
     builder
         .setBolt("alarm-creation-bolt", new AlarmCreationBolt(config.database),
-            1)
+            config.alarmCreationBoltThreads)
         .fieldsGrouping("filtering-bolt",
             MetricFilteringBolt.NEW_METRIC_FOR_ALARM_DEFINITION_STREAM,
             new Fields(AlarmCreationBolt.ALARM_CREATION_FIELDS[3]))
         .allGrouping("event-bolt", EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID)
         .allGrouping("event-bolt", EventProcessingBolt.ALARM_EVENT_STREAM_ID)
         .allGrouping("event-bolt", EventProcessingBolt.ALARM_DEFINITION_EVENT_STREAM_ID)
-        .setNumTasks(1); // This has to be a single bolt right now because there is no
-                         // database protection for adding metrics and dimensions
+        .setNumTasks(config.alarmCreationBoltTasks);
 
     // Filtering / Event / Alarm Creation -> Aggregation 
     builder
         .setBolt("aggregation-bolt",
-            new MetricAggregationBolt(config.sporadicMetricNamespaces),
-            config.aggregationBoltThreads)
+            new MetricAggregationBolt(config), config.aggregationBoltThreads)
         .fieldsGrouping("filtering-bolt", new Fields(MetricFilteringBolt.FIELDS[0]))
         .allGrouping("filtering-bolt", MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM)
         .fieldsGrouping("filtering-bolt", AlarmCreationBolt.ALARM_CREATION_STREAM,
