@@ -358,7 +358,7 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
       }
       System.out.printf("Feeding metrics...%d Stage %s\n", i, stage);
 
-      long time = System.currentTimeMillis() / 1000;
+      long time = System.currentTimeMillis();
       for (final MetricDefinitionAndTenantId metricDefinitionAndTenantId : mtids) {
         metricSpout.feed(new Values(new TenantIdAndMetricName(metricDefinitionAndTenantId), time,
             new Metric(metricDefinitionAndTenantId.metricDefinition, time,

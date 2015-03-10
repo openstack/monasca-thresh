@@ -63,7 +63,7 @@ import java.util.UUID;
 @Test
 public class MetricFilteringBoltTest {
   private final static String TEST_TENANT_ID = "42";
-  private long metricTimestamp = System.currentTimeMillis() / 1000; // Make sure the metric
+  private long metricTimestamp = System.currentTimeMillis(); // Make sure the metric
 
   private AlarmDefinition alarmDef1;
   private AlarmDefinition dupMetricAlarmDef;

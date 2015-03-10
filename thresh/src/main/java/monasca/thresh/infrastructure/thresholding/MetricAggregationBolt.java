@@ -179,12 +179,13 @@ public class MetricAggregationBolt extends BaseRichBolt {
     }
 
     for (SubAlarmStats stats : subAlarmStatsRepo.get()) {
-      if (stats.getStats().addValue(metric.value, metric.timestamp)) {
+      long timestamp_secs = metric.timestamp/1000;
+      if (stats.getStats().addValue(metric.value, timestamp_secs)) {
         logger.trace("Aggregated value {} at {} for {}. Updated {}", metric.value,
             metric.timestamp, metricDefinitionAndTenantId, stats.getStats());
       } else {
         logger.warn("Metric is too old, age {} seconds: timestamp {} for {}, {}",
-            currentTimeSeconds() - metric.timestamp, metric.timestamp, metricDefinitionAndTenantId,
+            currentTimeSeconds() - timestamp_secs, timestamp_secs, metricDefinitionAndTenantId,
             stats.getStats());
       }
     }
