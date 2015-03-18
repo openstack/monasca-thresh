@@ -59,8 +59,20 @@ public class ThresholdingEngine {
 
   public static void main(String... args) throws Exception {
 
+    /*
+     * This should allow command line options to show the current version java
+     * -jar monasca-thresh.jar --version java -jar monasca-thresh.jar -version
+     * java -jar monasca-thresh.jar version Really anything with the word
+     * version in it will show the version as long as there is only one argument
+     */
+    if (args.length == 1 && args[0].toLowerCase().contains("version")) {
+      showVersion();
+      System.exit(0);
+    }
+
     // Let's show the logging status.
     StatusPrinter.print((LoggerContext) LoggerFactory.getILoggerFactory());
+    showVersion();
 
     if (args.length < 2) {
       logger.error("Expected configuration file name and topology name arguments");
@@ -74,6 +86,14 @@ public class ThresholdingEngine {
         new ThresholdingEngine(configFor(args[0]), args[1], args.length > 2 ? true : false);
     engine.configure();
     engine.run();
+  }
+
+  private static void showVersion() {
+    Package pkg;
+    pkg = Package.getPackage("monasca.thresh");
+
+    logger.info("-------- Version Information --------");
+    logger.info("{}", pkg.getImplementationVersion());
   }
 
   protected void configure() {
