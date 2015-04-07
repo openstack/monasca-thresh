@@ -64,7 +64,6 @@ public class AlarmThresholdingBoltTest {
   private AlarmDefinition alarmDefinition;
   private Alarm alarm;
   private List<SubAlarm> subAlarms;
-  private String subAlarmJson;
   private AlarmEventForwarder alarmEventForwarder;
   private AlarmDAO alarmDAO;
   private AlarmDefinitionDAO alarmDefinitionDAO;

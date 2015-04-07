@@ -360,21 +360,6 @@ public class EventProcessingBoltTest {
     }
   }
 
-  private void verifyAddedSubAlarm(final SubAlarm subAlarm) {
-    sendSubAlarm(subAlarm, EventProcessingBolt.CREATED);
-  }
-
-  private void verifyUpdatedSubAlarm(final SubAlarm subAlarm) {
-    sendSubAlarm(subAlarm, EventProcessingBolt.UPDATED);
-  }
-
-  private void sendSubAlarm(final SubAlarm subAlarm, String eventType) {
-    verify(collector, times(1)).emit(
-        EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID,
-        new Values(eventType, new MetricDefinitionAndTenantId(subAlarm.getExpression()
-            .getMetricDefinition(), TENANT_ID), subAlarm));
-  }
-
   private static Map<String, AlarmSubExpression> createAlarmSubExpressionMap(Alarm alarm) {
     final Map<String, AlarmSubExpression> oldAlarmSubExpressions = new HashMap<>();
     for (final SubAlarm subAlarm : alarm.getSubAlarms()) {

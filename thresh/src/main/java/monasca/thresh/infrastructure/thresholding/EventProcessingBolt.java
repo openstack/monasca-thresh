@@ -25,7 +25,6 @@ import monasca.common.model.event.AlarmUpdatedEvent;
 import monasca.common.model.alarm.AlarmSubExpression;
 import monasca.common.model.metric.MetricDefinition;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
-import monasca.thresh.domain.model.SubAlarm;
 import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.model.TenantIdAndMetricName;
 import monasca.thresh.domain.service.AlarmDAO;
@@ -149,19 +148,6 @@ public class EventProcessingBolt extends BaseRichBolt {
 
   void handle(AlarmDefinitionDeletedEvent event) {
     collector.emit(ALARM_DEFINITION_EVENT_STREAM_ID, new Values(DELETED, event));
-  }
-
-  private void sendUpdateSubAlarm(String alarmId, String subAlarmId, String tenantId,
-      SubExpression subExpression) {
-    sendSubAlarm(UPDATED, alarmId, subAlarmId, tenantId, subExpression);
-  }
-
-  private void sendSubAlarm(String eventType, String alarmId, String subAlarmId, String tenantId,
-      SubExpression subExpression) {
-    MetricDefinition metricDef = subExpression.getAlarmSubExpression().getMetricDefinition();
-    collector.emit(METRIC_SUB_ALARM_EVENT_STREAM_ID, new Values(eventType,
-        new MetricDefinitionAndTenantId(metricDef, tenantId), new SubAlarm(subAlarmId, alarmId,
-            subExpression)));
   }
 
   void handle(AlarmDeletedEvent event) {
