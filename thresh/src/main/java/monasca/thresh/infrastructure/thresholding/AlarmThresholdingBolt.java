@@ -238,7 +238,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   }
 
   protected long getTimestamp() {
-    return System.currentTimeMillis() / 1000;
+    return System.currentTimeMillis();
   }
 
   void handleAlarmDeleted(String alarmId) {
