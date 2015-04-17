@@ -27,7 +27,11 @@ import monasca.common.util.Serialization;
 
 import backtype.storm.tuple.Fields;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.Serializable;
+import java.io.UnsupportedEncodingException;
 import java.util.Collections;
 import java.util.List;
 
@@ -39,6 +43,7 @@ import java.util.List;
  * </ul>
  */
 public class EventDeserializer implements TupleDeserializer, Serializable {
+  private static final Logger logger = LoggerFactory.getLogger(EventDeserializer.class);
   private static final long serialVersionUID = -1306620481933667305L;
   private static final Fields FIELDS = new Fields("event");
 
@@ -54,9 +59,11 @@ public class EventDeserializer implements TupleDeserializer, Serializable {
   @Override
   public List<List<?>> deserialize(byte[] tuple) {
     try {
+      String tupleStr = new String(tuple, "UTF-8");
       return Collections.<List<?>>singletonList(Collections.singletonList(Serialization
-          .fromJson(tuple)));
-    } catch (Exception ignore) {
+          .fromJson(tupleStr)));
+    } catch (Exception ex) {
+      logger.error("Failed to parse event: " + new String(tuple), ex);
       return null;
     }
   }
