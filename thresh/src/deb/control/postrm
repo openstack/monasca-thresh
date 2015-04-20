@@ -1,9 +1,0 @@
-#!/bin/sh
-
-case "$1" in
-  remove|purge)
-    userdel thresh
-  ;;
-esac
-
-exit 0

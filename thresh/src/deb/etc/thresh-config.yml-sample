@@ -1,14 +1,21 @@
-metricSpoutThreads: 1
-metricSpoutTasks: 1
+metricSpoutThreads: 2
+metricSpoutTasks: 2
+
+statsdConfig:
+  host: localhost
+  port: 8125
+  prefix: monasca.storm.
+  dimensions: !!map
+    service : monitoring
+    component : storm
+
 
 metricSpoutConfig:
-
-  #Kafka settings.
   kafkaConsumerConfiguration:
   # See http://kafka.apache.org/documentation.html#api for semantics and defaults.
-    topic: test
+    topic: metrics
     numThreads: 1
-    groupId: 1
+    groupId: thresh-metric
     zookeeperConnect: localhost:2181
     consumerId: 1
     socketTimeoutMs: 30000
@@ -25,18 +32,17 @@ metricSpoutConfig:
     autoOffsetReset: largest
     consumerTimeoutMs:  -1
     clientId : 1
-    zookeeperSessionTimeoutMs : 6000
-    zookeeperConnectionTimeoutMs : 6000
+    zookeeperSessionTimeoutMs : 60000
+    zookeeperConnectionTimeoutMs : 60000
     zookeeperSyncTimeMs: 2000
 
 
 eventSpoutConfig:
-  #Kafka settings.
   kafkaConsumerConfiguration:
   # See http://kafka.apache.org/documentation.html#api for semantics and defaults.
-    topic: test
+    topic: events
     numThreads: 1
-    groupId: 1
+    groupId: thresh-event
     zookeeperConnect: localhost:2181
     consumerId: 1
     socketTimeoutMs: 30000
@@ -53,17 +59,40 @@ eventSpoutConfig:
     autoOffsetReset: largest
     consumerTimeoutMs:  -1
     clientId : 1
-    zookeeperSessionTimeoutMs : 6000
-    zookeeperConnectionTimeoutMs : 6000
+    zookeeperSessionTimeoutMs : 60000
+    zookeeperConnectionTimeoutMs : 60000
     zookeeperSyncTimeMs: 2000
+
+
+kafkaProducerConfig:
+  # See http://kafka.apache.org/documentation.html#api for semantics and defaults.
+  topic: alarm-state-transitions
+  metadataBrokerList: localhost:9092
+  serializerClass: kafka.serializer.StringEncoder
+  partitionerClass:
+  requestRequiredAcks: 1
+  requestTimeoutMs: 10000
+  producerType: sync
+  keySerializerClass:
+  compressionCodec: none
+  compressedTopics:
+  messageSendMaxRetries: 3
+  retryBackoffMs: 100
+  topicMetadataRefreshIntervalMs: 600000
+  queueBufferingMaxMs: 5000
+  queueBufferingMaxMessages: 10000
+  queueEnqueueTimeoutMs: -1
+  batchNumMessages: 200
+  sendBufferBytes: 102400
+  clientId : Threshold_Engine
 
 
 sporadicMetricNamespaces:
   - foo
 
 database:
-  driverClass: com.vertica.jdbc.Driver
-  url: jdbc:vertica://mini-mon:5433/monasca
+  driverClass: com.mysql.jdbc.Driver
+  url: jdbc:mysql://localhost/mon?useSSL=true
   user: thresh
   password: password
   properties:
