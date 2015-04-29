@@ -5,7 +5,7 @@
 
     <groupId>monasca</groupId>
     <artifactId>monasca-thresh</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.1.0-SNAPSHOT</version>
     <url>http://github.com/stackforge/monasca-thresh</url>
     <packaging>jar</packaging>
 
@@ -21,7 +21,7 @@
         <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss</maven.build.timestamp.format>
         <computedVersion>${project.version}-${timestamp}-${gitRevision}</computedVersion>
         <computedName>${project.artifactId}-${computedVersion}</computedName>
-        <mon.common.version>1.0.0-SNAPSHOT</mon.common.version>
+        <mon.common.version>1.1.0-SNAPSHOT</mon.common.version>
         <storm.version>0.9.1-incubating</storm.version>
         <skipITs>false</skipITs>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
