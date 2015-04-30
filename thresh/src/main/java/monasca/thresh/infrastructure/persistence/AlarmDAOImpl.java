@@ -294,6 +294,13 @@ public class AlarmDAOImpl implements AlarmDAO {
     }
   }
 
+  @Override
+  public void deleteByDefinitionId(String alarmDefinitionId){
+    try (Handle h = db.open()) {
+      h.execute("delete from alarm where alarm_definition_id = :id", alarmDefinitionId);
+    }
+  }
+
   private MetricDefinition createMetricDefinitionFromRow(final Map<String, Object> row) {
     final Map<String, String> dimensionMap = new HashMap<>();
     final String dimensions = getString(row, "dimensions");

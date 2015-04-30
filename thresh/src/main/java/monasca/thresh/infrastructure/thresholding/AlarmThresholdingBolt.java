@@ -69,7 +69,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   private transient Logger logger;
   private DataSourceFactory dbConfig;
   private KafkaProducerConfiguration producerConfiguration;
-  final Map<String, Alarm> alarms = new HashMap<String, Alarm>();
+  final Map<String, Alarm> alarms = new HashMap<>();
   final Map<String, AlarmDefinition> alarmDefinitions = new HashMap<>();
   private transient AlarmDAO alarmDAO;
   private transient AlarmDefinitionDAO alarmDefinitionDAO;
@@ -217,8 +217,16 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
   }
 
   private void changeAlarmState(Alarm alarm, AlarmState initialState, String stateChangeReason) {
-    alarmDAO.updateState(alarm.getId(), alarm.getState());
     final AlarmDefinition alarmDefinition = alarmDefinitions.get(alarm.getAlarmDefinitionId());
+    // If the Alarm Definition id does not exist, ignore updating this alarm
+    if (alarmDefinition == null) {
+      logger.warn("Failed to locate alarm definition for id {},"
+                  + " ignoring state update to alarm with id {}",
+                  alarm.getAlarmDefinitionId(),
+                  alarm.getId());
+      return;
+    }
+    alarmDAO.updateState(alarm.getId(), alarm.getState());
     final List<MetricDefinition> alarmedMetrics = new ArrayList<>(alarm.getAlarmedMetrics().size());
     for (final MetricDefinitionAndTenantId mdtid : alarm.getAlarmedMetrics()) {
       alarmedMetrics.add(mdtid.metricDefinition);

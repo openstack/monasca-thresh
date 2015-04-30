@@ -48,4 +48,7 @@ public interface AlarmDAO {
 
   /** Update SubAlarms when AlarmDefinition changes */
   int updateSubAlarmExpressions(final String alarmSubExpressionId, AlarmSubExpression alarmSubExpression);
+
+  /** Deletes all alarms for the given AlarmDefinition */
+  void deleteByDefinitionId(String alarmDefinitionId);
 }

@@ -445,5 +445,8 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
       }
       return false;
     }
+
+    @Override
+    public void deleteByDefinitionId(String alarmDefinitionId) {}
   }
 }

@@ -198,6 +198,7 @@ public class AlarmCreationBolt extends BaseRichBolt {
     }
     alarmCache.remove(alarmDefinitionId);
     alarmDefinitionCache.remove(alarmDefinitionId);
+    alarmDAO.deleteByDefinitionId(alarmDefinitionId);
   }
 
   protected void handleNewMetricDefinition(
