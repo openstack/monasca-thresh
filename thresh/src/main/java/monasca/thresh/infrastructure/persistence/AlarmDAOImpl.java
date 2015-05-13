@@ -240,7 +240,7 @@ public class AlarmDAOImpl implements AlarmDAO {
     try {
       h.begin();
       h.insert(
-          "insert into alarm (id, alarm_definition_id, state, created_at, updated_at) values (?, ?, ?, NOW(), NOW())",
+          "insert into alarm (id, alarm_definition_id, state, state_updated_at, created_at, updated_at) values (?, ?, ?, NOW(), NOW(), NOW())",
           alarm.getId(), alarm.getAlarmDefinitionId(), alarm.getState().toString());
 
       for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
@@ -276,7 +276,7 @@ public class AlarmDAOImpl implements AlarmDAO {
   public void updateState(String id, AlarmState state) {
 
     try (final Handle h = db.open()) {
-      h.createStatement("update alarm set state = :state, updated_at = NOW() where id = :id")
+      h.createStatement("update alarm set state = :state, state_updated_at = NOW(), updated_at = NOW() where id = :id")
           .bind("id", id).bind("state", state.toString()).execute();
     }
   }
