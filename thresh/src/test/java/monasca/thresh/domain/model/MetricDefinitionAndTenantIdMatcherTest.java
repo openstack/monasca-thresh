@@ -22,9 +22,6 @@ import static org.testng.Assert.assertTrue;
 
 import monasca.common.model.metric.MetricDefinition;
 
-import monasca.thresh.domain.model.MetricDefinitionAndTenantIdMatcher.DimensionPair;
-import monasca.thresh.domain.model.MetricDefinitionAndTenantIdMatcher.DimensionSet;
-
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -170,73 +167,6 @@ public class MetricDefinitionAndTenantIdMatcherTest {
     matcher.remove(nullMatch, nullMatchId);
     assertTrue(matcher.isEmpty());
     verifyNoMatch(toMatch);
-  }
-
-  public void shouldCreatePossiblePairs() {
-    final Map<String, String> dimensions = new HashMap<>();
-    DimensionSet[] actual =
-        matcher.createPossibleDimensionPairs(new MetricDefinition(CPU_METRIC_NAME, dimensions));
-    DimensionSet[] expected = {new DimensionSet()};
-    assertEqualsNoOrder(actual, expected);
-
-    dimensions.put("1", "a");
-    actual =
-        matcher.createPossibleDimensionPairs(new MetricDefinition(CPU_METRIC_NAME, dimensions));
-    expected =
-        new DimensionSet[] {new DimensionSet(), new DimensionSet(new DimensionPair("1", "a"))};
-    assertEqualsNoOrder(actual, expected);
-
-    dimensions.put("2", "b");
-    actual =
-        matcher.createPossibleDimensionPairs(new MetricDefinition(CPU_METRIC_NAME, dimensions));
-    expected =
-        new DimensionSet[] {new DimensionSet(), new DimensionSet(new DimensionPair("1", "a")),
-            new DimensionSet(new DimensionPair("2", "b")),
-            new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("2", "b"))};
-    assertEqualsNoOrder(actual, expected);
-
-    dimensions.put("3", "c");
-    actual =
-        matcher.createPossibleDimensionPairs(new MetricDefinition(CPU_METRIC_NAME, dimensions));
-    expected =
-        new DimensionSet[] {
-            new DimensionSet(),
-            new DimensionSet(new DimensionPair("1", "a")),
-            new DimensionSet(new DimensionPair("2", "b")),
-            new DimensionSet(new DimensionPair("3", "c")),
-            new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("2", "b")),
-            new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("3", "c")),
-            new DimensionSet(new DimensionPair("2", "b"), new DimensionPair("3", "c")),
-            new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("2", "b"),
-                new DimensionPair("3", "c"))};
-
-    dimensions.put("4", "d");
-    actual =
-        matcher.createPossibleDimensionPairs(new MetricDefinition(CPU_METRIC_NAME, dimensions));
-    expected =
-        new DimensionSet[] {
-            new DimensionSet(),
-            new DimensionSet(new DimensionPair("1", "a")),
-            new DimensionSet(new DimensionPair("2", "b")),
-            new DimensionSet(new DimensionPair("3", "c")),
-            new DimensionSet(new DimensionPair("4", "d")),
-            new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("2", "b")),
-            new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("3", "c")),
-            new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("4", "d")),
-            new DimensionSet(new DimensionPair("2", "b"), new DimensionPair("3", "c")),
-            new DimensionSet(new DimensionPair("2", "b"), new DimensionPair("4", "d")),
-            new DimensionSet(new DimensionPair("3", "c"), new DimensionPair("4", "d")),
-            new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("2", "b"),
-                new DimensionPair("3", "c")),
-            new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("2", "b"),
-                new DimensionPair("4", "d")),
-            new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("3", "c"),
-                new DimensionPair("4", "d")),
-            new DimensionSet(new DimensionPair("2", "b"), new DimensionPair("3", "c"),
-                new DimensionPair("4", "d")),
-            new DimensionSet(new DimensionPair("1", "a"), new DimensionPair("2", "b"),
-                new DimensionPair("3", "c"), new DimensionPair("4", "d"))};
-    assertEqualsNoOrder(actual, expected);
   }
 
   private String getNextId() {
