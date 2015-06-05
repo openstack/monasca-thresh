@@ -57,7 +57,9 @@ public class MetricDefinitionAndTenantIdMatcher {
     }
     final AlarmDefinitionDimensions dimensionSet =
         createDimensionSet(metricDefinitionAndTenantId.metricDefinition, alarmDefinitionId);
-    alarmDefDimensions.add(dimensionSet);
+    if (!alarmDefDimensions.contains(dimensionSet)) {
+      alarmDefDimensions.add(dimensionSet);
+    }
   }
 
   private AlarmDefinitionDimensions createDimensionSet(MetricDefinition metricDefinition,

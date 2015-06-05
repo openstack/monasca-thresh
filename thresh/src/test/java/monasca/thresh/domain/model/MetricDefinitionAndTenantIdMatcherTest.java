@@ -19,6 +19,7 @@ package monasca.thresh.domain.model;
 
 import static org.testng.Assert.assertEqualsNoOrder;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.assertFalse;
 
 import monasca.common.model.metric.MetricDefinition;
 
@@ -132,23 +133,26 @@ public class MetricDefinitionAndTenantIdMatcherTest {
     final String groupMatchId = getNextId();
     matcher.add(groupMatch, groupMatchId);
 
+    // Add it twice just to make sure that doesn't cause problems
+    matcher.add(groupMatch, groupMatchId);
+
     verifyMatch(toMatch, noMatchId, hostMatchId, groupMatchId);
 
     matcher.add(toMatch, toMatchId);
     verifyMatch(toMatch, noMatchId, hostMatchId, groupMatchId, toMatchId);
 
-    matcher.remove(groupMatch, groupMatchId);
+    assertTrue(matcher.remove(groupMatch, groupMatchId));
     verifyMatch(toMatch, noMatchId, hostMatchId, toMatchId);
 
-    matcher.remove(noMatch, noMatchId);
+    assertTrue(matcher.remove(noMatch, noMatchId));
     verifyMatch(toMatch, hostMatchId, toMatchId);
 
-    matcher.remove(toMatch, toMatchId);
+    assertTrue(matcher.remove(toMatch, toMatchId));
     verifyMatch(toMatch, hostMatchId);
 
     // Remove it again to ensure it won't throw an exception if the MetricDefinitionAndTenantId
     // doesn't exist
-    matcher.remove(toMatch, toMatchId);
+    assertFalse(matcher.remove(toMatch, toMatchId));
 
     final MetricDefinitionAndTenantId loadMetric =
         new MetricDefinitionAndTenantId(new MetricDefinition("load", new HashMap<String, String>(
