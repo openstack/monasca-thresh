@@ -131,12 +131,15 @@ public class AlarmDAOImpl implements AlarmDAO {
 
   private void getAlarmedMetrics(Handle h, final Map<String, Alarm> alarmMap,
       final Map<String, String> tenantIdMap, final String additionalWhereClause, String ... params) {
-    final String baseSql = "select a.id, md.name, mdg.dimensions from metric_definition as md "
+    final String baseSql = "select a.id, md.name, group_concat(mdim.name, '=', mdim.value order by mdim.name) as dimensions "
+        + "from metric_definition as md "
         + "inner join metric_definition_dimensions as mdd on md.id = mdd.metric_definition_id "
         + "inner join alarm_metric as am on mdd.id = am.metric_definition_dimensions_id "
         + "inner join alarm as a on am.alarm_id = a.id "
-        + "left join (select dimension_set_id, name, value, group_concat(name, '=', value) as dimensions "
-        + "       from metric_dimension group by dimension_set_id) as mdg on mdg.dimension_set_id = mdd.metric_dimension_set_id where %s";
+        + "left join metric_dimension as mdim on mdim.dimension_set_id = mdd.metric_dimension_set_id "
+        + "where %s "
+        + "group by a.id, md.name, mdim.dimension_set_id "
+        + "order by dimensions";
     final String sql = String.format(baseSql, additionalWhereClause);
     final Query<Map<String, Object>> query = h.createQuery(sql);
     addQueryParameters(query, params);

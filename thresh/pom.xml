@@ -22,7 +22,7 @@
         <computedVersion>${project.version}-${timestamp}-${gitRevision}</computedVersion>
         <computedName>${project.artifactId}-${computedVersion}</computedName>
         <mon.common.version>1.1.0-SNAPSHOT</mon.common.version>
-        <storm.version>0.9.1-incubating</storm.version>
+        <storm.version>0.9.5</storm.version>
         <skipITs>false</skipITs>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
