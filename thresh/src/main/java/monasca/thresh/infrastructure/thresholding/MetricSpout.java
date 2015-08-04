@@ -17,6 +17,7 @@
 
 package monasca.thresh.infrastructure.thresholding;
 
+import monasca.common.model.metric.Metric;
 import monasca.common.model.metric.MetricEnvelope;
 import monasca.common.model.metric.MetricEnvelopes;
 
@@ -31,7 +32,13 @@ import monasca.thresh.domain.model.TenantIdAndMetricName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
+import java.util.Map;
+
 public class MetricSpout extends KafkaSpout {
+  @SuppressWarnings("unchecked")
+  private static final Map<String, String> EMPTY_DIMENSIONS = (Map<String, String>) Collections.EMPTY_MAP;
+
   private static final Logger logger = LoggerFactory.getLogger(MetricSpout.class);
 
   private static final long serialVersionUID = 744004533863562119L;
@@ -61,8 +68,12 @@ public class MetricSpout extends KafkaSpout {
           metricEnvelope.metric);
       tenantId = DEFAULT_TENANT_ID;
     }
+    final Metric metric = metricEnvelope.metric;
+    if (metric.dimensions == null) {
+      metric.dimensions = EMPTY_DIMENSIONS;
+    }
     collector.emit(new Values(new TenantIdAndMetricName(tenantId, metricEnvelope.metric
-        .definition().name), metricEnvelope.creationTime, metricEnvelope.metric));
+        .definition().name), metricEnvelope.creationTime, metric));
   }
 
   @Override
