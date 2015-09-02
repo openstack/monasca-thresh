@@ -22,6 +22,7 @@ import monasca.common.model.alarm.AlarmExpression;
 import monasca.common.model.alarm.AlarmOperator;
 import monasca.common.model.alarm.AlarmSubExpression;
 import monasca.common.model.metric.MetricDefinition;
+import monasca.common.util.Conversions;
 import monasca.thresh.domain.model.AlarmDefinition;
 import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.service.AlarmDefinitionDAO;
@@ -84,8 +85,10 @@ public class AlarmDefinitionDAOImpl implements AlarmDefinitionDAO {
       String metricName = (String) row.get("metric_name");
       AlarmOperator operator = AlarmOperator.fromJson((String) row.get("operator"));
       Double threshold = (Double) row.get("threshold");
-      Integer period = (Integer) row.get("period");
-      Integer periods = (Integer) row.get("periods");
+      // MySQL connector returns an Integer, Drizzle returns a Long for period and periods.
+      // Need to convert the results appropriately based on type.
+      Integer period = Conversions.variantToInteger(row.get("period"));
+      Integer periods = Conversions.variantToInteger(row.get("periods"));
       Map<String, String> dimensions = new HashMap<>();
       while (addedDimension(dimensions, id, rows, index)) {
         index++;
