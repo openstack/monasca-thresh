@@ -23,11 +23,10 @@
         <computedName>${project.artifactId}-${computedVersion}</computedName>
         <mon.common.version>1.1.0-SNAPSHOT</mon.common.version>
         <storm.version>0.9.5</storm.version>
-        <hibernate.version>4.3.9.Final</hibernate.version>
         <postgresql.version>9.1-901.jdbc4</postgresql.version>
-        <jadira.version>3.1.0.CR1</jadira.version>
-        <hikaricp.version>2.3.7</hikaricp.version>
+        <hikaricp.version>2.3.9</hikaricp.version>
         <reflections.version>0.9.9-RC1</reflections.version>
+        <javax.el-api.version>2.2.5</javax.el-api.version>
         <skipITs>false</skipITs>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -169,25 +168,20 @@
             </exclusions>
         </dependency>
         <dependency>
-            <groupId>org.hibernate</groupId>
-            <artifactId>hibernate-core</artifactId>
-            <version>${hibernate.version}</version>
-        </dependency>
-        <dependency>
             <groupId>postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <version>${postgresql.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.jadira.usertype</groupId>
-            <artifactId>usertype.core</artifactId>
-            <version>${jadira.version}</version>
         </dependency>
         <dependency>
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP-java6</artifactId>
             <version>${hikaricp.version}</version>
             <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>javax.el</groupId>
+            <artifactId>javax.el-api</artifactId>
+            <version>${javax.el-api.version}</version>
         </dependency>
 
         <!-- Test dependencies -->
