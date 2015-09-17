@@ -85,12 +85,18 @@ public class TopologyModule extends AbstractModule {
       if (config.statsdConfig.getPort() != null)
           statsdConfig.put(StatsdMetricConsumer.STATSD_PORT,
                   config.statsdConfig.getPort());
-      if (config.statsdConfig.getPrefix() != null)
-          statsdConfig.put(StatsdMetricConsumer.STATSD_PREFIX,
-                  config.statsdConfig.getPrefix());
+      if (config.statsdConfig.getWhitelist() != null)
+          statsdConfig.put(StatsdMetricConsumer.STATSD_WHITELIST,
+                  config.statsdConfig.getWhitelist());
+      if (config.statsdConfig.getMetricmap() != null)
+        statsdConfig.put(StatsdMetricConsumer.STATSD_METRICMAP,
+            config.statsdConfig.getMetricmap());
       if (config.statsdConfig.getDimensions() != null)
           statsdConfig.put(StatsdMetricConsumer.STATSD_DIMENSIONS,
                   config.statsdConfig.getDimensions());
+      if (config.statsdConfig.getDebugmetrics() != null)
+        statsdConfig.put(StatsdMetricConsumer.STATSD_DEBUGMETRICS,
+            config.statsdConfig.getDebugmetrics());
 
       stormConfig.registerMetricsConsumer(StatsdMetricConsumer.class,
               statsdConfig, 2);
