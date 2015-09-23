@@ -33,7 +33,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <timestamp>${maven.build.timestamp}</timestamp>
         <maven.build.timestamp.format>yyyyMMddHHmm</maven.build.timestamp.format>
-        <artifactNamedVersion>${project.artifactId}-${project.version}-${timestamp}-${buildNumber}
+        <artifactNamedVersion>${project.artifactId}_${project.version}-${timestamp}-${buildNumber}
         </artifactNamedVersion>
         <shadedJarName>${project.artifactId}-${project.version}-shaded
         </shadedJarName>
