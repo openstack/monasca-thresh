@@ -355,7 +355,7 @@
                             <goal>jdeb</goal>
                         </goals>
                         <configuration>
-                            <deb>${project.basedir}/debs/binaries/${artifactNamedVersion}.deb</deb>
+                            <deb>${project.basedir}/debs/binaries/${artifactNamedVersion}_amd64.deb</deb>
                             <dataSet>
                                 <data>
                                     <type>file</type>
