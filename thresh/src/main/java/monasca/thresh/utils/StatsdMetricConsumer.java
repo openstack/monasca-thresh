@@ -71,7 +71,7 @@ public class StatsdMetricConsumer implements IMetricsConsumer {
   String statsdDimensions = defaultDimensions;
 
   /*
-   * https://github.com/stackforge/monasca-agent#statsd
+   * https://github.com/openstack/monasca-agent#statsd
    *
    * Example metric produced from this code from Monasca statsd
    * filtering-bolt.sendqueue.read_pos:69
