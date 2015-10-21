@@ -15,7 +15,7 @@ Alarms have three possible states: `UNDETERMINED`, `OK` and `ALARM`.  Alarms are
 avg(cpu{service=nova}, 120) > 90 or avg(load{service=nova}, 120) > 15
 ```
 
-For more details on Alarm Definitions versus Alarms refer to the Monasca API documentation at https://github.com/stackforge/monasca-api/blob/master/docs/monasca-api-spec.md.
+For more details on Alarm Definitions versus Alarms refer to the Monasca API documentation at https://github.com/openstack/monasca-api/blob/master/docs/monasca-api-spec.md.
 
 If the expression evaluates to true, the Alarm state transitions to `ALARM`, if it evaluates to false, the state transitions to `OK` and if there aren't any metrics for the two times the measuring period, the Alarm state transitions to `UNDETERMINED`. Each part of the expression is represented by a Sub Alarm, so for the above example, there are two Sub Alarms.
 
@@ -36,7 +36,7 @@ Events also flow into the Threshold Engine via Kafka so the Threshold Engine kno
 =======
 # Build
 
-Requires monasca-common from https://github.com/stackforge/monasca-common. Download and follow the instructions in the README
+Requires monasca-common from https://github.com/openstack/monasca-common. Download and follow the instructions in the README
 
 ```
 cd thresh
