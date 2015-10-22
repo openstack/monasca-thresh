@@ -18,6 +18,7 @@
 package monasca.thresh.domain.model;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 import monasca.common.model.alarm.AlarmState;
@@ -45,31 +46,31 @@ public class SubAlarmStatsTest {
   }
 
   public void shouldBeOkIfAnySlotsInViewAreBelowThreshold() {
-    subAlarmStats.getStats().addValue(5, 1);
+    sendMetric(5, 1, false);
     assertFalse(subAlarmStats.evaluateAndSlideWindow(62, 1));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
 
-    subAlarmStats.getStats().addValue(1, 62);
+    sendMetric(1, 62, false);
     assertTrue(subAlarmStats.evaluateAndSlideWindow(122, 1));
     // This went to OK because at least one period is under the threshold
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.OK);
 
-    subAlarmStats.getStats().addValue(5, 123);
+    sendMetric(5, 123, false);
     assertFalse(subAlarmStats.evaluateAndSlideWindow(182, 1));
     // Still one under the threshold
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.OK);
   }
 
   public void shouldBeAlarmedIfAllSlotsInViewExceedThreshold() {
-    subAlarmStats.getStats().addValue(5, 1);
+    sendMetric(5, 1, false);
     assertFalse(subAlarmStats.evaluateAndSlideWindow(62, 1));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
 
-    subAlarmStats.getStats().addValue(5, 62);
+    sendMetric(5, 62, false);
     assertFalse(subAlarmStats.evaluateAndSlideWindow(122, 1));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
 
-    subAlarmStats.getStats().addValue(5, 123);
+    sendMetric(5, 123, false);
     assertTrue(subAlarmStats.evaluateAndSlideWindow(182, 1));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.ALARM);
   }
@@ -81,32 +82,102 @@ public class SubAlarmStatsTest {
     long initialTime = 11;
 
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
-    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 1));
-    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 1));
-    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 1));
+    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 10));
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
+    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 10));
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
+    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 10));
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
 
     // Add value and trigger OK
-    subAlarmStats.getStats().addValue(1, initialTime - 1);
+    sendMetric(1, initialTime - 1, false);
+    assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 10));
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.OK);
+
+    // Slide in some values that exceed the threshold
+    sendMetric(5, initialTime - 1, false);
+    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 10));
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.OK);
+    sendMetric(5, initialTime - 1, false);
+    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 10));
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.OK);
+    sendMetric(5, initialTime - 1, false);
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.OK);
+
+    // Trigger ALARM
+    assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 10));
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.ALARM);
+
+    // Add value and trigger OK
+    sendMetric(1, initialTime - 1, false);
+    assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 10));
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.OK);
+
+    // Must slide 8 times total from the last added value to trigger UNDETERMINED. This is
+    // equivalent to the behavior in CloudWatch for an alarm with 3 evaluation periods. 2 more
+    // slides to move the value outside of the window and 6 more to exceed the observation
+    // threshold.
+    for (int i = 0; i < 7; i++) {
+      assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 10));
+    }
+    assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 10));
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
+    sendMetric(5, initialTime - 1, false);
+  }
+
+  private void sendMetric(double value, long timestamp, boolean expected) {
+    subAlarmStats.getStats().addValue(value, timestamp);
+    assertEquals(subAlarmStats.evaluateAndSlideWindow(timestamp, timestamp), expected);
+  }
+
+  /**
+   * Simulates the way a window will fill up in practice.
+   */
+  public void shouldImmediatelyEvaluate() {
+    long initialTime = 11;
+
+    // Need a different expression for this test
+    expression =
+        new SubExpression(UUID.randomUUID().toString(),
+            AlarmSubExpression.of("max(hpcs.compute.cpu{id=5}, 60) > 3 times 3"));
+    subAlarm = new SubAlarm("123", "1", expression);
+    subAlarm.setNoState(true);
+    subAlarmStats = new SubAlarmStats(subAlarm, expression.getAlarmSubExpression().getPeriod());
+
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
+    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 1));
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
+    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 1));
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
+    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 1));
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
+
+    // Add value and trigger OK
+    sendMetric(1, initialTime - 1, false);
     assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 1));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.OK);
 
     // Slide in some values that exceed the threshold
-    subAlarmStats.getStats().addValue(5, initialTime - 1);
+    sendMetric(5, initialTime - 1, false);
     assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 1));
-    subAlarmStats.getStats().addValue(5, initialTime - 1);
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.OK);
+    sendMetric(5, initialTime - 1, false);
     assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 1));
-    subAlarmStats.getStats().addValue(5, initialTime - 1);
 
     // Trigger ALARM
-    assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 1));
+    sendMetric(5, initialTime - 1, true);
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.ALARM);
+
+    // Ensure it is still ALARM on next evaluation
+    assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 1));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.ALARM);
 
     // Add value and trigger OK
-    subAlarmStats.getStats().addValue(1, initialTime - 1);
+    sendMetric(1, initialTime - 1, false);
     assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 1));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.OK);
 
-    // Must slide 9 times total from the last added value to trigger UNDETERMINED. This is
+    // Must slide 8 times total from the last added value to trigger UNDETERMINED. This is
     // equivalent to the behavior in CloudWatch for an alarm with 3 evaluation periods. 2 more
     // slides to move the value outside of the window and 6 more to exceed the observation
     // threshold.
@@ -115,7 +186,18 @@ public class SubAlarmStatsTest {
     }
     assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 1));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
-    subAlarmStats.getStats().addValue(5, initialTime - 1);
+
+    // Now test that future buckets are evaluated
+    // Set the current bucket to ALARM
+    sendMetric(5, initialTime - 1, false);
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
+    // Set the future bucket of current + 2 to ALARM
+    sendMetric(5, initialTime + 120, false);
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.UNDETERMINED);
+    // Set the future bucket of current + 1 to ALARM. That will trigger the
+    // SubAlarm to go to ALARM
+    sendMetric(5, initialTime + 60, true);
+    assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.ALARM);
   }
 
   public void shouldAlarmIfAllSlotsAlarmed() {
@@ -125,13 +207,13 @@ public class SubAlarmStatsTest {
 
     assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 1));
 
-    subAlarmStats.getStats().addValue(5, initialTime - 1);
+    sendMetric(5, initialTime - 1, false);
     assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 1));
 
-    subAlarmStats.getStats().addValue(5, initialTime - 1);
+    sendMetric(5, initialTime - 1, false);
     assertFalse(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 1));
 
-    subAlarmStats.getStats().addValue(5, initialTime - 1);
+    sendMetric(5, initialTime - 1, false);
     assertTrue(subAlarmStats.evaluateAndSlideWindow(initialTime += 60, 1));
     assertEquals(subAlarmStats.getSubAlarm().getState(), AlarmState.ALARM);
   }
@@ -144,6 +226,31 @@ public class SubAlarmStatsTest {
     SubAlarmStats saStats = new SubAlarmStats(subAlarm, (System.currentTimeMillis() / 1000) + 60);
     assertEquals(saStats.emptyWindowObservationThreshold, 6);
   }
+
+  public void checkUpdateSubAlarm() {
+    // Can keep data with threshold change
+    verifyUpdateSubAlarm(expression.getAlarmSubExpression().getExpression().replace("> 3", "> 6"), 100.0);
+    // Can keep data with operator change
+    verifyUpdateSubAlarm(expression.getAlarmSubExpression().getExpression().replace("< 3", "< 6"), 100.0);
+    // Have to flush data with function change
+    verifyUpdateSubAlarm(expression.getAlarmSubExpression().getExpression().replace("avg", "max"), Double.NaN);
+    // Have to flush data with periods change
+    verifyUpdateSubAlarm(expression.getAlarmSubExpression().getExpression().replace("times 3", "times 2"), Double.NaN);
+    // Have to flush data with period change
+    verifyUpdateSubAlarm(expression.getAlarmSubExpression().getExpression().replace(", 60", ", 120"), Double.NaN);
+  }
+
+  private void verifyUpdateSubAlarm(String newExpressionString, double expectedValue) {
+    final AlarmSubExpression newExpression = AlarmSubExpression.of(newExpressionString);
+    assertNotEquals(newExpression, expression.getAlarmSubExpression().getExpression());
+    int timestamp = expression.getAlarmSubExpression().getPeriod() / 2;
+    sendMetric(100.00, timestamp, false);
+    assertEquals(subAlarmStats.getStats().getValue(timestamp), 100.0);
+    subAlarmStats.updateSubAlarm(newExpression, expression.getAlarmSubExpression().getPeriod());
+    assertEquals(subAlarmStats.getStats().getValue(timestamp), expectedValue);
+    assertTrue(subAlarm.isNoState());
+  }
+
 
   public void checkLongPeriod() {
     final SubExpression subExpr = new SubExpression(UUID.randomUUID().toString(),
