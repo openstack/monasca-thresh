@@ -183,6 +183,9 @@ public class MetricAggregationBolt extends BaseRichBolt {
       if (stats.getStats().addValue(metric.value, timestamp_secs)) {
         logger.trace("Aggregated value {} at {} for {}. Updated {}", metric.value,
             metric.timestamp, metricDefinitionAndTenantId, stats.getStats());
+        if (stats.evaluateAndSlideWindow(timestamp_secs, config.alarmDelay)) {
+          sendSubAlarmStateChange(stats);
+        }
       } else {
         logger.warn("Metric is too old, age {} seconds: timestamp {} for {}, {}",
             currentTimeSeconds() - timestamp_secs, timestamp_secs, metricDefinitionAndTenantId,
@@ -202,9 +205,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
       if (upToDate) {
         logger.debug("Evaluating {}", subAlarmStats);
         if (subAlarmStats.evaluateAndSlideWindow(newWindowTimestamp, config.alarmDelay)) {
-          logger.debug("Alarm state changed for {}", subAlarmStats);
-          collector.emit(new Values(subAlarmStats.getSubAlarm().getAlarmId(), subAlarmStats
-              .getSubAlarm()));
+          sendSubAlarmStateChange(subAlarmStats);
         }
       } else {
         subAlarmStats.slideWindow(newWindowTimestamp, config.alarmDelay);
@@ -214,6 +215,12 @@ public class MetricAggregationBolt extends BaseRichBolt {
       logger.info("Did not evaluate SubAlarms because Metrics are not up to date");
       upToDate = true;
     }
+  }
+
+  private void sendSubAlarmStateChange(SubAlarmStats subAlarmStats) {
+    logger.debug("Alarm state changed for {}", subAlarmStats);
+    collector.emit(new Values(subAlarmStats.getSubAlarm().getAlarmId(), subAlarmStats
+        .getSubAlarm()));
   }
 
   /**
