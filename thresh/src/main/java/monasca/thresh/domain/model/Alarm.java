@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * Copyright (c) 2014,2016 Hewlett Packard Enterprise Development Company, L.P.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,6 +42,8 @@ public class Alarm extends AbstractEntity {
   private Map<String, SubAlarm> subAlarms;
   private Set<MetricDefinitionAndTenantId> alarmedMetrics = new HashSet<>();
   private AlarmState state;
+  private String link;
+  private String lifecycleState;
   private String stateChangeReason;
   private String alarmDefinitionId;
   private List<AlarmTransitionSubAlarm> transitionSubAlarms = new ArrayList<>();
@@ -95,6 +97,12 @@ public class Alarm extends AbstractEntity {
     Alarm other = (Alarm) obj;
 
     if (state != other.state) {
+      return false;
+    }
+    if (!compareObjects(link, other.link)) {
+      return false;
+    }
+    if (!compareObjects(lifecycleState, other.lifecycleState)) {
       return false;
     }
     if (!compareObjects(alarmDefinitionId, other.alarmDefinitionId)) {
@@ -179,6 +187,10 @@ public class Alarm extends AbstractEntity {
     return state;
   }
 
+  public String getLink() { return link; }
+
+  public String getLifecycleState() { return lifecycleState; }
+
   public String getStateChangeReason() {
     return stateChangeReason;
   }
@@ -192,6 +204,8 @@ public class Alarm extends AbstractEntity {
     final int prime = 31;
     int result = super.hashCode();
     result = prime * result + ((state == null) ? 0 : state.hashCode());
+    result = prime * result + ((link == null) ? 0 : link.hashCode());
+    result = prime * result + ((lifecycleState == null) ? 0 : lifecycleState.hashCode());
     result = prime * result + ((subAlarms == null) ? 0 : subAlarms.hashCode());
     result = prime * result + ((alarmDefinitionId == null) ? 0 : alarmDefinitionId.hashCode());
     result = prime * result + ((stateChangeReason == null) ? 0 : stateChangeReason.hashCode());
@@ -205,6 +219,14 @@ public class Alarm extends AbstractEntity {
 
   public void setState(AlarmState state) {
     this.state = state;
+  }
+
+  public void setLink(String newLink) {
+    this.link = newLink;
+  }
+
+  public void setLifecycleState(String newLifecycleState) {
+    this.lifecycleState = newLifecycleState;
   }
 
   public void setSubAlarms(List<SubAlarm> subAlarms) {
