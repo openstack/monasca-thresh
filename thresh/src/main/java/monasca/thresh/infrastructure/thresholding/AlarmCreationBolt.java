@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * Copyright (c) 2014-2016 Hewlett-Packard Development Company, L.P.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ import monasca.thresh.infrastructure.persistence.PersistenceModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -175,11 +176,19 @@ public class AlarmCreationBolt extends BaseRichBolt {
       alarmDefinition.setActionsEnabled(event.alarmActionsEnabled);
       alarmDefinition.setExpression(event.alarmExpression);
       alarmDefinition.setSeverity(event.severity);
-      if (!alarmDefinition.getMatchBy().equals(event.matchBy)) {
-        logger.error("AlarmDefinition {}: match-by changed, was {} now {}",
-            event.alarmDefinitionId, alarmDefinition.getMatchBy(), event.matchBy);
+      final List<String> newMatchBy;
+      if (event.matchBy == null) {
+        // The API can send NULL which means empty list
+        newMatchBy = new ArrayList<>(0);
       }
-      alarmDefinition.setMatchBy(event.matchBy); // Should never change
+      else {
+        newMatchBy = event.matchBy;
+      }
+      if (!alarmDefinition.getMatchBy().equals(newMatchBy)) {
+        logger.error("AlarmDefinition {}: match-by changed, was {} now {}",
+            event.alarmDefinitionId, alarmDefinition.getMatchBy(), newMatchBy);
+      }
+      alarmDefinition.setMatchBy(newMatchBy); // Should never change
       for (Map.Entry<String, AlarmSubExpression> entry : event.changedSubExpressions.entrySet()) {
         if (!alarmDefinition.updateSubExpression(entry.getKey(), entry.getValue())) {
           logger.error("AlarmDefinition {}: Did not finding matching SubAlarmExpression id={} SubAlarmExpression{}",

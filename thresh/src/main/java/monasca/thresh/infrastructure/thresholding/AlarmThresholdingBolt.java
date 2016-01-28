@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * Copyright (c) 2014,2016 Hewlett Packard Enterprise Development Company, L.P.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -236,7 +236,8 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
         new AlarmStateTransitionedEvent(alarmDefinition.getTenantId(), alarm.getId(),
             alarmDefinition.getId(), alarmedMetrics, alarmDefinition.getName(),
             alarmDefinition.getDescription(), initialState, alarm.getState(),
-            alarmDefinition.getSeverity(), alarmDefinition.isActionsEnabled(), stateChangeReason, 
+            alarmDefinition.getSeverity(), alarm.getLink(), alarm.getLifecycleState(),
+            alarmDefinition.isActionsEnabled(), stateChangeReason,
             alarm.getTransitionSubAlarms(), getTimestamp());
     try {
       alarmEventForwarder.send(Serialization.toJson(event));
@@ -262,6 +263,8 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     }
 
     oldAlarm.setState(alarmUpdatedEvent.alarmState);
+    oldAlarm.setLink(alarmUpdatedEvent.link);
+    oldAlarm.setLifecycleState(alarmUpdatedEvent.lifecycleState);
 
   }
 
