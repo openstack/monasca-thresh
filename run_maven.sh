@@ -36,7 +36,7 @@ if [ $RUN_BUILD = "true" ]; then
         BRANCH=${ZUUL_REF}
     fi
 
-    ( cd common; ./build_common.sh ${MVN} ${COMMON_VERSION} ${ZUUL_BRANCH} )
+    ( cd common; ./build_common.sh ${MVN} ${COMMON_VERSION} ${BRANCH} )
     RC=$?
     if [ $RC != 0 ]; then
         exit $RC
