@@ -236,6 +236,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
             original.getAlarmSubExpressionId(), original.getExpression()), original.getState());
     newSubAlarm.setNoState(original.isNoState());
     newSubAlarm.setSporadicMetric(original.isSporadicMetric());
+    newSubAlarm.setCurrentValues(original.getCurrentValues());
     return newSubAlarm;
   }
 
