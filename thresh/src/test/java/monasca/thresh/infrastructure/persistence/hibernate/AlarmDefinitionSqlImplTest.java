@@ -80,6 +80,12 @@ public class AlarmDefinitionSqlImplTest {
         new AlarmDefinition(TENANT_ID, ALARM_NAME, ALARM_DESCR, expression3, "LOW",
             false, Arrays.asList("hostname", "dev"));
     insertAndCheck(alarmDefinition3);
+
+    final AlarmExpression expression4 = new AlarmExpression("max(cpu,deterministic) > 90");
+    final AlarmDefinition alarmDefinition4 =
+        new AlarmDefinition(TENANT_ID, ALARM_NAME, ALARM_DESCR, expression4, "LOW",
+            false, Arrays.asList("hostname", "dev"));
+    insertAndCheck(alarmDefinition4);
   }
 
   public void testListAll() {
@@ -99,6 +105,16 @@ public class AlarmDefinitionSqlImplTest {
     HibernateUtil.insertAlarmDefinition(sessionFactory.openSession(), alarmDefinition2);
 
     verifyListAllMatches(alarmDefinition, alarmDefinition2);
+
+    final AlarmExpression expression3 = new AlarmExpression(
+        "max(cpu{service=swift}, deterministic) > 90"
+    );
+    final AlarmDefinition alarmDefinition3 =
+        new AlarmDefinition(TENANT_ID, ALARM_NAME, ALARM_DESCR, expression3, "LOW",
+            false, Arrays.asList("fred", "barney", "wilma", "betty", "scooby", "doo"));
+    HibernateUtil.insertAlarmDefinition(sessionFactory.openSession(), alarmDefinition3);
+
+    verifyListAllMatches(alarmDefinition, alarmDefinition2, alarmDefinition3);
   }
 
   private void insertAndCheck(final AlarmDefinition alarmDefinition) {

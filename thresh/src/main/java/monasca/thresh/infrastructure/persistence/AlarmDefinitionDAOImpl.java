@@ -17,6 +17,8 @@
 
 package monasca.thresh.infrastructure.persistence;
 
+import com.google.common.base.Function;
+
 import monasca.common.model.alarm.AggregateFunction;
 import monasca.common.model.alarm.AlarmExpression;
 import monasca.common.model.alarm.AlarmOperator;
@@ -41,9 +43,27 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 public class AlarmDefinitionDAOImpl implements AlarmDefinitionDAO {
+  private static Function<Object, Boolean> BOOLEAN_MAPPER_FUNCTION = new Function<Object, Boolean>() {
+    @Nullable
+    @Override
+    public Boolean apply(@Nullable final Object input) {
+      /*
+      For connection established with actual database boolean
+      values are returned from database as actual Boolean,
+      however unit test are written in H2 and there booleans
+      are returned as Byte
+       */
+      assert input != null;
+      if (input instanceof Boolean) {
+        return (Boolean) input;
+      }
+      return "1".equals(input.toString());
+    }
+  };
   private static final String SUB_ALARM_SQL =
       "select sad.*, sadd.* from sub_alarm_definition sad " +
       "left outer join sub_alarm_definition_dimension sadd on sadd.sub_alarm_definition_id=sad.id " +
@@ -89,12 +109,24 @@ public class AlarmDefinitionDAOImpl implements AlarmDefinitionDAO {
       // Need to convert the results appropriately based on type.
       Integer period = Conversions.variantToInteger(row.get("period"));
       Integer periods = Conversions.variantToInteger(row.get("periods"));
+      Boolean deterministic = BOOLEAN_MAPPER_FUNCTION.apply(row.get("is_deterministic"));
       Map<String, String> dimensions = new HashMap<>();
       while (addedDimension(dimensions, id, rows, index)) {
         index++;
       }
-      subExpressions.add(new SubExpression(id, new AlarmSubExpression(function,
-          new MetricDefinition(metricName, dimensions), operator, threshold, period, periods)));
+      subExpressions.add(
+          new SubExpression(id,
+              new AlarmSubExpression(
+                  function,
+                  new MetricDefinition(metricName, dimensions),
+                  operator,
+                  threshold,
+                  period,
+                  periods,
+                  deterministic
+              )
+          )
+      );
     }
 
     return subExpressions;

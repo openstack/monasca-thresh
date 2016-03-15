@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * Copyright 2016 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,6 +42,7 @@ import java.util.UUID;
 
 @Test
 public class AlarmTest {
+
   public void shouldBeUndeterminedIfAnySubAlarmIsUndetermined() {
     AlarmExpression expr =
         new AlarmExpression(
@@ -58,8 +60,7 @@ public class AlarmTest {
 
   private Alarm createAlarm(AlarmExpression expr) {
     final AlarmDefinition alarmDefinition = new AlarmDefinition("42", "Test Def", "", expr, "LOW", true, new ArrayList<String>(0));
-    Alarm alarm = new Alarm(alarmDefinition, AlarmState.UNDETERMINED);
-    return alarm;
+    return new Alarm(alarmDefinition);
   }
 
   public void shouldEvaluateExpressionWithBooleanAnd() {
@@ -174,7 +175,7 @@ public class AlarmTest {
         new AlarmSubExpression(AggregateFunction.MAX, metricDefinition, AlarmOperator.GT, 1, 60, 1);
     final SubAlarm subAlarm = new SubAlarm("123", "456", new SubExpression(UUID.randomUUID().toString(), ase));
     final Map<AlarmSubExpression, Boolean> subExpressionValues =
-        new HashMap<AlarmSubExpression, Boolean>();
+        new HashMap<>();
     subExpressionValues.put(subAlarm.getExpression(), true);
     assertEquals(expression.getSubExpressions().get(0).getMetricDefinition().hashCode(),
         metricDefinition.hashCode());
@@ -182,4 +183,94 @@ public class AlarmTest {
     // Handle ALARM state
     assertTrue(expression.evaluate(subExpressionValues));
   }
+
+  public void testShouldInitiallyProceedToOKIfAllSubAlarmsAreDeterministic() {
+    final String expression1 = "count(log.error{path=/var/log/test.log}, deterministic, 1) > 10";
+    final String expression2 = "count(log.warning{path=/var/log/test.log}, deterministic, 1) > 5";
+    final String expression = String.format("%s or %s", expression1, expression2);
+
+    final AlarmExpression expr = new AlarmExpression(expression);
+    final Alarm alarm = this.createAlarm(expr);
+
+    assertFalse(alarm.evaluate(expr));
+    assertTrue(alarm.isDeterministic());
+    assertEquals(alarm.getState(), AlarmState.OK);
+  }
+
+  public void testShouldNotInitiallyProceedToOKIfNotAllSubAlarmsAreDeterministic() {
+    final String expression1 = "count(log.error{path=/var/log/test.log}, deterministic, 1) > 10";
+    final String expression2 = "count(log.warning{path=/var/log/test.log}, deterministic, 1) > 5";
+    final String expression3 = "count(log.debug{path=/var/log/test.log}, 1) > 1";
+    final String expression = String.format("(%s or %s) and %s",
+        expression1,
+        expression2,
+        expression3
+    );
+
+    final AlarmExpression expr = new AlarmExpression(expression);
+    final Alarm alarm = this.createAlarm(expr);
+
+    assertFalse(alarm.evaluate(expr));
+    assertFalse(alarm.isDeterministic());
+    assertEquals(alarm.getState(), AlarmState.UNDETERMINED);
+  }
+
+  public void testShouldStayInAlarmDeterministic() {
+    final String expression = "count(log.error{path=/var/log/test.log}, deterministic, 1) > 5";
+    final AlarmExpression expr = new AlarmExpression(expression);
+    final Alarm alarm = this.createAlarm(expr);
+    final Iterator<SubAlarm> iter = alarm.getSubAlarms().iterator();
+
+    alarm.setState(AlarmState.ALARM);
+
+    SubAlarm subAlarm1 = iter.next();
+    subAlarm1.setState(AlarmState.ALARM);
+
+    assertFalse(alarm.evaluate(expr));
+    assertTrue(alarm.isDeterministic());
+    assertEquals(alarm.getState(), AlarmState.ALARM);
+  }
+
+  public void testShouldStayInOkDeterministic() {
+    final String expression = "count(log.error{path=/var/log/test.log}, deterministic, 1) > 5";
+    final AlarmExpression expr = new AlarmExpression(expression);
+    final Alarm alarm = this.createAlarm(expr);
+
+    alarm.setState(AlarmState.OK);
+
+    assertFalse(alarm.evaluate(expr));
+    assertTrue(alarm.isDeterministic());
+    assertEquals(alarm.getState(), AlarmState.OK);
+  }
+
+  public void testShouldEnterOkFromAlarmDeterministic() {
+    final String expression = "count(log.error{path=/var/log/test.log}, deterministic, 1) > 5";
+    final AlarmExpression expr = new AlarmExpression(expression);
+    final Alarm alarm = this.createAlarm(expr);
+    final Iterator<SubAlarm> iter = alarm.getSubAlarms().iterator();
+
+    alarm.setState(AlarmState.ALARM);
+
+    SubAlarm subAlarm1 = iter.next();
+    subAlarm1.setState(AlarmState.OK);
+
+    assertTrue(alarm.evaluate(expr));
+    assertTrue(alarm.isDeterministic());
+    assertEquals(alarm.getState(), AlarmState.OK);
+  }
+
+  public void testShouldInitiallySetOKForDeterministic() {
+    assertEquals(
+        this.createAlarm(AlarmExpression.of("count(log.error,deterministic) > 2")).getState(),
+        AlarmState.OK
+    );
+  }
+
+  public void testShouldInitiallySetUndeterminedForNonDeterministic() {
+    assertEquals(
+        this.createAlarm(AlarmExpression.of("count(log.error) > 2")).getState(),
+        AlarmState.UNDETERMINED
+    );
+  }
+
 }

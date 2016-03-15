@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 FUJITSU LIMITED
+ * Copyright 2016 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -194,7 +194,7 @@ public class AlarmSqlImpl
       final DateTime now = DateTime.now();
       final AlarmDb alarm = new AlarmDb(
           newAlarm.getId(),
-          (AlarmDefinitionDb) session.get(AlarmDefinitionDb.class, newAlarm.getAlarmDefinitionId()),
+          session.get(AlarmDefinitionDb.class, newAlarm.getAlarmDefinitionId()),
           newAlarm.getState(),
           null,
           null,
@@ -208,7 +208,7 @@ public class AlarmSqlImpl
       for (final SubAlarm subAlarm : newAlarm.getSubAlarms()) {
         session.save(new SubAlarmDb()
                 .setAlarm(alarm)
-                .setSubExpression((SubAlarmDefinitionDb) session.get(SubAlarmDefinitionDb.class, subAlarm.getAlarmSubExpressionId()))
+                .setSubExpression(session.get(SubAlarmDefinitionDb.class, subAlarm.getAlarmSubExpressionId()))
                 .setExpression(subAlarm.getExpression().getExpression())
                 .setUpdatedAt(now)
                 .setCreatedAt(now)
@@ -376,6 +376,11 @@ public class AlarmSqlImpl
                                    final List<Object[]> alarmList,
                                    final LookupHelper lookupHelper) {
     final List<Alarm> alarms = Lists.newArrayListWithCapacity(alarmList.size());
+
+    if (alarmList.isEmpty()) {
+      return alarms;
+    }
+
     List<SubAlarm> subAlarms = null;
 
     String prevAlarmId = null;
