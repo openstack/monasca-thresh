@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * (C) Copyright 2014,2016 Hewlett Packard Enterprise Development Company LP.
  * Copyright 2016 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,19 +18,7 @@
 
 package monasca.thresh.infrastructure.thresholding;
 
-import backtype.storm.Config;
-import backtype.storm.task.OutputCollector;
-import backtype.storm.task.TopologyContext;
-import backtype.storm.topology.OutputFieldsDeclarer;
-import backtype.storm.topology.base.BaseRichBolt;
-import backtype.storm.tuple.Fields;
-import backtype.storm.tuple.Tuple;
-import backtype.storm.tuple.Values;
-
 import monasca.common.model.metric.Metric;
-import monasca.common.streaming.storm.Logging;
-import monasca.common.streaming.storm.Streams;
-import monasca.common.streaming.storm.Tuples;
 import monasca.thresh.ThresholdingConfiguration;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
@@ -38,7 +26,18 @@ import monasca.thresh.domain.model.SubAlarmStats;
 import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.model.TenantIdAndMetricName;
 import monasca.thresh.domain.service.SubAlarmStatsRepository;
+import monasca.thresh.utils.Logging;
+import monasca.thresh.utils.Streams;
+import monasca.thresh.utils.Tuples;
 
+import org.apache.storm.Config;
+import org.apache.storm.task.OutputCollector;
+import org.apache.storm.task.TopologyContext;
+import org.apache.storm.topology.OutputFieldsDeclarer;
+import org.apache.storm.topology.base.BaseRichBolt;
+import org.apache.storm.tuple.Fields;
+import org.apache.storm.tuple.Tuple;
+import org.apache.storm.tuple.Values;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

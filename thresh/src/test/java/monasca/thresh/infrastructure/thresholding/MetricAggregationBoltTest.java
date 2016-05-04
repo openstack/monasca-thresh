@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * (C) Copyright 2014,2016 Hewlett Packard Enterprise Development Company LP.
  * Copyright 2016 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,22 +28,13 @@ import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
+
 import monasca.common.model.alarm.AlarmOperator;
 import monasca.common.model.alarm.AlarmState;
 
 import monasca.common.model.alarm.AlarmSubExpression;
 import monasca.common.model.metric.Metric;
 import monasca.common.model.metric.MetricDefinition;
-import monasca.common.streaming.storm.Streams;
-
-import backtype.storm.Constants;
-import backtype.storm.Testing;
-import backtype.storm.task.OutputCollector;
-import backtype.storm.task.TopologyContext;
-import backtype.storm.testing.MkTupleParam;
-import backtype.storm.tuple.Tuple;
-import backtype.storm.tuple.Values;
-
 import monasca.thresh.ThresholdingConfiguration;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
@@ -51,7 +42,15 @@ import monasca.thresh.domain.model.SubAlarmStats;
 import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.model.TenantIdAndMetricName;
 import monasca.thresh.domain.service.SubAlarmStatsRepository;
+import monasca.thresh.utils.Streams;
 
+import org.apache.storm.Constants;
+import org.apache.storm.Testing;
+import org.apache.storm.task.OutputCollector;
+import org.apache.storm.task.TopologyContext;
+import org.apache.storm.testing.MkTupleParam;
+import org.apache.storm.tuple.Tuple;
+import org.apache.storm.tuple.Values;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * (C) Copyright 2014,2016 Hewlett Packard Enterprise Development Company LP.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,11 +26,6 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
-import backtype.storm.Config;
-import backtype.storm.testing.FeederSpout;
-import backtype.storm.tuple.Fields;
-import backtype.storm.tuple.Values;
-import com.google.inject.AbstractModule;
 import monasca.common.configuration.KafkaProducerConfiguration;
 import monasca.common.model.alarm.AlarmExpression;
 import monasca.common.model.alarm.AlarmState;
@@ -39,7 +34,6 @@ import monasca.common.model.event.AlarmDefinitionCreatedEvent;
 import monasca.common.model.event.AlarmStateTransitionedEvent;
 import monasca.common.model.metric.Metric;
 import monasca.common.model.metric.MetricDefinition;
-import monasca.common.streaming.storm.TopologyTestCase;
 import monasca.common.util.Injector;
 import monasca.common.util.Serialization;
 import monasca.thresh.domain.model.Alarm;
@@ -52,6 +46,13 @@ import monasca.thresh.infrastructure.thresholding.AlarmEventForwarder;
 import monasca.thresh.infrastructure.thresholding.MetricFilteringBolt;
 import monasca.thresh.infrastructure.thresholding.MetricSpout;
 import monasca.thresh.infrastructure.thresholding.ProducerModule;
+
+import com.google.inject.AbstractModule;
+
+import org.apache.storm.Config;
+import org.apache.storm.testing.FeederSpout;
+import org.apache.storm.tuple.Fields;
+import org.apache.storm.tuple.Values;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.testng.annotations.AfterMethod;
@@ -180,7 +181,6 @@ public class ThresholdingEngineTest extends TopologyTestCase {
   public void afterMethod() throws Exception {
     System.out.println("Stopping topology");
     stopTopology();
-    cluster = null;
   }
 
   public void testWithInitialAlarmDefinition_NonDeterministic() throws Exception {

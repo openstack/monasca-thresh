@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * (C) Copyright 2014,2016 Hewlett Packard Enterprise Development Company LP.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotEquals;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
+
 import monasca.common.configuration.KafkaProducerConfiguration;
 import monasca.common.model.event.AlarmDefinitionCreatedEvent;
 import monasca.common.model.event.AlarmDefinitionDeletedEvent;
@@ -37,17 +38,8 @@ import monasca.common.model.alarm.AlarmState;
 import monasca.common.model.alarm.AlarmSubExpression;
 import monasca.common.model.metric.Metric;
 import monasca.common.model.metric.MetricDefinition;
-import monasca.common.streaming.storm.TopologyTestCase;
 import monasca.common.util.Injector;
 import monasca.common.util.Serialization;
-
-import backtype.storm.Config;
-import backtype.storm.testing.FeederSpout;
-import backtype.storm.tuple.Fields;
-import backtype.storm.tuple.Values;
-
-import com.google.inject.AbstractModule;
-
 import monasca.thresh.domain.model.Alarm;
 import monasca.thresh.domain.model.AlarmDefinition;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
@@ -63,6 +55,12 @@ import monasca.thresh.infrastructure.thresholding.MetricFilteringBoltTest;
 import monasca.thresh.infrastructure.thresholding.MetricSpout;
 import monasca.thresh.infrastructure.thresholding.ProducerModule;
 
+import com.google.inject.AbstractModule;
+
+import org.apache.storm.Config;
+import org.apache.storm.testing.FeederSpout;
+import org.apache.storm.tuple.Fields;
+import org.apache.storm.tuple.Values;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.testng.annotations.AfterMethod;
