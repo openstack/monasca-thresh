@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2014,2016 Hewlett Packard Enterprise Development Company LP.
+ * (C) Copyright 2014-2016 Hewlett Packard Enterprise Development Company LP.
  * Copyright 2016 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,9 +41,11 @@ import org.apache.storm.tuple.Values;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -235,8 +237,22 @@ public class MetricAggregationBolt extends BaseRichBolt {
         new SubAlarm(original.getId(), original.getAlarmId(), new SubExpression(
             original.getAlarmSubExpressionId(), original.getExpression()), original.getState());
     newSubAlarm.setNoState(original.isNoState());
-    newSubAlarm.setCurrentValues(original.getCurrentValues());
+    newSubAlarm.setCurrentValues(cloneCurrentValues(original));
     return newSubAlarm;
+  }
+
+  /**
+   * Shallow clone of the List. Doubles are immutable so no point in doing a deep copy
+   *
+   * @param original List<Double>
+   * @return null if original is null, other shallow clone of original
+   */
+  private List<Double> cloneCurrentValues(final SubAlarm original) {
+    final List<Double> originalCurrentValues = original.getCurrentValues();
+    if (originalCurrentValues == null) {
+      return null;
+    }
+    return new ArrayList<Double>(originalCurrentValues);
   }
 
   /**
