@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * (C) Copyright 2014-2016 Hewlett Packard Enterprise Development Company LP.
  * Copyright 2016 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -176,29 +176,35 @@ public class SubAlarmStats {
       return AlarmState.ALARM;
     }
 
+    final boolean isDeterministic = this.subAlarm.isDeterministic();
+
     // Window is empty at this point
     this.emptyWindowObservations++;
-    final boolean emptyWindowThresholdExceeded = this.emptyWindowObservations >=
-        this.emptyWindowObservationThreshold;
+    final boolean useDefaultState;
+    if (isDeterministic) {
+      useDefaultState = true;
+    }
+    else {
+      useDefaultState = this.emptyWindowObservations >= this.emptyWindowObservationThreshold;
+    }
 
-    if (emptyWindowThresholdExceeded && this.shouldSendStateChange(AlarmState.UNDETERMINED)) {
-      final boolean isDeterministic = this.subAlarm.isDeterministic();
+    if (useDefaultState) {
       final AlarmState state = SubAlarm.getDefaultState(isDeterministic);
-      final AlarmState subAlarmState = this.subAlarm.getState();
-
-      logger.debug(
-          "SubAlarm[deterministic={}] {} exceeded empty window threshold {}, transition to {} from {}",
-          isDeterministic,
-          this.subAlarm.getId(),
-          this.emptyWindowObservationThreshold,
-          state,
-          subAlarmState
-      );
-      return state;
+      if (this.shouldSendStateChange(state)) {
+        logger.debug(
+            "SubAlarm[deterministic={}] {} exceeded empty window threshold {}, transition to {} from {}",
+            isDeterministic,
+            this.subAlarm.getId(),
+            this.emptyWindowObservationThreshold,
+            state,
+            this.subAlarm.getState()
+        );
+        return state;
+      }
 
     }
 
-    // Hasn't transitioned to UNDETERMINED yet, so use the current state
+    // Hasn't transitioned to default state yet, so use the current state
     return null;
   }
 
