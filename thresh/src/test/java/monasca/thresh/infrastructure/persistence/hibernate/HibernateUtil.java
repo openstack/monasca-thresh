@@ -135,7 +135,8 @@ class HibernateUtil {
             alarmSubExpr.getPeriod(),
             alarmSubExpr.getPeriods(),
             now,
-            now
+            now,
+            alarmSubExpr.isDeterministic()
         );
         session.save(subAlarmDef);
 

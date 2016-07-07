@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * Copyright 2016 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,16 +19,16 @@
 package monasca.thresh.domain.model;
 
 import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNotEquals;
 import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotEquals;
 import static org.testng.Assert.assertTrue;
-import monasca.common.model.alarm.AlarmState;
-import monasca.common.model.alarm.AlarmSubExpression;
-
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
 
 import java.util.UUID;
+
+import monasca.common.model.alarm.AlarmState;
+import monasca.common.model.alarm.AlarmSubExpression;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
 
 @Test
 public class SubAlarmStatsTest {
@@ -141,6 +142,7 @@ public class SubAlarmStatsTest {
         new SubExpression(UUID.randomUUID().toString(),
             AlarmSubExpression.of("max(hpcs.compute.cpu{id=5}, 60) > 3 times 3"));
     subAlarm = new SubAlarm("123", "1", expression);
+    assertEquals(subAlarm.getState(), AlarmState.UNDETERMINED);
     subAlarm.setNoState(true);
     subAlarmStats = new SubAlarmStats(subAlarm, expression.getAlarmSubExpression().getPeriod());
 
@@ -223,6 +225,7 @@ public class SubAlarmStatsTest {
         new SubExpression(UUID.randomUUID().toString(),
             AlarmSubExpression.of("avg(hpcs.compute.cpu{id=5}) > 3 times 3"));
     subAlarm = new SubAlarm("123", "1", expression);
+    assertEquals(subAlarm.getState(), AlarmState.UNDETERMINED);
     SubAlarmStats saStats = new SubAlarmStats(subAlarm, (System.currentTimeMillis() / 1000) + 60);
     assertEquals(saStats.emptyWindowObservationThreshold, 6);
   }
@@ -257,6 +260,7 @@ public class SubAlarmStatsTest {
         AlarmSubExpression.of("sum(hpcs.compute.mem{id=5}, 120) >= 96"));
 
     final SubAlarm subAlarm = new SubAlarm("42", "4242", subExpr);
+    assertEquals(subAlarm.getState(), AlarmState.UNDETERMINED);
 
     long t1 = 0;
     final SubAlarmStats stats = new SubAlarmStats(subAlarm, t1 + subExpr.getAlarmSubExpression().getPeriod());
@@ -274,4 +278,36 @@ public class SubAlarmStatsTest {
       }
     }
   }
+
+  public void shouldNotAllowSubAlarmTransitionFromOkToUndetermined_Deterministic() {
+    final String expression = "sum(log.error{path=/var/log/test.log},deterministic,240) >= 100";
+    final SubExpression subExpr = new SubExpression(
+        UUID.randomUUID().toString(),
+        AlarmSubExpression.of(expression)
+    );
+
+    final SubAlarm subAlarm = new SubAlarm("42", "4242", subExpr);
+    final SubAlarmStats stats = new SubAlarmStats(subAlarm, subExpr.getAlarmSubExpression().getPeriod());
+
+    // initially in OK because deterministic
+    assertTrue(stats.getSubAlarm().isDeterministic());
+    assertEquals(stats.getSubAlarm().getState(), AlarmState.OK);
+
+    int t1 = 0;
+    for (int i = 0; i < 1080; i++) {
+      t1++;
+      stats.getStats().addValue(1.0, t1);
+      if ((t1 % 60) == 2) {
+        stats.evaluateAndSlideWindow(t1, 1);
+        if (i <= subExpr.getAlarmSubExpression().getPeriod()) {
+          // Haven't waited long enough to evaluate,
+          // but this is deterministic sub alarm, so it should be in ok
+          assertEquals(stats.getSubAlarm().getState(), AlarmState.OK);
+        } else {
+          assertEquals(stats.getSubAlarm().getState(), AlarmState.ALARM);
+        }
+      }
+    }
+  }
+
 }

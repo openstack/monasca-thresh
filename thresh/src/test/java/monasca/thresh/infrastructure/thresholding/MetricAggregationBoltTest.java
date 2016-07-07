@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * (C) Copyright 2014,2016 Hewlett Packard Enterprise Development Company LP.
+ * Copyright 2016 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,21 +28,13 @@ import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
+
 import monasca.common.model.alarm.AlarmOperator;
 import monasca.common.model.alarm.AlarmState;
+
 import monasca.common.model.alarm.AlarmSubExpression;
 import monasca.common.model.metric.Metric;
 import monasca.common.model.metric.MetricDefinition;
-import monasca.common.streaming.storm.Streams;
-
-import backtype.storm.Constants;
-import backtype.storm.Testing;
-import backtype.storm.task.OutputCollector;
-import backtype.storm.task.TopologyContext;
-import backtype.storm.testing.MkTupleParam;
-import backtype.storm.tuple.Tuple;
-import backtype.storm.tuple.Values;
-
 import monasca.thresh.ThresholdingConfiguration;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
@@ -49,7 +42,15 @@ import monasca.thresh.domain.model.SubAlarmStats;
 import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.model.TenantIdAndMetricName;
 import monasca.thresh.domain.service.SubAlarmStatsRepository;
+import monasca.thresh.utils.Streams;
 
+import org.apache.storm.Constants;
+import org.apache.storm.Testing;
+import org.apache.storm.task.OutputCollector;
+import org.apache.storm.task.TopologyContext;
+import org.apache.storm.testing.MkTupleParam;
+import org.apache.storm.tuple.Tuple;
+import org.apache.storm.tuple.Values;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -69,12 +70,15 @@ public class MetricAggregationBoltTest {
   private SubAlarm subAlarm1;
   private SubAlarm subAlarm2;
   private SubAlarm subAlarm3;
+  private SubAlarm subAlarm4;
   private SubExpression subExpr1;
   private SubExpression subExpr2;
   private SubExpression subExpr3;
+  private SubExpression subExpr4;
   private MetricDefinition metricDef1;
   private MetricDefinition metricDef2;
   private MetricDefinition metricDef3;
+  private MetricDefinition metricDef4;
 
   @BeforeClass
   protected void beforeClass() {
@@ -83,21 +87,27 @@ public class MetricAggregationBoltTest {
     subExpr1 = new SubExpression("444", AlarmSubExpression.of("avg(hpcs.compute.cpu{id=5}, 60) >= 90 times 3"));
     subExpr2 = new SubExpression("555", AlarmSubExpression.of("avg(hpcs.compute.mem{id=5}, 60) >= 90"));
     subExpr3 = new SubExpression("666", AlarmSubExpression.of("max(hpcs.compute.mem{id=5}, 60) >= 96"));
+    subExpr4 = new SubExpression("777", AlarmSubExpression.of(
+        "count(log.error{id=5},deterministic,60) >= 5")
+    );
     metricDef1 = subExpr1.getAlarmSubExpression().getMetricDefinition();
     metricDef2 = subExpr2.getAlarmSubExpression().getMetricDefinition();
     metricDef3 = subExpr3.getAlarmSubExpression().getMetricDefinition();
+    metricDef4 = subExpr4.getAlarmSubExpression().getMetricDefinition();
   }
 
   @BeforeMethod
   protected void beforeMethod() {
     // Fixtures
-    subAlarm1 = new SubAlarm(ALARM_ID_1, "1", subExpr1, AlarmState.UNDETERMINED);
-    subAlarm2 = new SubAlarm("456", "1", subExpr2, AlarmState.UNDETERMINED);
-    subAlarm3 = new SubAlarm("789", "2", subExpr3, AlarmState.UNDETERMINED);
+    subAlarm1 = new SubAlarm(ALARM_ID_1, "1", subExpr1);
+    subAlarm2 = new SubAlarm("456", "1", subExpr2);
+    subAlarm3 = new SubAlarm("789", "2", subExpr3);
+    subAlarm4 = new SubAlarm("666", "3", subExpr4);
     subAlarms = new ArrayList<>();
     subAlarms.add(subAlarm1);
     subAlarms.add(subAlarm2);
     subAlarms.add(subAlarm3);
+    subAlarms.add(subAlarm4);
 
     final ThresholdingConfiguration config = new ThresholdingConfiguration();
     config.alarmDelay = 10;
@@ -111,6 +121,7 @@ public class MetricAggregationBoltTest {
 
     sendSubAlarmCreated(metricDef1, subAlarm1);
     sendSubAlarmCreated(metricDef2, subAlarm2);
+    sendSubAlarmCreated(metricDef4, subAlarm4);
 
     long t1 = System.currentTimeMillis();
 
@@ -122,6 +133,10 @@ public class MetricAggregationBoltTest {
         metricDef2.name, metricDef2.dimensions, t1, 50, null));
     bolt.aggregateValues(new MetricDefinitionAndTenantId(metricDef2, TENANT_ID), new Metric(
         metricDef2.name, metricDef2.dimensions, t1, 40, null));
+    bolt.aggregateValues(new MetricDefinitionAndTenantId(metricDef4, TENANT_ID), new Metric(
+        metricDef4.name, metricDef4.dimensions, t1, 1, null));
+    bolt.aggregateValues(new MetricDefinitionAndTenantId(metricDef4, TENANT_ID), new Metric(
+        metricDef4.name, metricDef4.dimensions, t1, 1, null));
 
     SubAlarmStatsRepository orCreateSubAlarmStatsRepo = bolt.getOrCreateSubAlarmStatsRepo(new MetricDefinitionAndTenantId(metricDef1, TENANT_ID));
     SubAlarmStats alarmData =
@@ -133,6 +148,11 @@ public class MetricAggregationBoltTest {
         bolt.getOrCreateSubAlarmStatsRepo(new MetricDefinitionAndTenantId(metricDef2, TENANT_ID))
             .get(subAlarm2.getId());
     assertEquals(alarmData.getStats().getValue(t1/1000), 45.0);
+
+    alarmData =
+        bolt.getOrCreateSubAlarmStatsRepo(new MetricDefinitionAndTenantId(metricDef4, TENANT_ID))
+            .get(subAlarm4.getId());
+    assertEquals(alarmData.getStats().getValue(t1/1000), 2.0);
   }
 
   public void shouldEvaluateAlarms() {
@@ -144,6 +164,7 @@ public class MetricAggregationBoltTest {
     sendSubAlarmCreated(metricDef1, subAlarm1);
     sendSubAlarmCreated(metricDef2, subAlarm2);
     sendSubAlarmCreated(metricDef3, subAlarm3);
+    sendSubAlarmCreated(metricDef4, subAlarm4);
 
     // Send metrics for subAlarm1
     bolt.execute(createMetricTuple(metricDef1, new Metric(metricDef1, t1, 100000, null)));
@@ -157,10 +178,13 @@ public class MetricAggregationBoltTest {
     assertEquals(subAlarm1.getState(), AlarmState.OK);
     assertEquals(subAlarm2.getState(), AlarmState.UNDETERMINED);
     assertEquals(subAlarm3.getState(), AlarmState.UNDETERMINED);
+    assertEquals(subAlarm4.getState(), AlarmState.OK); // deterministic
 
     verify(collector, times(1)).emit(new Values(subAlarm1.getAlarmId(), subAlarm1));
+    verify(collector, never()).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
+    verify(collector, never()).emit(new Values(subAlarm3.getAlarmId(), subAlarm3));
+    verify(collector, times(1)).emit(new Values(subAlarm4.getAlarmId(), subAlarm4));
     // Have to reset the mock so it can tell the difference when subAlarm2 and subAlarm3 are emitted
-    // again.
     reset(collector);
 
     // Drive subAlarm1 to ALARM
@@ -175,9 +199,11 @@ public class MetricAggregationBoltTest {
     assertEquals(subAlarm1.getState(), AlarmState.ALARM);
     assertEquals(subAlarm2.getState(), AlarmState.ALARM);
     assertEquals(subAlarm3.getState(), AlarmState.OK);
+    assertEquals(subAlarm4.getState(), AlarmState.OK);
     verify(collector, times(1)).emit(new Values(subAlarm1.getAlarmId(), subAlarm1));
     verify(collector, times(1)).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
     verify(collector, times(1)).emit(new Values(subAlarm3.getAlarmId(), subAlarm3));
+    verify(collector, never()).emit(new Values(subAlarm4.getAlarmId(), subAlarm4));
   }
 
   public void shouldImmediatelyEvaluateSubAlarm() {
@@ -188,16 +214,23 @@ public class MetricAggregationBoltTest {
     bolt.setCurrentTime(t1);
     sendSubAlarmCreated(metricDef2, subAlarm2);
     sendSubAlarmCreated(metricDef3, subAlarm3);
+    sendSubAlarmCreated(metricDef4, subAlarm4);
 
     // Send metric for subAlarm2 and subAlarm3
     bolt.execute(createMetricTuple(metricDef3, new Metric(metricDef3, t1 + 1000, 100000, null)));
+    for (int i = 0; i < 5; i++) {
+      bolt.execute(createMetricTuple(metricDef4, new Metric(metricDef4, t1 + 1000 + i, 1, null)));
+    }
 
     // subAlarm2 is AVG so it can't be evaluated immediately like the MAX for subalarm3
+    // or count for subAlarm4
     assertEquals(subAlarm2.getState(), AlarmState.UNDETERMINED);
     assertEquals(subAlarm3.getState(), AlarmState.ALARM);
+    assertEquals(subAlarm4.getState(), AlarmState.ALARM);
 
     verify(collector, never()).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
     verify(collector, times(1)).emit(new Values(subAlarm3.getAlarmId(), subAlarm3));
+    verify(collector, times(1)).emit(new Values(subAlarm4.getAlarmId(), subAlarm4));
 
     // Have to reset the mock so it can tell the difference when subAlarm2 and subAlarm3 are emitted
     // again.
@@ -209,8 +242,11 @@ public class MetricAggregationBoltTest {
 
     assertEquals(subAlarm2.getState(), AlarmState.ALARM);
     assertEquals(subAlarm3.getState(), AlarmState.ALARM);
+    assertEquals(subAlarm4.getState(), AlarmState.ALARM);
+
     verify(collector, times(1)).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
     verify(collector, never()).emit(new Values(subAlarm3.getAlarmId(), subAlarm3));
+    verify(collector, never()).emit(new Values(subAlarm4.getAlarmId(), subAlarm4));
 
     // Have to reset the mock so it can tell the difference when subAlarm2 and subAlarm3 are emitted
     // again.
@@ -230,8 +266,11 @@ public class MetricAggregationBoltTest {
 
     assertEquals(subAlarm2.getState(), AlarmState.OK);
     assertEquals(subAlarm3.getState(), AlarmState.OK);
+    // subAlarm4 goes to OK because of missing metrics
+    assertEquals(subAlarm4.getState(), AlarmState.OK);
     verify(collector, times(1)).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
     verify(collector, times(1)).emit(new Values(subAlarm3.getAlarmId(), subAlarm3));
+    verify(collector, times(1)).emit(new Values(subAlarm4.getAlarmId(), subAlarm4));
 
     // Have to reset the mock so it can tell the difference when subAlarm2 and subAlarm3 are emitted
     // again.
@@ -260,10 +299,13 @@ public class MetricAggregationBoltTest {
 
     // Ensure that subAlarm3 is still ALARM. subAlarm2 is still OK but because the metric
     // that triggered ALARM is in the future bucket
+    // subAlarm4 is still OK due to missing metrics
     assertEquals(subAlarm2.getState(), AlarmState.OK);
     assertEquals(subAlarm3.getState(), AlarmState.ALARM);
+    assertEquals(subAlarm4.getState(), AlarmState.OK);
     verify(collector, never()).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
     verify(collector, never()).emit(new Values(subAlarm3.getAlarmId(), subAlarm3));
+    verify(collector, never()).emit(new Values(subAlarm4.getAlarmId(), subAlarm4));
   }
 
   private void sendTickTuple() {
@@ -355,6 +397,60 @@ public class MetricAggregationBoltTest {
     verify(collector, times(1)).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
   }
 
+  public void shouldSendOkAfterAlarmIfNoMetrics() {
+    long t1 = 50000;
+    bolt.setCurrentTime(t1);
+    sendSubAlarmCreated(metricDef4, subAlarm4);
+    bolt.execute(createMetricTuple(metricDef4, new Metric(metricDef4, t1, 1.0, null)));
+    t1 += 1000;
+    bolt.execute(createMetricTuple(metricDef4, new Metric(metricDef4, t1, 1.0, null)));
+    t1 += 1000;
+    bolt.execute(createMetricTuple(metricDef4, new Metric(metricDef4, t1, 1.0, null)));
+    t1 += 1000;
+    bolt.execute(createMetricTuple(metricDef4, new Metric(metricDef4, t1, 1.0, null)));
+    t1 += 1000;
+    bolt.execute(createMetricTuple(metricDef4, new Metric(metricDef4, t1, 1.0, null)));
+
+    bolt.setCurrentTime(t1 += 60000);
+    sendTickTuple();
+    assertEquals(subAlarm4.getState(), AlarmState.ALARM);
+    verify(collector, times(1)).emit(new Values(subAlarm4.getAlarmId(), subAlarm4));
+
+    // Have to reset the mock so it can tell the difference when subAlarm4 is emitted again.
+    reset(collector);
+
+    bolt.setCurrentTime(t1 += 60000);
+    sendTickTuple();
+    assertEquals(subAlarm4.getState(), AlarmState.OK);
+    verify(collector, times(1)).emit(new Values(subAlarm4.getAlarmId(), subAlarm4));
+  }
+
+  public void shouldNeverLeaveOkIfThresholdNotExceededForDeterministic() {
+    long t1 = 50000;
+    bolt.setCurrentTime(t1);
+    sendSubAlarmCreated(metricDef4, subAlarm4);
+    bolt.execute(createMetricTuple(metricDef4, new Metric(metricDef4, t1, 1.0, null)));
+    t1 += 1000;
+    bolt.execute(createMetricTuple(metricDef4, new Metric(metricDef4, t1, 1.0, null)));
+
+    bolt.setCurrentTime(t1 += 60000);
+    sendTickTuple();
+    assertEquals(subAlarm4.getState(), AlarmState.OK);
+
+    bolt.setCurrentTime(t1 += 60000);
+    sendTickTuple();
+    assertEquals(subAlarm4.getState(), AlarmState.OK);
+    verify(collector, times(1)).emit(new Values(subAlarm4.getAlarmId(), subAlarm4));
+
+    // Have to reset the mock so it can tell the difference when subAlarm4 is emitted again.
+    reset(collector);
+
+    bolt.setCurrentTime(t1 += 60000);
+    sendTickTuple();
+    assertEquals(subAlarm4.getState(), AlarmState.OK);
+    verify(collector, never()).emit(new Values(subAlarm4.getAlarmId(), subAlarm4));
+  }
+
   public void shouldSendUndeterminedOnStartup() {
     long t1 = 14000;
     bolt.setCurrentTime(t1);
@@ -383,6 +479,32 @@ public class MetricAggregationBoltTest {
     assertEquals(subAlarm2.getState(), AlarmState.UNDETERMINED);
 
     verify(collector, times(1)).emit(new Values(subAlarm2.getAlarmId(), subAlarm2));
+  }
+
+  public void shouldSendOKOnStartupForDeterministic() {
+    long t1 = 14000;
+    bolt.setCurrentTime(t1);
+    sendSubAlarmCreated(metricDef4, subAlarm4);
+
+    final MkTupleParam tupleParam = new MkTupleParam();
+    tupleParam.setStream(MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM);
+    final Tuple lagTuple =
+        Testing.testTuple(Arrays.asList(MetricAggregationBolt.METRICS_BEHIND), tupleParam);
+    bolt.execute(lagTuple);
+    verify(collector, times(1)).ack(lagTuple);
+
+    // Won't send OK on this Tick Tuple because of the METRIC_BEHIND message sent above
+    t1 += 60000;
+    bolt.setCurrentTime(t1);
+    sendTickTuple();
+    verify(collector, never()).emit(new Values(subAlarm4.getAlarmId(), subAlarm4));
+
+    t1 += 60000;
+    bolt.setCurrentTime(t1);
+    sendTickTuple();
+    assertEquals(subAlarm4.getState(), AlarmState.OK);
+
+    verify(collector, times(1)).emit(new Values(subAlarm4.getAlarmId(), subAlarm4));
   }
 
   private Tuple createTickTuple() {

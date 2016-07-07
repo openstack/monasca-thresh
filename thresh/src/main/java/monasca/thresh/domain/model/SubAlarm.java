@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * Copyright 2016 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,13 +38,9 @@ public class SubAlarm extends AbstractEntity implements Serializable {
   private AlarmState state;
   private boolean noState;
   private List<Double> currentValues;
-  /**
-   * Whether metrics for this sub-alarm are received sporadically.
-   */
-  private boolean sporadicMetric;
 
   public SubAlarm(String id, String alarmId, SubExpression expression) {
-    this(id, alarmId, expression, AlarmState.UNDETERMINED);
+    this(id, alarmId, expression, SubAlarm.initialStateFromExpression(expression));
   }
 
   // Need this for kryo serialization/deserialization. Fixes a bug in default java
@@ -144,12 +141,17 @@ public class SubAlarm extends AbstractEntity implements Serializable {
     return result;
   }
 
-  public boolean isSporadicMetric() {
-    return sporadicMetric;
-  }
-
-  public void setSporadicMetric(boolean sporadicMetric) {
-    this.sporadicMetric = sporadicMetric;
+  /**
+   * Determines if {@link SubAlarm} is deterministic.
+   *
+   * Is {@link SubAlarm} deterministic or not depends
+   * on underlying expression.
+   *
+   * @return true/false
+   * @see AlarmSubExpression#isDeterministic()
+   */
+  public boolean isDeterministic() {
+    return this.expression.isDeterministic();
   }
 
   public void setState(AlarmState state) {
@@ -166,7 +168,8 @@ public class SubAlarm extends AbstractEntity implements Serializable {
 
   @Override
   public String toString() {
-    return String.format("SubAlarm [id=%s, alarmId=%s, alarmSubExpressionId=%s, expression=%s, state=%s, noState=%s, currentValues:[", id,
+    return String.format("SubAlarm [id=%s, alarmId=%s, alarmSubExpressionId=%s, expression=%s, " +
+        "state=%s, noState=%s, currentValues:[", id,
         alarmId, alarmSubExpressionId, expression, state, noState) + currentValues + "]]";
   }
 
@@ -223,4 +226,45 @@ public class SubAlarm extends AbstractEntity implements Serializable {
         return false;
     }
   }
+
+  /**
+   * Computes initial state for an {@link SubAlarm} based on
+   * underlying {@link SubExpression}.
+   *
+   * @param expr sub expression
+   *
+   * @return initial state for an sub alarm
+   *
+   * @see SubExpression#getAlarmSubExpression()
+   * @see #getDefaultState(boolean)
+   */
+  private static AlarmState initialStateFromExpression(final SubExpression expr) {
+    final AlarmSubExpression subExpression = expr.getAlarmSubExpression();
+    return getDefaultState(subExpression.isDeterministic());
+  }
+
+  /**
+   * Returns default {@link AlarmState} for {@link AlarmSubExpression#DEFAULT_DETERMINISTIC}
+   * value ({@value AlarmSubExpression#DEFAULT_DETERMINISTIC}).
+   *
+   * @return default state
+   */
+  public static AlarmState getDefaultState() {
+    return getDefaultState(AlarmSubExpression.DEFAULT_DETERMINISTIC);
+  }
+
+  /**
+   * Returns default {@link AlarmState} sub alarm should fallback to
+   *
+   * If <b>deterministic</b> is equal to {@link Boolean#TRUE}, {@link AlarmState#OK} is returned,
+   * otherwise default state is {@link AlarmState#UNDETERMINED}.
+   *
+   * @param deterministic is sub alarm deterministic
+   *
+   * @return default state according to <b>deterministic</b> flag
+   */
+  public static AlarmState getDefaultState(final boolean deterministic) {
+    return deterministic ? AlarmState.OK : AlarmState.UNDETERMINED;
+  }
+
 }

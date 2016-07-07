@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * (C) Copyright 2014,2016 Hewlett Packard Enterprise Development Company LP.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,13 +26,6 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
-import backtype.storm.Config;
-import backtype.storm.testing.FeederSpout;
-import backtype.storm.tuple.Fields;
-import backtype.storm.tuple.Values;
-
-import com.google.inject.AbstractModule;
-
 import monasca.common.configuration.KafkaProducerConfiguration;
 import monasca.common.model.alarm.AlarmExpression;
 import monasca.common.model.alarm.AlarmState;
@@ -41,7 +34,6 @@ import monasca.common.model.event.AlarmDefinitionCreatedEvent;
 import monasca.common.model.event.AlarmStateTransitionedEvent;
 import monasca.common.model.metric.Metric;
 import monasca.common.model.metric.MetricDefinition;
-import monasca.common.streaming.storm.TopologyTestCase;
 import monasca.common.util.Injector;
 import monasca.common.util.Serialization;
 import monasca.thresh.domain.model.Alarm;
@@ -55,6 +47,12 @@ import monasca.thresh.infrastructure.thresholding.MetricFilteringBolt;
 import monasca.thresh.infrastructure.thresholding.MetricSpout;
 import monasca.thresh.infrastructure.thresholding.ProducerModule;
 
+import com.google.inject.AbstractModule;
+
+import org.apache.storm.Config;
+import org.apache.storm.testing.FeederSpout;
+import org.apache.storm.tuple.Fields;
+import org.apache.storm.tuple.Values;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.testng.annotations.AfterMethod;
@@ -80,13 +78,23 @@ public class ThresholdingEngineTest extends TopologyTestCase {
   private static final String TEST_ALARM_TENANT_ID = "bob";
   private static final String TEST_ALARM_NAME = "test-alarm";
   private static final String TEST_ALARM_DESCRIPTION = "Description of test-alarm";
+  private static final String DET_TEST_ALARM_TENANT_ID = TEST_ALARM_TENANT_ID;
+  private static final String DET_TEST_ALARM_NAME = "non-det-test-alarm";
+  private static final String DET_TEST_ALARM_DESCRIPTION = "Description of non-det-test-alarm";
+  private static final String MIXED_TEST_ALARM_TENANT_ID = TEST_ALARM_TENANT_ID;
+  private static final String MIXED_TEST_ALARM_NAME = "mixed-test-alarm";
+  private static final String MIXED_TEST_ALARM_DESCRIPTION = "Description of mixed-test-alarm";
   private AlarmDefinition alarmDefinition;
+  private AlarmDefinition deterministicAlarmDefinition;
+  private AlarmDefinition mixedAlarmDefinition;
   private FeederSpout metricSpout;
   private FeederSpout eventSpout;
   private AlarmDAO alarmDAO;
   private AlarmDefinitionDAO alarmDefinitionDAO;
   private MetricDefinition cpuMetricDef;
   private MetricDefinition memMetricDef;
+  private MetricDefinition logErrorMetricDef;
+  private MetricDefinition logWarningMetricDef;
   private Map<String, String> extraMemMetricDefDimensions;
   private AlarmEventForwarder alarmEventForwarder;
 
@@ -99,9 +107,17 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     // Fixtures
     final AlarmExpression expression =
         new AlarmExpression("max(cpu{id=5}) >= 3 or max(mem{id=5}) >= 5");
+    final AlarmExpression expression2 = AlarmExpression.of(
+      "count(log.error{id=5},deterministic) >= 1 OR count(log.warning{id=5},deterministic) >= 1"
+    );
+    final AlarmExpression expression3 = AlarmExpression.of(
+      "max(cpu{id=5}) >= 3 AND count(log.warning{id=5},deterministic) >= 1"
+    );
 
     cpuMetricDef = expression.getSubExpressions().get(0).getMetricDefinition();
     memMetricDef = expression.getSubExpressions().get(1).getMetricDefinition();
+    logErrorMetricDef = expression2.getSubExpressions().get(0).getMetricDefinition();
+    logWarningMetricDef = expression2.getSubExpressions().get(1).getMetricDefinition();
 
     extraMemMetricDefDimensions = new HashMap<>(memMetricDef.dimensions);
     extraMemMetricDefDimensions.put("Group", "group A");
@@ -109,6 +125,24 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     alarmDefinition =
         new AlarmDefinition(TEST_ALARM_TENANT_ID, TEST_ALARM_NAME,
             TEST_ALARM_DESCRIPTION, expression, "LOW", true, new ArrayList<String>());
+    this.deterministicAlarmDefinition = new AlarmDefinition(
+      DET_TEST_ALARM_TENANT_ID,
+      DET_TEST_ALARM_NAME,
+      DET_TEST_ALARM_DESCRIPTION,
+      expression2,
+      "LOW",
+      true,
+      new ArrayList<String>()
+    );
+    this.mixedAlarmDefinition = new AlarmDefinition(
+      MIXED_TEST_ALARM_TENANT_ID,
+      MIXED_TEST_ALARM_NAME,
+      MIXED_TEST_ALARM_DESCRIPTION,
+      expression3,
+      "LOW",
+      true,
+      new ArrayList<String>()
+    );
 
     // Mocks
     alarmDAO = mock(AlarmDAO.class);
@@ -147,38 +181,161 @@ public class ThresholdingEngineTest extends TopologyTestCase {
   public void afterMethod() throws Exception {
     System.out.println("Stopping topology");
     stopTopology();
-    cluster = null;
   }
 
-  public void testWithInitialAlarmDefinition() throws Exception {
-    when(alarmDefinitionDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
-    when(alarmDefinitionDAO.listAll()).thenReturn(Arrays.asList(alarmDefinition));
-    shouldThreshold(null, false);
+  public void testWithInitialAlarmDefinition_NonDeterministic() throws Exception {
+    this.testWithInitialAlarmDefinition(this.alarmDefinition, new ThresholdSpec(
+      this.alarmDefinition.getId(),
+      null,
+      TEST_ALARM_NAME,
+      TEST_ALARM_DESCRIPTION,
+      TEST_ALARM_TENANT_ID
+    ));
   }
 
-  public void testWithInitialAlarm() throws Exception {
-    when(alarmDefinitionDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
-    when(alarmDefinitionDAO.listAll()).thenReturn(Arrays.asList(alarmDefinition));
-    final Alarm alarm = new Alarm(alarmDefinition, AlarmState.UNDETERMINED);
+  public void testWithInitialAlarmDefinition_Mixed() throws Exception {
+    this.testWithInitialAlarmDefinition(this.mixedAlarmDefinition, new ThresholdSpec(
+      this.mixedAlarmDefinition.getId(),
+      null,
+      MIXED_TEST_ALARM_NAME,
+      MIXED_TEST_ALARM_DESCRIPTION,
+      MIXED_TEST_ALARM_TENANT_ID
+    ));
+  }
+
+  public void testWithInitialAlarmDefinition_Deterministic() throws Exception {
+    this.testWithInitialAlarmDefinition(this.deterministicAlarmDefinition, new ThresholdSpec(
+      this.deterministicAlarmDefinition.getId(),
+      null,
+        DET_TEST_ALARM_NAME,
+        DET_TEST_ALARM_DESCRIPTION,
+        DET_TEST_ALARM_TENANT_ID
+    ));
+  }
+
+  public void testWithInitialAlarm_NonDeterministic() throws Exception {
+    final Alarm alarm = new Alarm(this.alarmDefinition);
     alarm.addAlarmedMetric(new MetricDefinitionAndTenantId(cpuMetricDef, TEST_ALARM_TENANT_ID));
     alarm.addAlarmedMetric(new MetricDefinitionAndTenantId(memMetricDef, TEST_ALARM_TENANT_ID));
-    when(alarmDAO.listAll()).thenReturn(Arrays.asList(alarm));
-    when(alarmDAO.findById(alarm.getId())).thenReturn(alarm);
-    when(alarmDAO.findForAlarmDefinitionId(alarmDefinition.getId())).thenReturn(Arrays.asList(alarm));
-    shouldThreshold(alarm.getId(), true);  
+
+    this.testWithInitialAlarm(
+      this.alarmDefinition,
+      alarm,
+      new ThresholdSpec(
+        this.alarmDefinition.getId(),
+        alarm.getId(),
+        TEST_ALARM_NAME,
+        TEST_ALARM_DESCRIPTION,
+        TEST_ALARM_TENANT_ID,
+        true
+      ));
   }
 
-  public void testWithAlarmDefinitionCreatedEvent() throws Exception {
+  public void testWithInitialAlarm_Mixed() throws Exception {
+    final Alarm alarm = new Alarm(this.mixedAlarmDefinition);
+    alarm.addAlarmedMetric(new MetricDefinitionAndTenantId(cpuMetricDef, MIXED_TEST_ALARM_TENANT_ID));
+    alarm.addAlarmedMetric(new MetricDefinitionAndTenantId(logWarningMetricDef, MIXED_TEST_ALARM_TENANT_ID));
+
+    this.testWithInitialAlarm(
+      this.mixedAlarmDefinition,
+      alarm,
+      new ThresholdSpec(
+        this.mixedAlarmDefinition.getId(),
+        alarm.getId(),
+        MIXED_TEST_ALARM_NAME,
+        MIXED_TEST_ALARM_DESCRIPTION,
+        MIXED_TEST_ALARM_TENANT_ID
+      ));
+  }
+
+  public void testWithInitialAlarm_Deterministic() throws Exception {
+    final Alarm alarm = new Alarm(this.deterministicAlarmDefinition);
+    alarm.addAlarmedMetric(new MetricDefinitionAndTenantId(logErrorMetricDef, DET_TEST_ALARM_TENANT_ID));
+    alarm.addAlarmedMetric(new MetricDefinitionAndTenantId(logWarningMetricDef, DET_TEST_ALARM_TENANT_ID));
+
+    this.testWithInitialAlarm(
+      this.deterministicAlarmDefinition,
+      alarm,
+      new ThresholdSpec(
+        this.deterministicAlarmDefinition.getId(),
+        alarm.getId(),
+          DET_TEST_ALARM_NAME,
+          DET_TEST_ALARM_DESCRIPTION,
+          DET_TEST_ALARM_TENANT_ID
+      ));
+  }
+
+  public void testWithAlarmDefinitionCreatedEvent_NonDeterministic() throws Exception {
+    this.testWithAlarmDefinitionCreatedEvent(
+      this.alarmDefinition,
+      new ThresholdSpec(
+        this.alarmDefinition.getId(),
+        null,
+        TEST_ALARM_NAME,
+        TEST_ALARM_DESCRIPTION,
+        TEST_ALARM_TENANT_ID
+      )
+    );
+  }
+
+  public void testWithAlarmDefinitionCreatedEvent_Mixed() throws Exception {
+    this.testWithAlarmDefinitionCreatedEvent(
+      this.mixedAlarmDefinition,
+      new ThresholdSpec(
+        this.mixedAlarmDefinition.getId(),
+        null,
+        MIXED_TEST_ALARM_NAME,
+        MIXED_TEST_ALARM_DESCRIPTION,
+        MIXED_TEST_ALARM_TENANT_ID
+      )
+    );
+  }
+
+  public void testWithAlarmDefinitionCreatedEvent_Deterministic() throws Exception {
+    this.testWithAlarmDefinitionCreatedEvent(
+      this.deterministicAlarmDefinition,
+      new ThresholdSpec(
+        this.deterministicAlarmDefinition.getId(),
+        null,
+          DET_TEST_ALARM_NAME,
+          DET_TEST_ALARM_DESCRIPTION,
+          DET_TEST_ALARM_TENANT_ID
+      )
+    );
+  }
+
+  private void testWithAlarmDefinitionCreatedEvent(final AlarmDefinition alarmDefinition,
+                                                  final ThresholdSpec thresholdSpec) throws Exception {
     when(alarmDefinitionDAO.listAll()).thenReturn(new ArrayList<AlarmDefinition>());
     when(alarmDefinitionDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
     final AlarmDefinitionCreatedEvent event =
-        new AlarmDefinitionCreatedEvent(alarmDefinition.getTenantId(), alarmDefinition.getId(),
-            alarmDefinition.getName(), alarmDefinition.getDescription(), alarmDefinition
-                .getAlarmExpression().getExpression(),
-            createSubExpressionMap(alarmDefinition.getAlarmExpression()), Arrays.asList("id"));
+      new AlarmDefinitionCreatedEvent(alarmDefinition.getTenantId(), alarmDefinition.getId(),
+        alarmDefinition.getName(), alarmDefinition.getDescription(), alarmDefinition
+        .getAlarmExpression().getExpression(),
+        createSubExpressionMap(alarmDefinition.getAlarmExpression()), Arrays.asList("id"));
     eventSpout.feed(new Values(event));
-    shouldThreshold(null, false);
+    shouldThreshold(thresholdSpec);
   }
+
+  private void testWithInitialAlarmDefinition(final AlarmDefinition alarmDefinition,
+                                              final ThresholdSpec thresholdSpec) throws Exception {
+    when(alarmDefinitionDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
+    when(alarmDefinitionDAO.listAll()).thenReturn(Arrays.asList(alarmDefinition));
+    shouldThreshold(thresholdSpec);
+  }
+
+  private void testWithInitialAlarm(final AlarmDefinition alarmDefinition,
+                                    final Alarm alarm,
+                                    final ThresholdSpec thresholdSpec) throws Exception {
+    when(alarmDefinitionDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
+    when(alarmDefinitionDAO.listAll()).thenReturn(Arrays.asList(alarmDefinition));
+
+    when(alarmDAO.listAll()).thenReturn(Arrays.asList(alarm));
+    when(alarmDAO.findById(alarm.getId())).thenReturn(alarm);
+    when(alarmDAO.findForAlarmDefinitionId(alarmDefinition.getId())).thenReturn(Arrays.asList(alarm));
+    shouldThreshold(thresholdSpec);
+  }
+
 
   private Map<String, AlarmSubExpression> createSubExpressionMap(AlarmExpression alarmExpression) {
     final Map<String, AlarmSubExpression> subExprMap = new HashMap<>();
@@ -192,11 +349,10 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     return UUID.randomUUID().toString();
   }
 
-  private void shouldThreshold(final String expectedAlarmId,
-                               final boolean hasExtraMetric) throws Exception {
+  private void shouldThreshold(final ThresholdSpec thresholdSpec) throws Exception {
     System.out.println("Starting topology");
     startTopology();
-    previousState = AlarmState.UNDETERMINED;
+    previousState = thresholdSpec.isDeterministic ? AlarmState.OK : AlarmState.UNDETERMINED;
     expectedState = AlarmState.ALARM;
     alarmsSent = 0;
     MetricFilteringBolt.clearMetricDefinitions();
@@ -206,24 +362,27 @@ public class ThresholdingEngineTest extends TopologyTestCase {
         AlarmStateTransitionedEvent event = Serialization.fromJson((String) args[0]);
         alarmsSent++;
         System.out.printf("Alarm transitioned from %s to %s%n", event.oldState, event.newState);
-        assertEquals(event.alarmDefinitionId, alarmDefinition.getId());
-        assertEquals(event.alarmName, TEST_ALARM_NAME);
-        assertEquals(event.tenantId, TEST_ALARM_TENANT_ID);
-        if (expectedAlarmId != null) {
-          assertEquals(event.alarmId, expectedAlarmId);
+        assertEquals(event.alarmDefinitionId, thresholdSpec.alarmDefinitionId);
+        assertEquals(event.alarmName, thresholdSpec.alarmName);
+        assertEquals(event.tenantId, thresholdSpec.alarmTenantId);
+        if (thresholdSpec.alarmId != null) {
+          assertEquals(event.alarmId, thresholdSpec.alarmId);
         }
         assertEquals(event.oldState, previousState);
         assertEquals(event.newState, expectedState);
-        assertEquals(event.metrics.size(), hasExtraMetric ? 3 : 2);
+        assertEquals(event.metrics.size(), thresholdSpec.hasExtraMetric ? 3 : 2);
         for (MetricDefinition md : event.metrics) {
           if (md.name.equals(cpuMetricDef.name)) {
             assertEquals(cpuMetricDef, md);
-          }
-          else if (md.name.equals(memMetricDef.name)) {
+          } else if (md.name.equals(logErrorMetricDef.name)) {
+            assertEquals(logErrorMetricDef, md);
+          } else if (md.name.equals(logWarningMetricDef.name)) {
+            assertEquals(logWarningMetricDef, md);
+          } else if (md.name.equals(memMetricDef.name)) {
             if (md.dimensions.size() == extraMemMetricDefDimensions.size()) {
               assertEquals(extraMemMetricDefDimensions, md.dimensions);
             }
-            else if (hasExtraMetric) {
+            else if (thresholdSpec.hasExtraMetric) {
               assertEquals(memMetricDef, md);
             }
             else {
@@ -257,14 +416,7 @@ public class ThresholdingEngineTest extends TopologyTestCase {
         System.out.println("Feeding metrics...");
 
         long time = System.currentTimeMillis();
-        final MetricDefinitionAndTenantId cpuMtid = new MetricDefinitionAndTenantId(cpuMetricDef,
-            TEST_ALARM_TENANT_ID);
-        metricSpout.feed(new Values(new TenantIdAndMetricName(cpuMtid), time, new Metric(cpuMetricDef.name, cpuMetricDef.dimensions,
-            time, (double) (++goodValueCount == 15 ? 1 : 555), null)));
-        final MetricDefinitionAndTenantId memMtid = new MetricDefinitionAndTenantId(memMetricDef,
-            TEST_ALARM_TENANT_ID);
-        metricSpout.feed(new Values(new TenantIdAndMetricName(memMtid), time, new Metric(memMetricDef.name, extraMemMetricDefDimensions,
-            time, (double) (goodValueCount == 15 ? 1 : 555), null)));
+        goodValueCount = this.feedMetrics(thresholdSpec, goodValueCount, time);
 
         if (--feedCount == 0) {
           waitCount = 3;
@@ -302,4 +454,66 @@ public class ThresholdingEngineTest extends TopologyTestCase {
     assertTrue(alarmsSent > 0, "Not enough alarms");
     System.out.println("All expected Alarms received");
   }
+
+  private int feedMetrics(final ThresholdSpec thresholdSpec, int goodValueCount, final long time) {
+
+    final MetricDefinitionAndTenantId cpuMtid = new MetricDefinitionAndTenantId(cpuMetricDef,
+        thresholdSpec.alarmTenantId);
+    metricSpout.feed(new Values(new TenantIdAndMetricName(cpuMtid), time, new Metric(cpuMetricDef.name, cpuMetricDef.dimensions,
+        time, (double) (++goodValueCount == 15 ? 1 : 555), null)));
+
+    final MetricDefinitionAndTenantId memMtid = new MetricDefinitionAndTenantId(memMetricDef,
+      thresholdSpec.alarmTenantId);
+    metricSpout.feed(new Values(new TenantIdAndMetricName(memMtid), time, new Metric(memMetricDef.name, extraMemMetricDefDimensions,
+        time, (double) (goodValueCount == 15 ? 1 : 555), null)));
+
+    final MetricDefinitionAndTenantId logErrorMtid = new MetricDefinitionAndTenantId(logErrorMetricDef,
+      thresholdSpec.alarmTenantId);
+    metricSpout.feed(new Values(new TenantIdAndMetricName(logErrorMtid), time, new Metric(logErrorMetricDef.name, logErrorMetricDef.dimensions,
+      time, (double) (goodValueCount == 15 ? 1 : 555), null)));
+
+    final MetricDefinitionAndTenantId logWarningMtid = new MetricDefinitionAndTenantId(logWarningMetricDef,
+      thresholdSpec.alarmTenantId);
+    metricSpout.feed(new Values(new TenantIdAndMetricName(logWarningMtid), time, new Metric(logWarningMetricDef.name, logWarningMetricDef.dimensions,
+      time, (double) (goodValueCount == 15 ? 1 : 555), null)));
+
+    return goodValueCount;
+  }
+
+  private  class ThresholdSpec {
+    String alarmDefinitionId;
+    String alarmId;
+    String alarmName;
+    String alarmDescription;
+    String alarmTenantId;
+    boolean hasExtraMetric;
+    boolean isDeterministic;
+
+    ThresholdSpec(final String alarmDefinitionId,
+                  final String alarmId,
+                  final String alarmName,
+                  final String alarmDescription,
+                  final String alarmTenantId) {
+      this(alarmDefinitionId, alarmId, alarmName, alarmDescription, alarmTenantId, false);
+    }
+
+    ThresholdSpec(final String alarmDefinitionId,
+                  final String alarmId,
+                  final String alarmName,
+                  final String alarmDescription,
+                  final String alarmTenantId,
+                  final boolean hasExtraMetric) {
+      this.alarmDefinitionId = alarmDefinitionId;
+      this.alarmId = alarmId;
+      this.alarmName = alarmName;
+      this.alarmDescription = alarmDescription;
+      this.alarmTenantId = alarmTenantId;
+      this.hasExtraMetric = hasExtraMetric;
+
+      this.isDeterministic = alarmDefinitionId.equals(deterministicAlarmDefinition.getId());
+
+    }
+
+  }
+
 }

@@ -57,8 +57,12 @@ public class AlarmDAOImplTest {
   private static String ALARM_NAME = "90% CPU";
   private static String ALARM_DESCR = "Description for " + ALARM_NAME;
   private static Boolean ALARM_ENABLED = Boolean.TRUE;
+  private static String DETERMINISTIC_ALARM_NAME = "count(log.error)";
+  private static String DETERMINISTIC_ALARM_DESCRIPTION = "Description for " + ALARM_NAME;
+  private static Boolean DETERMINISTIC_ALARM_ENABLED = Boolean.TRUE;
   private MetricDefinitionAndTenantId newMetric;
 
+  private AlarmDefinition deterministicAlarmDef;
   private AlarmDefinition alarmDef;
 
   private DBI db;
@@ -96,6 +100,18 @@ public class AlarmDAOImplTest {
         new AlarmDefinition(TENANT_ID, ALARM_NAME, ALARM_DESCR, new AlarmExpression(
             expr), "LOW", ALARM_ENABLED, new ArrayList<String>());
     AlarmDefinitionDAOImplTest.insertAlarmDefinition(handle, alarmDef);
+
+    final String deterministicExpr = "count(log.error{path=/var/log/test},deterministic,20) > 5";
+    this.deterministicAlarmDef = new AlarmDefinition(
+        TENANT_ID,
+        DETERMINISTIC_ALARM_NAME,
+        DETERMINISTIC_ALARM_DESCRIPTION,
+        new AlarmExpression(deterministicExpr),
+        "HIGH",
+        DETERMINISTIC_ALARM_ENABLED,
+        new ArrayList<String>()
+    );
+    AlarmDefinitionDAOImplTest.insertAlarmDefinition(handle, this.deterministicAlarmDef);
 
     final Map<String, String> dimensions = new HashMap<String, String>();
     dimensions.put("first", "first_value");
@@ -233,5 +249,26 @@ public class AlarmDAOImplTest {
     assertEquals(1, handle.select("select * from metric_definition_dimensions").size());
     List<Map<String, Object>> rows = handle.select("select * from metric_dimension");
     assertEquals(2, rows.size());
+  }
+
+  public void shouldPersistDeterministic() {
+    final Alarm alarm1 = new Alarm(this.deterministicAlarmDef);
+    final MetricDefinition definition = this.deterministicAlarmDef
+        .getSubExpressions()
+        .get(0)
+        .getAlarmSubExpression()
+        .getMetricDefinition();
+    final MetricDefinitionAndTenantId mtid = new MetricDefinitionAndTenantId(
+        definition,
+        TENANT_ID
+    );
+
+    alarm1.addAlarmedMetric(mtid);
+    dao.createAlarm(alarm1);
+
+    final Alarm byId = dao.findById(alarm1.getId());
+
+    assertEquals(byId, alarm1);
+    assertEquals(1, byId.getDeterministicSubAlarms().size());
   }
 }

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2014,2016 Hewlett Packard Enterprise Development Company, L.P.
+ * Copyright 2016 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +33,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
+import com.google.common.base.Predicate;
+import com.google.common.collect.FluentIterable;
+import com.google.common.collect.Lists;
+
 /**
  * An alarm comprised of sub-alarms.
  *
@@ -39,6 +46,12 @@ import java.util.UUID;
  *
  */
 public class Alarm extends AbstractEntity {
+  private static final Predicate<SubAlarm> DETERMINISTIC_PREDICATE = new Predicate<SubAlarm>() {
+    @Override
+    public boolean apply(@Nullable final SubAlarm input) {
+      return input != null && input.isDeterministic();
+    }
+  };
   private Map<String, SubAlarm> subAlarms;
   private Set<MetricDefinitionAndTenantId> alarmedMetrics = new HashSet<>();
   private AlarmState state;
@@ -50,7 +63,7 @@ public class Alarm extends AbstractEntity {
   public Alarm() {
   }
 
-  public Alarm(AlarmDefinition alarmDefinition, AlarmState state) {
+  public Alarm(AlarmDefinition alarmDefinition) {
     this.id = UUID.randomUUID().toString();
     List<SubExpression> subExpressions = alarmDefinition.getSubExpressions();
     final List<SubAlarm> subAlarms = new ArrayList<>(subExpressions.size());
@@ -58,8 +71,13 @@ public class Alarm extends AbstractEntity {
       subAlarms.add(new SubAlarm(UUID.randomUUID().toString(), id, subExpr));
     }
     setSubAlarms(subAlarms);
-    this.state = state;
+    this.state = SubAlarm.getDefaultState(this.isDeterministic());
     this.alarmDefinitionId = alarmDefinition.getId();
+  }
+
+  public Alarm(AlarmDefinition alarmDefinition, AlarmState state) {
+    this(alarmDefinition);
+    this.state = state; // override state detected from expression, for test purposes
   }
 
   public String buildStateChangeReason(AlarmState alarmState) {
@@ -132,11 +150,15 @@ public class Alarm extends AbstractEntity {
   }
 
   /**
-   * Evaluates the {@code alarm}, updating the alarm's state if necessary and returning true if the
-   * alarm's state changed, else false.
+   * Evaluates the {@code alarm}, updating the alarm's state if necessary.
+   *
+   * @param expression expression to evaluate
+   *
+   * @return {@link Boolean#TRUE} if alarm's state has changed, {@link Boolean#FALSE} otherwise
    */
   public boolean evaluate(AlarmExpression expression) {
     transitionSubAlarms.clear();
+
     AlarmState initialState = state;
     boolean uninitialized = false;
 
@@ -153,16 +175,18 @@ public class Alarm extends AbstractEntity {
       if (AlarmState.UNDETERMINED.equals(initialState)) {
         return false;
       }
+
       state = AlarmState.UNDETERMINED;
       stateChangeReason = buildStateChangeReason(state);
       return true;
     }
 
-    Map<AlarmSubExpression, Boolean> subExpressionValues =
-        new HashMap<AlarmSubExpression, Boolean>();
+    Map<AlarmSubExpression, Boolean> subExpressionValues = new HashMap<>(subAlarms.size());
     for (SubAlarm subAlarm : subAlarms.values()) {
-      subExpressionValues.put(subAlarm.getExpression(),
-          AlarmState.ALARM.equals(subAlarm.getState()));
+      subExpressionValues.put(
+          subAlarm.getExpression(),
+          AlarmState.ALARM.equals(subAlarm.getState())
+      );
     }
 
     // Handle ALARM state
@@ -230,7 +254,7 @@ public class Alarm extends AbstractEntity {
   }
 
   public void setSubAlarms(List<SubAlarm> subAlarms) {
-    this.subAlarms = new HashMap<String, SubAlarm>();
+    this.subAlarms = new HashMap<>();
     for (SubAlarm subAlarm : subAlarms) {
       this.subAlarms.put(subAlarm.getId(), subAlarm);
     }
@@ -294,4 +318,42 @@ public class Alarm extends AbstractEntity {
   public void setTransitionSubAlarms(List<AlarmTransitionSubAlarm> transitionSubAlarms) {
     this.transitionSubAlarms = transitionSubAlarms;
   }
+
+  /**
+   * Returns list of sub alarms which are deterministic.
+   *
+   * @return list of deterministic {@link SubAlarm}
+   *
+   * @see SubAlarm#isDeterministic()
+   * @see #isDeterministic()
+   */
+  public List<SubAlarm> getDeterministicSubAlarms() {
+    if (this.subAlarms == null || this.subAlarms.isEmpty()) {
+      return Lists.newArrayList();
+    }
+    return FluentIterable.from(this.getSubAlarms())
+        .filter(DETERMINISTIC_PREDICATE)
+        .toList();
+  }
+
+  /**
+   * Verifies if given alarm is deterministic.
+   *
+   * All sub alarms need to be deterministic for entire
+   * alarm to be such. Otherwise alarm is non-deterministic
+   * (i.e. if at least one sub alarm is non-deterministic).
+   *
+   * @return true/false
+   *
+   * @see SubAlarm#isDeterministic()
+   */
+  public boolean isDeterministic() {
+    for (final SubAlarm subAlarm : this.subAlarms.values()) {
+      if (!subAlarm.isDeterministic()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
 }

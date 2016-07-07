@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * (C) Copyright 2014-2016 Hewlett Packard Enterprise Development Company LP.
+ * Copyright 2016 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -120,23 +121,33 @@ public class SubAlarmStats {
    * @param alarmDelay How long to give metrics a chance to arrive
    */
   boolean evaluate(final long now, long alarmDelay) {
-
+    final boolean shouldEvaluate = this.stats.shouldEvaluate(now, alarmDelay);
     final AlarmState newState;
+
     if (immediateAlarmEvaluate()) {
       newState = AlarmState.ALARM;
-    }
-    else {
-      if (!stats.shouldEvaluate(now, alarmDelay)) {
+    } else {
+      if (!shouldEvaluate) {
         return false;
       }
-      newState = determineAlarmStateUsingView();
+      newState = this.determineAlarmStateUsingView();
     }
-    if (shouldSendStateChange(newState) &&
-        (stats.shouldEvaluate(now, alarmDelay) ||
-         (newState == AlarmState.ALARM && this.subAlarm.canEvaluateImmediately()))) {
+
+    final boolean shouldSendStateChange = this.shouldSendStateChange(newState);
+    final boolean immediateAlarmTransition =
+        newState == AlarmState.ALARM && this.subAlarm.canEvaluateImmediately();
+
+    if (shouldSendStateChange && (shouldEvaluate || immediateAlarmTransition)) {
+      logger.debug("SubAlarm[deterministic={}] {} transitions from {} to {}",
+          this.getSubAlarm().isDeterministic(),
+          this.getSubAlarm().getId(),
+          this.getSubAlarm().getState(),
+          newState
+      );
       setSubAlarmState(newState);
       return true;
     }
+
     return false;
   }
 
@@ -165,14 +176,35 @@ public class SubAlarmStats {
       return AlarmState.ALARM;
     }
 
+    final boolean isDeterministic = this.subAlarm.isDeterministic();
+
     // Window is empty at this point
-    emptyWindowObservations++;
-    if ((emptyWindowObservations >= emptyWindowObservationThreshold)
-        && shouldSendStateChange(AlarmState.UNDETERMINED) && !subAlarm.isSporadicMetric()) {
-      return AlarmState.UNDETERMINED;
+    this.emptyWindowObservations++;
+    final boolean useDefaultState;
+    if (isDeterministic) {
+      useDefaultState = true;
+    }
+    else {
+      useDefaultState = this.emptyWindowObservations >= this.emptyWindowObservationThreshold;
     }
 
-    // Hasn't transitioned to UNDETERMINED yet, so use the current state
+    if (useDefaultState) {
+      final AlarmState state = SubAlarm.getDefaultState(isDeterministic);
+      if (this.shouldSendStateChange(state)) {
+        logger.debug(
+            "SubAlarm[deterministic={}] {} exceeded empty window threshold {}, transition to {} from {}",
+            isDeterministic,
+            this.subAlarm.getId(),
+            this.emptyWindowObservationThreshold,
+            state,
+            this.subAlarm.getState()
+        );
+        return state;
+      }
+
+    }
+
+    // Hasn't transitioned to default state yet, so use the current state
     return null;
   }
 

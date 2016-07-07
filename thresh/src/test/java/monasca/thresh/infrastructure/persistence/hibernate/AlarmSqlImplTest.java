@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 FUJITSU LIMITED
+ * Copyright 2016 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -18,13 +18,18 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 import static org.testng.AssertJUnit.assertNull;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.beust.jcommander.internal.Lists;
 import com.beust.jcommander.internal.Maps;
+import org.hibernate.SessionFactory;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
+
 import monasca.common.model.alarm.AggregateFunction;
 import monasca.common.model.alarm.AlarmExpression;
 import monasca.common.model.alarm.AlarmState;
@@ -35,11 +40,6 @@ import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
 import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.service.AlarmDAO;
-
-import org.hibernate.SessionFactory;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
 
 /**
  * Test scenarios for AlarmSqlRepoImpl.
@@ -53,8 +53,12 @@ public class AlarmSqlImplTest {
   private static String ALARM_NAME = "90% CPU";
   private static String ALARM_DESCR = "Description for " + ALARM_NAME;
   private static Boolean ALARM_ENABLED = Boolean.TRUE;
+  private static String DETERMINISTIC_ALARM_NAME = "count(log.error)";
+  private static String DETERMINISTIC_ALARM_DESCRIPTION = "Description for " + ALARM_NAME;
+  private static Boolean DETERMINISTIC_ALARM_ENABLED = Boolean.TRUE;
   private MetricDefinitionAndTenantId newMetric;
   private AlarmDefinition alarmDef;
+  private AlarmDefinition deterministicAlarmDef;
 
   private SessionFactory sessionFactory;
   private AlarmDAO dao;
@@ -73,9 +77,29 @@ public class AlarmSqlImplTest {
   }
 
   protected void prepareData() {
-    final String expr = "avg(load{first=first_value}) > 10 and max(cpu) < 90";
-    alarmDef = new AlarmDefinition(TENANT_ID, ALARM_NAME, ALARM_DESCR, new AlarmExpression(expr), "LOW", ALARM_ENABLED, new ArrayList<String>());
-    HibernateUtil.insertAlarmDefinition(this.sessionFactory.openSession(), alarmDef);
+    this.alarmDef = new AlarmDefinition(
+        TENANT_ID,
+        ALARM_NAME,
+        ALARM_DESCR,
+        new AlarmExpression("avg(load{first=first_value}) > 10 and max(cpu) < 90"),
+        "LOW",
+        ALARM_ENABLED,
+        Lists.<String>newArrayList()
+    );
+    this.deterministicAlarmDef = new AlarmDefinition(
+        TENANT_ID,
+        DETERMINISTIC_ALARM_NAME,
+        DETERMINISTIC_ALARM_DESCRIPTION,
+        new AlarmExpression("count(log.error{path=/var/log/test},deterministic,20) > 5"),
+        "HIGH",
+        DETERMINISTIC_ALARM_ENABLED,
+        Lists.<String>newArrayList()
+    );
+
+    HibernateUtil.insertAlarmDefinition(this.sessionFactory.openSession(),
+        this.alarmDef);
+    HibernateUtil.insertAlarmDefinition(this.sessionFactory.openSession(),
+        this.deterministicAlarmDef);
 
     final Map<String, String> dimensions = new HashMap<String, String>();
     dimensions.put("first", "first_value");
@@ -185,5 +209,45 @@ public class AlarmSqlImplTest {
     dao.deleteByDefinitionId(newAlarm.getAlarmDefinitionId());
 
     assertNull(dao.findById(newAlarm.getId()));
+  }
+
+  @Test(groups = "orm")
+  public void shouldFindNonDeterministicAlarmDefinition() {
+    final MetricDefinition definition = this.deterministicAlarmDef
+        .getSubExpressions()
+        .get(0)
+        .getAlarmSubExpression()
+        .getMetricDefinition();
+
+    final MetricDefinitionAndTenantId mtid = new MetricDefinitionAndTenantId(
+        definition,
+        TENANT_ID
+    );
+
+    // no alarms in the beginning
+    this.verifyAlarmList(dao.findForAlarmDefinitionId(this.deterministicAlarmDef.getId()));
+
+    // create two alarms
+    final Alarm firstAlarm = new Alarm(this.deterministicAlarmDef, AlarmState.OK);
+    final Alarm secondAlarm = new Alarm(this.deterministicAlarmDef, AlarmState.UNDETERMINED);
+
+    secondAlarm.addAlarmedMetric(mtid);
+    firstAlarm.addAlarmedMetric(mtid);
+
+    dao.createAlarm(secondAlarm);
+    dao.createAlarm(firstAlarm);
+
+    // and check
+    final List<Alarm> found = dao.findForAlarmDefinitionId(this.deterministicAlarmDef.getId());
+    this.verifyAlarmList(
+        found,
+        firstAlarm,
+        secondAlarm
+    );
+
+    // ensure deterministic has been saved
+    for (final Alarm alarm : found) {
+      assertEquals(1, alarm.getDeterministicSubAlarms().size());
+    }
   }
 }

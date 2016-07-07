@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * (C) Copyright 2014,2016 Hewlett Packard Enterprise Development Company LP.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,16 +22,14 @@ import monasca.common.model.event.AlarmDefinitionDeletedEvent;
 import monasca.common.model.event.AlarmDefinitionUpdatedEvent;
 import monasca.common.model.event.AlarmDeletedEvent;
 import monasca.common.model.event.AlarmUpdatedEvent;
-import monasca.common.streaming.storm.TupleDeserializer;
 import monasca.common.util.Serialization;
+import monasca.thresh.utils.TupleDeserializer;
 
-import backtype.storm.tuple.Fields;
-
+import org.apache.storm.tuple.Fields;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
-import java.io.UnsupportedEncodingException;
 import java.util.Collections;
 import java.util.List;
 
