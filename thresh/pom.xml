@@ -5,8 +5,8 @@
 
     <groupId>monasca</groupId>
     <artifactId>monasca-thresh</artifactId>
-    <version>2.0.0-SNAPSHOT</version>
-    <url>http://github.com/openstack/monasca-thresh</url>
+    <version>2.0.0</version>
+    <url>http://github.com/sapcc/monasca-thresh</url>
     <packaging>jar</packaging>
 
 <!--
@@ -18,11 +18,11 @@
     <properties>
         <gitRevision></gitRevision>
         <timestamp>${maven.build.timestamp}</timestamp>
-        <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss</maven.build.timestamp.format>
+        <maven.build.timestamp.format>yyyyMMddHHmm</maven.build.timestamp.format>
         <computedVersion>${project.version}-${timestamp}-${gitRevision}</computedVersion>
-        <computedName>${project.artifactId}-${computedVersion}</computedName>
-        <mon.common.version>1.1.0-SNAPSHOT</mon.common.version>
-        <storm.version>1.0.0</storm.version>
+        <computedName>${project.artifactId}_${computedVersion}</computedName>
+        <mon.common.version>1.1.0</mon.common.version>
+        <storm.version>1.0.1</storm.version>
         <postgresql.version>9.1-901.jdbc4</postgresql.version>
         <hikaricp.version>2.3.9</hikaricp.version>
         <reflections.version>0.9.9-RC1</reflections.version>
@@ -31,16 +31,16 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <timestamp>${maven.build.timestamp}</timestamp>
-        <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss</maven.build.timestamp.format>
-        <artifactNamedVersion>${project.artifactId}-${project.version}-${timestamp}-${buildNumber}
+        <maven.build.timestamp.format>yyyyMMddHHmm</maven.build.timestamp.format>
+        <artifactNamedVersion>${project.artifactId}_${project.version}-${timestamp}-${buildNumber}
         </artifactNamedVersion>
         <shadedJarName>${project.artifactId}-${project.version}-shaded
         </shadedJarName>
     </properties>
 
     <scm>
-        <connection>scm:git:git@github.com:openstack/monasca-thresh</connection>
-        <developerConnection>scm:git:git@github.com:openstack/monasca-thresh</developerConnection>
+        <connection>scm:git:git@github.com:sapcc/monasca-thresh</connection>
+        <developerConnection>scm:git:git@github.com:sapcc/monasca-thresh</developerConnection>
     </scm>
 
     <repositories>
@@ -196,7 +196,7 @@
                 <version>3.1</version>
                 <configuration>
                     <source>1.7</source>
-                    <target>1.7</target>
+                    <target>1.8</target>
                 </configuration>
             </plugin>
             <plugin>
@@ -342,7 +342,7 @@
                             <goal>jdeb</goal>
                         </goals>
                         <configuration>
-                            <deb>${project.basedir}/debs/binaries/${artifactNamedVersion}.deb</deb>
+                            <deb>${project.basedir}/debs/binaries/${artifactNamedVersion}_amd64.deb</deb>
                             <dataSet>
                                 <data>
                                     <type>file</type>
