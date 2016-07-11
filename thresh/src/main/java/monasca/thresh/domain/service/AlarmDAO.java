@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * (C) Copyright 2014-2016 Hewlett Packard Enterprise Development LP
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ public interface AlarmDAO {
   public List<Alarm> listAll();
 
   /** Updates the alarm state. */
-  void updateState(String id, AlarmState state);
+  void updateState(String id, AlarmState state, long msTimestamp);
 
   /** Adds a new AlarmedMetric to an Alarm */
   void addAlarmedMetric(String id, MetricDefinitionAndTenantId metricDefinition);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * (C) Copyright 2014-2016 Hewlett Packard Enterprise Development LP
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,9 +36,12 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.text.SimpleDateFormat;
+import java.util.TimeZone;
 import java.util.TreeMap;
 
 import javax.inject.Inject;
@@ -53,9 +56,12 @@ public class AlarmDAOImpl implements AlarmDAO {
 
   private final DBI db;
 
+  private final ThreadLocal<SimpleDateFormat> simpleDateFormatter;
+
   @Inject
   public AlarmDAOImpl(DBI db) {
     this.db = db;
+    this.simpleDateFormatter = new ThreadLocal<>();
   }
 
   @Override
@@ -241,16 +247,18 @@ public class AlarmDAOImpl implements AlarmDAO {
   public void createAlarm(Alarm alarm) {
     Handle h = db.open();
     try {
+      String timestamp = formatDateFromMillis(System.currentTimeMillis());
       h.begin();
       h.insert(
-          "insert into alarm (id, alarm_definition_id, state, state_updated_at, created_at, updated_at) values (?, ?, ?, NOW(), NOW(), NOW())",
-          alarm.getId(), alarm.getAlarmDefinitionId(), alarm.getState().toString());
+          "insert into alarm (id, alarm_definition_id, state, state_updated_at, created_at, updated_at) values (?, ?, ?, ?, ?, ?)",
+          alarm.getId(), alarm.getAlarmDefinitionId(), alarm.getState().toString(), timestamp,
+              timestamp, timestamp);
 
       for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
         h.insert(
-            "insert into sub_alarm (id, alarm_id, sub_expression_id, expression, created_at, updated_at) values (?, ?, ?, ?, NOW(), NOW())",
+            "insert into sub_alarm (id, alarm_id, sub_expression_id, expression, created_at, updated_at) values (?, ?, ?, ?, ?, ?)",
             subAlarm.getId(), subAlarm.getAlarmId(), subAlarm.getAlarmSubExpressionId(), subAlarm
-                .getExpression().getExpression());
+                .getExpression().getExpression(), timestamp, timestamp);
       }
       for (final MetricDefinitionAndTenantId md : alarm.getAlarmedMetrics()) {
         createAlarmedMetric(h, md, alarm.getId());
@@ -276,11 +284,12 @@ public class AlarmDAOImpl implements AlarmDAO {
   }
 
   @Override
-  public void updateState(String id, AlarmState state) {
+  public void updateState(String id, AlarmState state, long msTimestamp) {
 
     try (final Handle h = db.open()) {
-      h.createStatement("update alarm set state = :state, state_updated_at = NOW(), updated_at = NOW() where id = :id")
-          .bind("id", id).bind("state", state.toString()).execute();
+      String timestamp  = formatDateFromMillis(msTimestamp);
+      h.createStatement("update alarm set state = :state, state_updated_at = :timestamp, updated_at = :timestamp where id = :id")
+          .bind("id", id).bind("timestamp", timestamp).bind("state", state.toString()).execute();
     }
   }
 
@@ -302,6 +311,14 @@ public class AlarmDAOImpl implements AlarmDAO {
     try (Handle h = db.open()) {
       h.execute("delete from alarm where alarm_definition_id = :id", alarmDefinitionId);
     }
+  }
+
+  private String formatDateFromMillis(final long msTimestamp) {
+    if (simpleDateFormatter.get() == null) {
+      simpleDateFormatter.set(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS"));
+      simpleDateFormatter.get().setTimeZone(TimeZone.getTimeZone("GMT-0"));
+    }
+    return simpleDateFormatter.get().format(new Date(msTimestamp));
   }
 
   private MetricDefinition createMetricDefinitionFromRow(final Map<String, Object> row) {

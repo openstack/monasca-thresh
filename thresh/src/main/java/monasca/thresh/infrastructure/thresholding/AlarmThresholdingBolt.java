@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2014,2016 Hewlett Packard Enterprise Development Company LP.
+ * (C) Copyright 2014-2016 Hewlett Packard Enterprise Development LP
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -224,7 +224,8 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
                   alarm.getId());
       return;
     }
-    alarmDAO.updateState(alarm.getId(), alarm.getState());
+    long timestamp = getTimestamp();
+    alarmDAO.updateState(alarm.getId(), alarm.getState(), timestamp);
     final List<MetricDefinition> alarmedMetrics = new ArrayList<>(alarm.getAlarmedMetrics().size());
     for (final MetricDefinitionAndTenantId mdtid : alarm.getAlarmedMetrics()) {
       alarmedMetrics.add(mdtid.metricDefinition);
@@ -236,7 +237,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
             alarmDefinition.getDescription(), initialState, alarm.getState(),
             alarmDefinition.getSeverity(), alarm.getLink(), alarm.getLifecycleState(),
             alarmDefinition.isActionsEnabled(), stateChangeReason,
-            alarm.getTransitionSubAlarms(), getTimestamp());
+            alarm.getTransitionSubAlarms(), timestamp);
     try {
       alarmEventForwarder.send(Serialization.toJson(event));
     } catch (Exception ignore) {

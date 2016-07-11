@@ -1,5 +1,6 @@
 /*
  * Copyright 2016 FUJITSU LIMITED
+ * (C) Copyright 2016 Hewlett Packard Enterprise Development LP
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -145,7 +146,7 @@ public class AlarmSqlImplTest {
     final Alarm newAlarm = new Alarm(alarmDef, AlarmState.OK);
 
     dao.createAlarm(newAlarm);
-    dao.updateState(newAlarm.getId(), AlarmState.ALARM);
+    dao.updateState(newAlarm.getId(), AlarmState.ALARM, System.currentTimeMillis());
     assertEquals(dao.findById(newAlarm.getId()).getState(), AlarmState.ALARM);
   }
 
