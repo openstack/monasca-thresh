@@ -434,6 +434,17 @@ public class ThresholdingEngineAlarmTest extends TopologyTestCase {
       return updated;
     }
 
+    @Override
+    public void updateSubAlarmState(String subAlarmId, AlarmState subAlarmState) {
+      for (final Alarm alarm : alarms) {
+        for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
+          if (subAlarm.getId().equals(subAlarmId)) {
+            subAlarm.setState(subAlarmState);
+          }
+        }
+      }
+    }
+
     public boolean deleteAlarm(final Alarm toDelete) {
       for (final Alarm alarm : alarms) {
         if (alarm.getId().equals(toDelete.getId())) {

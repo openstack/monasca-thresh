@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2014-2016 Hewlett Packard Enterprise Development Company LP.
+ * (C) Copyright 2014-2016 Hewlett Packard Enterprise Development LP
  * Copyright 2016 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,13 +19,16 @@
 package monasca.thresh.infrastructure.thresholding;
 
 import monasca.common.model.metric.Metric;
+import monasca.common.util.Injector;
 import monasca.thresh.ThresholdingConfiguration;
 import monasca.thresh.domain.model.MetricDefinitionAndTenantId;
 import monasca.thresh.domain.model.SubAlarm;
 import monasca.thresh.domain.model.SubAlarmStats;
 import monasca.thresh.domain.model.SubExpression;
 import monasca.thresh.domain.model.TenantIdAndMetricName;
+import monasca.thresh.domain.service.AlarmDAO;
 import monasca.thresh.domain.service.SubAlarmStatsRepository;
+import monasca.thresh.infrastructure.persistence.PersistenceModule;
 import monasca.thresh.utils.Logging;
 import monasca.thresh.utils.Streams;
 import monasca.thresh.utils.Tuples;
@@ -72,9 +75,11 @@ public class MetricAggregationBolt extends BaseRichBolt {
   public static final String METRIC_AGGREGATION_CONTROL_STREAM = "MetricAggregationControl";
   public static final String[] METRIC_AGGREGATION_CONTROL_FIELDS = new String[] {"directive"};
   public static final String METRICS_BEHIND = "MetricsBehind";
-  private static final int MAX_SAVED_METRIC_AGE_SECONDS = 10;
 
   private final ThresholdingConfiguration config;
+  private DataSourceFactory dbConfig;
+  private transient AlarmDAO alarmDAO;
+
   final Map<MetricDefinitionAndTenantId, SubAlarmStatsRepository> metricDefToSubAlarmStatsRepos =
       new HashMap<>();
   private final Set<SubAlarmStats> subAlarmStatsSet = new HashSet<>();
@@ -85,8 +90,14 @@ public class MetricAggregationBolt extends BaseRichBolt {
   private boolean upToDate = true;
   private Map<MetricDefinitionAndTenantId, Metric> savedMetrics = new HashMap<>();
 
-  public MetricAggregationBolt(ThresholdingConfiguration config) {
+  public MetricAggregationBolt(ThresholdingConfiguration config, DataSourceFactory dbConfig) {
     this.config = config;
+    this.dbConfig = dbConfig;
+  }
+
+  public MetricAggregationBolt(ThresholdingConfiguration config, AlarmDAO alarmDAO) {
+    this.config = config;
+    this.alarmDAO = alarmDAO;
   }
 
   @Override
@@ -118,7 +129,8 @@ public class MetricAggregationBolt extends BaseRichBolt {
             final String subAlarmId = tuple.getString(4);
             if (EventProcessingBolt.DELETED.equals(eventType)) {
               handleAlarmDeleted(metricDefinitionAndTenantId, subAlarmId);
-            } else if (EventProcessingBolt.RESEND.equals(eventType)) {
+            } else if (EventProcessingBolt.RESEND.equals(eventType) ||
+                       EventProcessingBolt.UPDATED.equals(eventType)) {
               handleAlarmResend(metricDefinitionAndTenantId, subAlarmId);
             }
           } else if (EventProcessingBolt.METRIC_SUB_ALARM_EVENT_STREAM_ID.equals(tuple
@@ -167,6 +179,11 @@ public class MetricAggregationBolt extends BaseRichBolt {
     logger = LoggerFactory.getLogger(Logging.categoryFor(getClass(), context));
     logger.info("Preparing");
     this.collector = collector;
+
+    if (this.alarmDAO == null) {
+      Injector.registerIfNotBound(AlarmDAO.class, new PersistenceModule(this.dbConfig));
+      this.alarmDAO = Injector.getInstance(AlarmDAO.class);
+    }
   }
 
   /**
@@ -184,7 +201,7 @@ public class MetricAggregationBolt extends BaseRichBolt {
 
     for (SubAlarmStats stats : subAlarmStatsRepo.get()) {
       final long timestamp_secs = metricTimestampInSeconds(metric);
-      if (stats.getStats().addValue(metric.value, timestamp_secs)) {
+      if (stats.addValue(metric.value, timestamp_secs)) {
         logger.trace("Aggregated value {} at {} for {}. Updated {}", metric.value,
             metric.timestamp, metricDefinitionAndTenantId, stats.getStats());
         if (stats.evaluateAndSlideWindow(timestamp_secs, config.alarmDelay)) {
@@ -229,42 +246,14 @@ public class MetricAggregationBolt extends BaseRichBolt {
       logger.info("Did not evaluate SubAlarms because Metrics are not up to date");
       upToDate = true;
     }
-    cleanSavedMetrics();
-  }
-
-  /**
-   * Clean saved metrics since the SubAlarm should show up within seconds of
-   * the metric being received
-   */
-  private void cleanSavedMetrics() {
-    if (savedMetrics.isEmpty()) {
-      return;
-    }
-    final List<MetricDefinitionAndTenantId> toRemove = new ArrayList<>();
-    for (Map.Entry<MetricDefinitionAndTenantId, Metric> entry: savedMetrics.entrySet()) {
-      if (savedMetricTooOld(entry.getValue())) {
-        toRemove.add(entry.getKey());
-      }
-    }
-    logger.debug("Removing {} too old saved metrics", toRemove.size());
-    for (MetricDefinitionAndTenantId mdtid : toRemove) {
-      savedMetrics.remove(mdtid);
-    }
-  }
-
-  /**
-   * Check if a save Metric is too old
-   * @param Metric to check
-   * @return true if saved Metric is too old, false otherwise
-   */
-  private boolean savedMetricTooOld(final Metric metric) {
-    final long now = currentTimeSeconds();
-    final long age = metricTimestampInSeconds(metric) - now;
-    return age > MAX_SAVED_METRIC_AGE_SECONDS;
   }
 
   private void sendSubAlarmStateChange(SubAlarmStats subAlarmStats) {
     logger.debug("Alarm state changed for {}", subAlarmStats);
+    if (subAlarmStats.getSubAlarm().onlyImmediateEvaluation()) {
+      alarmDAO.updateSubAlarmState(subAlarmStats.getSubAlarm().getId(),
+                                   subAlarmStats.getSubAlarm().getState());
+    }
     collector.emit(new Values(subAlarmStats.getSubAlarm().getAlarmId(), duplicate(subAlarmStats
         .getSubAlarm())));
   }
@@ -332,11 +321,11 @@ public class MetricAggregationBolt extends BaseRichBolt {
     logger.info("Received AlarmCreatedEvent for {}", subAlarm);
     final SubAlarmStats newStats = addSubAlarm(metricDefinitionAndTenantId, subAlarm);
     // See if we have a saved metric for this SubAlarm. Add to the SubAlarm if we do.
-    // Because the Metric comes directly from the MetricFilterinBolt but the
+    // Because the Metric comes directly from the MetricFilteringBolt but the
     // SubAlarm comes from the AlarmCreationBolt, it is very likely that the
     // Metric arrives first
     final Metric metric = savedMetrics.get(metricDefinitionAndTenantId);
-    if (metric != null && !savedMetricTooOld(metric)) {
+    if (metric != null) {
       aggregateValues(metricDefinitionAndTenantId, metric);
       logger.trace("Aggregated saved value {} at {} for {}. Updated {}", metric.value,
           metric.timestamp, metricDefinitionAndTenantId, newStats.getStats());

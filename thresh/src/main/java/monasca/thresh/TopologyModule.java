@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2015-2016 Hewlett Packard Enterprise Development Company LP.
+ * (C) Copyright 2015-2016 Hewlett Packard Enterprise Development LP
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -159,7 +159,7 @@ public class TopologyModule extends AbstractModule {
     // Filtering / Event / Alarm Creation -> Aggregation
     builder
         .setBolt("aggregation-bolt",
-            new MetricAggregationBolt(config), config.aggregationBoltThreads)
+            new MetricAggregationBolt(config, config.database), config.aggregationBoltThreads)
         .fieldsGrouping("filtering-bolt", new Fields(MetricFilteringBolt.FIELDS[0]))
         .allGrouping("filtering-bolt", MetricAggregationBolt.METRIC_AGGREGATION_CONTROL_STREAM)
         .fieldsGrouping("filtering-bolt", AlarmCreationBolt.ALARM_CREATION_STREAM,

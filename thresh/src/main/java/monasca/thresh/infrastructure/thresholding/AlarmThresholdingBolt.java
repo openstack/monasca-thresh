@@ -207,7 +207,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
 
   private boolean allSubAlarmsHaveState(final Alarm alarm) {
     for (SubAlarm subAlarm : alarm.getSubAlarms()) {
-      if (subAlarm.isNoState()) {
+      if (subAlarm.isNoState() && !subAlarm.onlyImmediateEvaluation()) {
         return false;
       }
     }

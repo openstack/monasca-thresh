@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2014-2016 Hewlett Packard Enterprise Development Company LP.
+ * (C) Copyright 2014-2016 Hewlett Packard Enterprise Development LP
  * Copyright 2016 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -101,6 +101,11 @@ public class SubAlarmStats {
     return stats;
   }
 
+  public boolean addValue(double value, long timestamp) {
+    return this.getStats().addValue(value, timestamp,
+                                    this.getSubAlarm().onlyImmediateEvaluation());
+  }
+
   /**
    * Returns the SubAlarm.
    */
@@ -124,19 +129,28 @@ public class SubAlarmStats {
     final boolean shouldEvaluate = this.stats.shouldEvaluate(now, alarmDelay);
     final AlarmState newState;
 
+    final boolean immediateAlarmTransition;
     if (immediateAlarmEvaluate()) {
       newState = AlarmState.ALARM;
-    } else {
+      immediateAlarmTransition = true;
+    }
+    else if (immediateOkEvaluate()) {
+      newState = AlarmState.OK;
+      immediateAlarmTransition = true;
+    }
+    else {
       if (!shouldEvaluate) {
         return false;
       }
+      if (this.subAlarm.onlyImmediateEvaluation()) {
+        return false;
+      }
       newState = this.determineAlarmStateUsingView();
+      immediateAlarmTransition = false;
     }
-
+  
     final boolean shouldSendStateChange = this.shouldSendStateChange(newState);
-    final boolean immediateAlarmTransition =
-        newState == AlarmState.ALARM && this.subAlarm.canEvaluateImmediately();
-
+  
     if (shouldSendStateChange && (shouldEvaluate || immediateAlarmTransition)) {
       logger.debug("SubAlarm[deterministic={}] {} transitions from {} to {}",
           this.getSubAlarm().isDeterministic(),
@@ -209,7 +223,7 @@ public class SubAlarmStats {
   }
 
   private boolean immediateAlarmEvaluate() {
-    if (!this.subAlarm.canEvaluateImmediately()) {
+    if (!this.subAlarm.canEvaluateAlarmImmediately()) {
       return false;
     }
     // Check the future slots as well
@@ -234,6 +248,31 @@ public class SubAlarmStats {
           if (alarmRun == subAlarm.getExpression().getPeriods()) {
             return true;
           }
+        }
+      }
+    }
+    return false;
+  }
+
+  private boolean immediateOkEvaluate() {
+    if (!this.subAlarm.canEvaluateOkImmediately()) {
+      return false;
+    }
+    // Check the future slots as well
+    final double[] allValues = stats.getWindowValues();
+    subAlarm.clearCurrentValues();
+    for (final double value : allValues) {
+      if (Double.isNaN(value)) {
+        subAlarm.clearCurrentValues();
+      } else {
+        // Check if value is ALARM
+        if (subAlarm.getExpression().getOperator()
+            .evaluate(value, subAlarm.getExpression().getThreshold())) {
+          subAlarm.clearCurrentValues();
+        }
+        else {
+          subAlarm.addCurrentValue(value);
+          return true;
         }
       }
     }

@@ -51,4 +51,7 @@ public interface AlarmDAO {
 
   /** Deletes all alarms for the given AlarmDefinition */
   void deleteByDefinitionId(String alarmDefinitionId);
+
+  /** Update the state of the given SubAlarm */
+  void updateSubAlarmState(String subAlarmId, AlarmState subAlarmState);
 }

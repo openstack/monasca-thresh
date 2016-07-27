@@ -79,7 +79,8 @@ public class AlarmDAOImpl implements AlarmDAO {
     try (final Handle h = db.open()) {
 
       final String ALARMS_SQL =
-            "select a.id, a.alarm_definition_id, a.state, sa.id as sub_alarm_id, sa.expression, sa.sub_expression_id, ad.tenant_id from alarm a "
+            "select a.id, a.alarm_definition_id, a.state, sa.id as sub_alarm_id, sa.expression, "
+          + "sa.state as sub_alarm_state, sa.sub_expression_id, ad.tenant_id from alarm a "
           + "inner join sub_alarm sa on sa.alarm_id = a.id "
           + "inner join alarm_definition ad on a.alarm_definition_id = ad.id "
           + "where ad.deleted_at is null and %s "
@@ -113,8 +114,9 @@ public class AlarmDAOImpl implements AlarmDAO {
         final SubExpression subExpression =
             new SubExpression(getString(row, "sub_expression_id"), AlarmSubExpression.of(getString(
                 row, "expression")));
+        final AlarmState subAlarmState = AlarmState.valueOf(getString(row, "sub_alarm_state"));
         final SubAlarm subAlarm =
-            new SubAlarm(getString(row, "sub_alarm_id"), alarmId, subExpression);
+            new SubAlarm(getString(row, "sub_alarm_id"), alarmId, subExpression, subAlarmState);
         subAlarms.add(subAlarm);
         prevAlarmId = alarmId;
       }
@@ -256,9 +258,9 @@ public class AlarmDAOImpl implements AlarmDAO {
 
       for (final SubAlarm subAlarm : alarm.getSubAlarms()) {
         h.insert(
-            "insert into sub_alarm (id, alarm_id, sub_expression_id, expression, created_at, updated_at) values (?, ?, ?, ?, ?, ?)",
+            "insert into sub_alarm (id, alarm_id, sub_expression_id, expression, state, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?)",
             subAlarm.getId(), subAlarm.getAlarmId(), subAlarm.getAlarmSubExpressionId(), subAlarm
-                .getExpression().getExpression(), timestamp, timestamp);
+                .getExpression().getExpression(), subAlarm.getState().toString(), timestamp, timestamp);
       }
       for (final MetricDefinitionAndTenantId md : alarm.getAlarmedMetrics()) {
         createAlarmedMetric(h, md, alarm.getId());
@@ -304,6 +306,18 @@ public class AlarmDAOImpl implements AlarmDAO {
           .bind("expression", alarmSubExpression.getExpression())
           .bind("alarmSubExpressionId", alarmSubExpressionId).execute();
     }
+  }
+
+  @Override
+  public void updateSubAlarmState(String id, AlarmState subAlarmState) {
+    try (Handle h = db.open()) {
+      final String timestamp  = formatDateFromMillis(System.currentTimeMillis());
+      h.createStatement(
+              "update sub_alarm set state=:state, updated_at=:updated_at where id=:id")
+          .bind("state", subAlarmState.toString())
+          .bind("updated_at", timestamp)
+          .bind("id", id).execute();
+      }
   }
 
   @Override

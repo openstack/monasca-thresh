@@ -65,14 +65,15 @@ public class AlarmThresholdingBoltTest {
   private AlarmDefinition alarmDefinition;
   private Alarm alarm;
   private List<SubAlarm> subAlarms;
+  private SubAlarm lastSubAlarm = null;
   private AlarmEventForwarder alarmEventForwarder;
   private AlarmDAO alarmDAO;
   private AlarmDefinitionDAO alarmDefinitionDAO;
   private AlarmThresholdingBolt bolt;
   private OutputCollector collector;
-  private final String[] subExpressions = {"avg(cpu{instance_id=123,device=42}, 1) > 5",
-      "max(load{instance_id=123,device=42}, 1) > 8",
-      "sum(diskio{instance_id=123,device=42}, 1) > 5000"};
+  private final String[] subExpressions = {"avg(cpu{instance_id=123,device=42}) > 5",
+      "max(load{instance_id=123,device=42}) > 8",
+      "last(diskio{instance_id=123,device=42}) > 5000"};
 
   @BeforeMethod
   protected void beforeMethod() {
@@ -99,6 +100,14 @@ public class AlarmThresholdingBoltTest {
     final Map<String, String> config = new HashMap<>();
     final TopologyContext context = mock(TopologyContext.class);
     bolt.prepare(config, context, collector);
+
+    for (SubAlarm subAlarm : subAlarms) {
+      if (subAlarm.getExpression().getFunction().equals(AggregateFunction.LAST)) {
+        lastSubAlarm = subAlarm;
+      }
+    }
+    assertNotNull(lastSubAlarm, "Did not find a SubAlarm with Function of last");
+    lastSubAlarm.setState(AlarmState.OK);
   }
 
   /**
@@ -158,6 +167,50 @@ public class AlarmThresholdingBoltTest {
     verify(alarmDAO, times(1)).updateState(eq(alarmId), eq(AlarmState.OK), anyLong());
   }
 
+  /**
+   * Create a Alarm with all sub expressions. Send a SubAlarm with state set to ALARM for
+   * the first SubAlarm which is not the one with operator Last. That one is initialized to
+   * OK. Send OK for the other SubAlarm which is not the one with operator Last. Ensure
+   * that the Alarm was triggered to ALARM and sent.
+   *
+   * Since SubAlarms with the function last() are only sent when they change while all the other
+   * types are sent when they first achieve a state after startup, this test ensures
+   * that Alarms with more than one SubAlarm that has at least one function last() work correctly
+   * on startup
+   */
+  public void triggerAlarmWithLast() {
+
+    final String alarmId = alarm.getId();
+    when(alarmDAO.findById(alarmId)).thenReturn(alarm);
+    when(alarmDefinitionDAO.findById(alarmDefinition.getId())).thenReturn(alarmDefinition);
+    SubAlarm firstAlarmSubAlarm = null;
+    AlarmState sendState = AlarmState.ALARM;
+    for (SubAlarm subAlarm : subAlarms) {
+      if (lastSubAlarm != subAlarm) {
+        if (firstAlarmSubAlarm == null) {
+          firstAlarmSubAlarm = subAlarm;
+        }
+        emitSubAlarmStateChange(alarmId, subAlarm, sendState);
+        sendState = AlarmState.OK;
+      }
+    }
+    final String alarmJson =
+        "{\"alarm-transitioned\":{\"tenantId\":\""
+            + tenantId
+            + "\","
+            + "\"alarmId\":\"" + alarmId + "\","
+            + "\"alarmDefinitionId\":\"" + alarmDefinition.getId() + "\",\"metrics\":[],"
+            + "\"alarmName\":\"Test CPU Alarm\","
+            + "\"alarmDescription\":\"Description of Alarm\",\"oldState\":\"OK\",\"newState\":\"ALARM\","
+            + "\"actionsEnabled\":true,"
+            + "\"stateChangeReason\":\"Thresholds were exceeded for the sub-alarms: "
+            + firstAlarmSubAlarm.getExpression().getExpression() + " with the values: []\"," + "\"severity\":\"LOW\","
+            + "\"link\":null," + "\"lifecycleState\":null,"
+            + "\"subAlarms\":[" + buildSubAlarmJson(alarm.getSubAlarms()) + "],"
+            + "\"timestamp\":1395587091003}}";
+
+    verify(alarmEventForwarder, times(1)).send(alarmJson);
+    verify(alarmDAO, times(1)).updateState(eq(alarmId), eq(AlarmState.ALARM), anyLong());  }
   public void simpleAlarmUpdate() {
     // Now send an AlarmUpdatedEvent
     final AlarmState newState = AlarmState.OK;

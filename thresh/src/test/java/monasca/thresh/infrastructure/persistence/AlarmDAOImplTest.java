@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2014,2016 Hewlett Packard Enterprise Development  LP
+ * (C) Copyright 2014,2016 Hewlett Packard Enterprise Development LP
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ public class AlarmDAOImplTest {
   @BeforeClass
   protected void setupClass() throws Exception {
     // See class comment
-    db = new DBI("jdbc:mysql://192.168.10.4/mon", "monapi", "password");
+    db = new DBI("jdbc:mysql://192.168.10.6/mon", "monapi", "password");
     handle = db.open();
     dao = new AlarmDAOImpl(db);
   }

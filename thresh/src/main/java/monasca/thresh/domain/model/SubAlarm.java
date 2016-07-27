@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Hewlett-Packard Development Company, L.P.
+ * (C) Copyright 2014-2016 Hewlett Packard Enterprise Development LP
  * Copyright 2016 FUJITSU LIMITED
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -197,8 +197,11 @@ public class SubAlarm extends AbstractEntity implements Serializable {
     return true;
   }
 
-  public boolean canEvaluateImmediately() {
+  public boolean canEvaluateAlarmImmediately() {
     switch (this.getExpression().getFunction()) {
+      // LAST must be evaluated immediately
+      case LAST:
+       return true;
       // MIN never gets larger so if the operator is < or <=,
       // then they can be immediately evaluated
       case MIN:
@@ -222,6 +225,50 @@ public class SubAlarm extends AbstractEntity implements Serializable {
         }
       // SUM can increase on a positive measurement or decrease on a negative
       // AVG can't be computed until all the metrics have come in
+      default:
+        return false;
+    }
+  }
+
+  public boolean canEvaluateOkImmediately() {
+    switch (this.getExpression().getFunction()) {
+      // LAST must be evaluated immediately
+      case LAST:
+        return true;
+      // MIN never gets larger so if the operator is > or >=,
+      // then they can be immediately evaluated
+      case MIN:
+        switch(this.getExpression().getOperator()) {
+          case GT:
+          case GTE:
+            return true;
+          default:
+            return false;
+        }
+      // These two never get smaller so if the operator is < or <=,
+      // then they can be immediately evaluated
+      case MAX:
+      case COUNT:
+        switch(this.getExpression().getOperator()) {
+          case LT:
+          case LTE:
+            return true;
+          default:
+            return false;
+        }
+      // SUM can increase on a positive measurement or decrease on a negative
+      // AVG can't be computed until all the metrics have come in
+      default:
+        return false;
+    }
+  }
+
+  public boolean onlyImmediateEvaluation() {
+    switch (this.getExpression().getFunction()) {
+      // LAST must be evaluated immediately
+      case LAST:
+        return true;
+      // All others at this time can't be evaluated immediately
       default:
         return false;
     }
