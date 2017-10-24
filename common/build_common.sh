@@ -8,7 +8,7 @@ BRANCH=$3
 
 check_user() {
     ME=$1
-    if [ "${ME}" != "jenkins" ]; then
+    if [ "${ME}" != "zuul" ]; then
        echo "\nERROR: Download monasca-common and do a mvn install to install the monasca-commom jars\n" 1>&2
        exit 1
     fi
