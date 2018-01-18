@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2014-2016 Hewlett Packard Enterprise Development LP
+ * (C) Copyright 2014-2016,2018 Hewlett Packard Enterprise Development LP
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -241,7 +241,7 @@ public class AlarmThresholdingBolt extends BaseRichBolt {
     try {
       alarmEventForwarder.send(Serialization.toJson(event));
     } catch (Exception ignore) {
-      logger.debug("Failure sending alarm", ignore);
+      logger.error("Failure sending alarm", ignore);
     }
   }
 
