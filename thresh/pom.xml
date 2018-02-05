@@ -5,7 +5,7 @@
 
     <groupId>monasca</groupId>
     <artifactId>monasca-thresh</artifactId>
-    <version>2.2.0-SNAPSHOT</version>
+    <version>2.3.0-SNAPSHOT</version>
     <url>http://github.com/openstack/monasca-thresh</url>
     <packaging>jar</packaging>
 
@@ -122,11 +122,6 @@
             <groupId>monasca-common</groupId>
             <artifactId>monasca-common-kafka</artifactId>
             <version>${mon.common.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>mysql</groupId>
-            <artifactId>mysql-connector-java</artifactId>
-            <version>5.1.36</version>
         </dependency>
         <dependency>
             <groupId>org.drizzle.jdbc</groupId>
