@@ -84,4 +84,9 @@ limitations under the License.
 
 [storm-tutorial]: http://storm.incubator.apache.org/documentation/Tutorial.html
 
+# Third-Party Licenses
 
+Monasca-thresh uses third-party libraries or other resources that may
+be distributed under licenses different than the monasca-thresh software.
+Executing the [mvn package](https://github.com/openstack/monasca-thresh/blob/master/README.md#build)
+command a list of all third-party licenses will be generated in `target/generated-sources/license` directory.
