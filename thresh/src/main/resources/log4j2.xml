@@ -1,0 +1,26 @@
+<configuration monitorInterval="60" shutdownHook="disable">
+  <properties>
+    <property name="pattern">%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</property>
+  </properties>
+
+  <appenders>
+    <Console name="console" target="SYSTEM_OUT">
+      <PatternLayout>
+        <pattern>${pattern}</pattern>
+      </PatternLayout>
+    </Console>
+
+    <File name="FILE" fileName="${LOGDIR:-/tmp}/monasca-thresh.log">
+      <PatternLayout>
+        <pattern>${pattern}</pattern>
+      </PatternLayout>
+    </File>
+  </appenders>
+
+  <loggers>
+    <root level="info">
+      <appender-ref ref="console"/>
+      <appender-ref ref="FILE"/>
+    </root>
+  </loggers>
+</configuration>
