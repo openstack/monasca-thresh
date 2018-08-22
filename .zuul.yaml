@@ -1,0 +1,10 @@
+- project:
+    check:
+      jobs:
+        - legacy-monasca-thresh-maven-build
+    gate:
+      jobs:
+        - legacy-monasca-thresh-maven-build
+    post:
+      jobs:
+        - legacy-monasca-thresh-localrepo-upload
