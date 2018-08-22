@@ -9,3 +9,10 @@
             voting: false
         - monasca-tempest-java-postgresql:
             voting: false
+        - legacy-monasca-thresh-maven-build
+    gate:
+      jobs:
+        - legacy-monasca-thresh-maven-build
+    post:
+      jobs:
+        - legacy-monasca-thresh-localrepo-upload
