@@ -1,13 +1,13 @@
 - project:
     check:
       jobs:
-        - monasca-tempest-python-mysql:
+        - monasca-tempest-python-influxdb:
             voting: false
-        - monasca-tempest-python-postgresql:
+        - monasca-tempest-python-cassandra:
             voting: false
-        - monasca-tempest-java-mysql:
+        - monasca-tempest-java-influxdb:
             voting: false
-        - monasca-tempest-java-postgresql:
+        - monasca-tempest-java-cassandra:
             voting: false
         - legacy-monasca-thresh-maven-build
     gate:
