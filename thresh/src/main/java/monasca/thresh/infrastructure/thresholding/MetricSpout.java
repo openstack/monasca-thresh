@@ -60,6 +60,10 @@ public class MetricSpout extends KafkaSpout {
       logger.warn("Error parsing MetricEnvelope", re);
       return;
     }
+    if (null == metricEnvelope.meta) {
+      logger.warn("No tenant metadata error");
+      return;
+    }
     String tenantId = (String) metricEnvelope.meta.get("tenantId");
     if (tenantId == null) {
       logger.error("No tenantId so using default tenantId {} for Metric {}", DEFAULT_TENANT_ID,
