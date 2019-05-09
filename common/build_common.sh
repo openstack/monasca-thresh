@@ -23,7 +23,7 @@ fi
 
 # This should only be done on the stack forge system
 if [ "${BUILD_COMMON}" = "true" ]; then
-   git clone -b ${BRANCH} https://git.openstack.org/openstack/monasca-common
+   git clone -b ${BRANCH} https://opendev.org/openstack/monasca-common
    cd monasca-common
    ${MVN} clean
    ${MVN} install
