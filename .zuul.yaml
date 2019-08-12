@@ -16,3 +16,49 @@
     post:
       jobs:
         - legacy-monasca-thresh-localrepo-upload
+        - publish-monasca-thresh-docker-image
+    periodic:
+      jobs:
+        - publish-monasca-thresh-docker-image
+    release:
+      jobs:
+        - publish-monasca-thresh-docker-image
+
+
+- job:
+    name: publish-monasca-thresh-docker-image
+    parent: build-monasca-docker-image
+    post-run: playbooks/docker-publish.yml
+    required-projects:
+      - openstack/monasca-common
+    vars:
+      publisher: true
+    secrets:
+      - docker_hub_login_thresh
+
+- secret:
+    name: docker_hub_login_thresh
+    data:
+      user: !encrypted/pkcs1-oaep
+        - jxzi9zDetC5lVm8PWoU6D7q3YuGWKWgbM3PNjqmA7OkYg77QAuvzHpbX2rSQ7slWnmzco
+          fBJplZ/WKci4Uw5Kv0JAoury6MhFXcsSi8BgDqIY0KY2d+0wV5OM2NAAxn+GnvyoOqrAh
+          iEH6ltZ8SJ60p36ADlj8mh4fBP/pyMbY0Z7c1p1Drp7DpxzzR6Gyb7iUikepmggidgBYx
+          w1RUgV6PmTbKM8bdFAwBAcQE3jmCTOVvxbqph8+Jh2+Ln2eL0SZoHQW3IddjFrWpGcwjA
+          Qet/hUCkw/2bPDZZzJqzxIrNdWya252OW7aiN+VnqO++lebTKVtOYzVLyjgjSDUJw28Rq
+          GvSaKz+oJ9LFiNzHUrEk31cIdzzl3PLByn2Z4q4U8jmlx9xb6p1aJdJIfUGbk+/zynO0W
+          pG0ct/FUBfAckwsZNOvlWWRlfBnZ+3eDQRZevmN845z2I/R6xHf7Qql8TBXuDvmc0jtx/
+          6D5lg/qksXWOK9qPNLtHccBEv3tJDcLvUCNycxh2n+jf6WLDs+fOTgANFZGlS0htfH+lo
+          zoFYWuIHa1xxpt4s8DUDcodF5ZTQa4oLC1AueDLhuUz+MNPtWe+7J8YBDlSSheg4FTZEE
+          T7BE+x4WjxhJHsdiAi5oJwCHJiUcdET28ZfQMJMhOyCrCoMYNbkDUbjHBG8AdM=
+
+      password: !encrypted/pkcs1-oaep
+        - l+7i4CGGW5RyNUgmWqzq32pOtQetaVuXjkQn/EdIpi6cfMS1NhA02wrdTq04vtIA0zbkt
+          6prIUZSFtBshJEu6lDXS7IlvYJhEH+sd3CM4disBg/s/fOCF4nbJYG2ipoKcfYkY+llEB
+          6t7bMpgy+EZmSk0K24kzdoLYvafu9qitlhf1PDTqyjUnJRcsFyqUirDGReHBAGFv0mbBJ
+          flOGuqw/UbBWyPxcWnEml5P8e4mrsgPDuSbUeEX0WcKZjlnn73rsNxkPjcJOaACX2kEdY
+          QR3XqlzUOOy7ebwdwSSZ79ALK/ugRKmd2+UQU67ZpZm7uKCbYcPjjB1QWyeasWJ1Tg0kH
+          jjKHSdUPexdIHDJPan5dahrHeATVBgR+cFCPYdHKOcRLllFL15BEqmmNnO29kH/wkLi6K
+          AMQGUmpJ2ZhXiBlJN4DdB5liU7aMxASQ1AT3VQPZz046vFRhJ1EIlykqT+SUrIdHQt8uO
+          M5dLBju+FAK4nnq05bCRX/ynBnTJscAVjObOF13ojpuj0bxESM61WKUktsN/XpkjUOesd
+          JD0sFbmYyY4Iy0UxAkMhI3XfepA9rqlIKdL6z2UkrbZTc38U6qFEIH9HU8Xktgptt0Pn4
+          uNjLWUQL7+a/muwo0edambnO5eSYzKG/mZVKTqNTacsuDYIohQvsv7vsCzNKiw=
