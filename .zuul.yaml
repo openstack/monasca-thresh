@@ -10,6 +10,7 @@
         - monasca-tempest-java-cassandra:
             voting: false
         - legacy-monasca-thresh-maven-build
+        - build-monasca-docker-image
     gate:
       jobs:
         - legacy-monasca-thresh-maven-build
