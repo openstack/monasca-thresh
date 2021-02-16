@@ -22,9 +22,9 @@ storm.zookeeper.servers:
 {% endfor %}
 storm.zookeeper.port: {{ STORM_ZOOKEEPER_PORT | default('2181') }}
 storm.zookeeper.retry.interval: {{ STORM_ZOOKEEPER_RETRY_INTERVAL | default('5000') }}
-storm.zookeeper.retry.times: {{ STORM_ZOOKEEPER_RETRY_TIMES | default('60') }}
+storm.zookeeper.retry.times: {{ STORM_ZOOKEEPER_RETRY_TIMES | default('10') }}
 storm.zookeeper.root: {{ STORM_ZOOKEEPER_ROOT | default ('/storm') }}
-storm.zookeeper.session.timeout: {{ STORM_ZOOKEEPER_SESSION_TIMEOUT | default('3000') }}
+storm.zookeeper.session.timeout: {{ STORM_ZOOKEEPER_SESSION_TIMEOUT | default('20000') }}
 
 supervisor.slots.ports:
 {% for port in SUPERVISOR_SLOTS_PORTS.split(',') %}
