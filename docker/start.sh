@@ -1,4 +1,4 @@
-#!/bin/ash
+#!/bin/sh
 # shellcheck shell=dash
 
 if [ -n "$DEBUG" ]; then
@@ -9,7 +9,7 @@ CONFIG_TEMPLATES="/templates"
 CONFIG_DEST="/etc/monasca"
 LOG_TEMPLATES="/logging"
 LOG_DEST="/storm/log4j2"
-APACHE_STORM_DIR="/apache-storm-1.1.1"
+APACHE_STORM_DIR="/apache-storm-1.2.3"
 
 ZOOKEEPER_WAIT=${ZOOKEEPER_WAIT:-"true"}
 ZOOKEEPER_WAIT_TIMEOUT=${ZOOKEEPER_WAIT_TIMEOUT:-"3"}
