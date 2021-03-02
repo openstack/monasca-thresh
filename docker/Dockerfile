@@ -5,10 +5,11 @@ ARG APP_REPO=https://review.opendev.org/openstack/monasca-thresh
 ARG REPO_VERSION=master
 ARG CONSTRAINTS_BRANCH=master
 
-FROM storm:1.1.1
+FROM storm:1.2.3
 
 ENV \
     MAVEN_HOME="/usr/share/maven" \
+    JAVA_HOME="/usr/lib/jvm/java-8-openjdk-amd64" \
     ZOOKEEPER_SERVERS="zookeeper" \
     ZOOKEEPER_PORT="2181" \
     ZOOKEEPER_WAIT="true" \
@@ -59,14 +60,21 @@ ARG COMMON_REPO
 ARG COMMON_VERSION
 ARG COMMON_GIT_COMMIT
 
-SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
+SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
+
 RUN \
-    echo 'http://dl-cdn.alpinelinux.org/alpine/v3.8/main' > /etc/apk/repositories && \
-    echo 'http://dl-cdn.alpinelinux.org/alpine/v3.8/community' | tee -a /etc/apk/repositories && \
-    apk upgrade --purge && \
-    apk add --no-cache --virtual build-dep maven git py3-pip python3-dev git openjdk8 make g++ && \
-    apk add --no-cache python3 mysql-client && \
+    mkdir -p /usr/share/man/man1 && \
+    apt-get clean && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends iproute2 net-tools netcat unzip software-properties-common && \
+    apt-add-repository -y 'deb http://ftp.de.debian.org/debian sid main' && \
+    apt-add-repository -y 'deb http://security.debian.org/debian-security stretch/updates main' && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends openjdk-8-jdk -o APT::Immediate-Configure=0 && \
+    apt-get install -y --no-install-recommends maven git python3-pip && \
+    apt-get install -y --no-install-recommends python3 default-mysql-client && \
     mkdir /root/.m2 && \
+    pip3 install --no-cache-dir --upgrade setuptools && \
     pip3 install --no-cache-dir \
         jinja2 \
         pykafka \
@@ -103,14 +111,16 @@ RUN \
         "$COMMON_GIT_COMMIT" >> /VERSIONS && \
     printf "Constraints file: %s\\n" \
         "$CONSTRAINTS_FILE"?h="$CONSTRAINTS_BRANCH" >> /VERSIONS && \
-    apk del build-dep && \
+    apt-get remove -y apt-utils && \
+    apt-get remove -y maven git python3-pip software-properties-common && \
+    apt-get -y autoremove && \
     rm -rf \
         /app \
         /monasca-common \
         /root/.cache/ \
         /root/.m2/repository  \
         /tmp/* \
-        /var/cache/apk/* \
+        /var/cache/apt/* \
         /var/log/*
 
 ENTRYPOINT ["/start.sh"]

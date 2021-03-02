@@ -55,7 +55,9 @@ if sys.version_info.major != 3:
     sys.stdout.write("Sorry, requires Python 3.x\n")
     sys.exit(1)
 
-LOG_LEVEL = logging.getLevelName(os.environ.get('LOG_LEVEL', 'INFO'))
+logLevelEnv = os.environ.get('LOG_LEVEL', 'INFO')
+LOG_LEVEL = logging.getLevelName(logLevelEnv.upper())
+
 logging.basicConfig(level=LOG_LEVEL)
 
 logger = logging.getLogger(__name__)
