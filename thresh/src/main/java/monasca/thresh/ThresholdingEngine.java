@@ -102,7 +102,10 @@ public class ThresholdingEngine {
 
     if (local) {
       logger.info("submitting topology {} to local storm cluster", topologyName);
-      new LocalCluster().submitTopology(topologyName, config, topology);
+      new LocalCluster(
+          System.getenv("ZOOKEEPER_SERVERS"),
+          new Long(System.getenv("ZOOKEEPER_PORT"))
+      ).submitTopology(topologyName, config, topology);
     } else {
       logger.info("submitting topology {} to non-local storm cluster", topologyName);
       StormSubmitter.submitTopology(topologyName, config, topology);
