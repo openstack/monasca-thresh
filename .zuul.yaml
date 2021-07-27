@@ -18,9 +18,6 @@
       jobs:
         - legacy-monasca-thresh-localrepo-upload
         - publish-monasca-thresh-docker-image
-    periodic:
-      jobs:
-        - publish-monasca-thresh-docker-image
     release:
       jobs:
         - publish-monasca-thresh-docker-image
