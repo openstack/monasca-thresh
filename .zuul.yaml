@@ -7,35 +7,32 @@
             voting: false
         - monasca-tempest-java-influxdb:
             voting: false
-        - monasca-tempest-java-cassandra:
-            voting: false
         - legacy-monasca-thresh-maven-build
-        - build-monasca-docker-image
+#       - build-monasca-docker-image
     gate:
       jobs:
         - legacy-monasca-thresh-maven-build
     post:
       jobs:
         - legacy-monasca-thresh-localrepo-upload
-        - publish-monasca-thresh-docker-image
-    periodic:
-      jobs:
-        - publish-monasca-thresh-docker-image
-    release:
-      jobs:
-        - publish-monasca-thresh-docker-image
+#       - publish-monasca-thresh-docker-image
+#   periodic:
+#     jobs:
+#       - publish-monasca-thresh-docker-image
+#   release:
+#     jobs:
+#       - publish-monasca-thresh-docker-image
 
-
-- job:
-    name: publish-monasca-thresh-docker-image
-    parent: build-monasca-docker-image
-    post-run: playbooks/docker-publish.yml
-    required-projects:
-      - openstack/monasca-common
-    vars:
-      publisher: true
-    secrets:
-      - docker_hub_login_thresh
+# - job:
+#     name: publish-monasca-thresh-docker-image
+#     parent: build-monasca-docker-image
+#     post-run: playbooks/docker-publish.yml
+#     required-projects:
+#       - openstack/monasca-common
+#     vars:
+#       publisher: true
+#     secrets:
+#       - docker_hub_login_thresh
 
 - secret:
     name: docker_hub_login_thresh
