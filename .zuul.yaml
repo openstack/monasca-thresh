@@ -1,3 +1,16 @@
+- job:
+    name: monasca-thresh-localrepo-upload
+    parent: legacy-publish-openstack-artifacts
+    run: playbooks/legacy/monasca-thresh-localrepo-upload/run.yaml
+    post-run: playbooks/legacy/monasca-thresh-localrepo-upload/post.yaml
+    timeout: 1800
+
+- job:
+    name: monasca-thresh-maven-build
+    parent: legacy-base
+    run: playbooks/legacy/monasca-thresh-maven-build/run.yaml
+    timeout: 1800
+
 - project:
     check:
       jobs:
@@ -7,14 +20,14 @@
             voting: false
         - monasca-tempest-java-influxdb:
             voting: false
-        - legacy-monasca-thresh-maven-build
+        - monasca-thresh-maven-build
 #       - build-monasca-docker-image
     gate:
       jobs:
-        - legacy-monasca-thresh-maven-build
+        - monasca-thresh-maven-build
     post:
       jobs:
-        - legacy-monasca-thresh-localrepo-upload
+        - monasca-thresh-localrepo-upload
 #       - publish-monasca-thresh-docker-image
 #   periodic:
 #     jobs:
