@@ -1,9 +1,0 @@
-#!/bin/sh
-
-case "$1" in
-  remove)
-    service monasca-thresh stop
-  ;;
-esac
-
-exit 0
